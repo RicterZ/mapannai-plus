@@ -53,27 +53,32 @@ The MCP endpoint is at `src/app/api/mcp/route.ts` using `WebStandardStreamableHT
 
 **Image Upload** — Direct upload to Tencent COS via `src/lib/upload/direct-upload.ts` and `src/app/api/upload/route.ts`.
 
-**Authentication** — Optional static token auth via `src/middleware.ts`. Set `API_TOKEN` env var to enable; omit to skip (backwards-compatible). Token is read from three sources in priority order: `Authorization: Bearer <token>` header (frontend), `x-api-token` header (server-side HTTP calls), `?token=<token>` query param (MCP clients). Frontend stores the token in `localStorage` via `src/lib/auth.ts` and injects it automatically through `src/lib/fetch-with-auth.ts`. On first load or after a 401, `src/components/auth/auth-modal.tsx` prompts the user to enter the token.
+**Authentication** — Optional static token auth via `src/middleware.ts`. Set `API_TOKEN` env var to enable; omit to skip (backwards-compatible). Token is read from headers in priority order: `Authorization: Bearer <token>` (frontend and MCP clients), then `x-api-token` (server-side HTTP calls). Every MCP POST is authenticated; query tokens are not accepted. Frontend stores the token in `localStorage` via `src/lib/auth.ts` and injects it automatically through `src/lib/fetch-with-auth.ts`. On first load or after a 401, `src/components/auth/auth-modal.tsx` prompts the user to enter the token.
 
 ### MCP Integration
 
-Claude Desktop config (no auth):
+MCP client `.mcp.json` config (no auth):
 ```json
 {
   "mcpServers": {
     "mapannai": {
+      "type": "http",
       "url": "http://localhost:3000/api/mcp"
     }
   }
 }
 ```
 
-Claude Desktop config (with `API_TOKEN` set):
+MCP client `.mcp.json` config (with `API_TOKEN` set):
 ```json
 {
   "mcpServers": {
     "mapannai": {
-      "url": "http://localhost:3000/api/mcp?token=YOUR_TOKEN"
+      "type": "http",
+      "url": "http://localhost:3000/api/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN"
+      }
     }
   }
 }

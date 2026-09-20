@@ -66,16 +66,17 @@ The SQLite database is persisted to the `mapannai_data` Docker volume.
 
 ## MCP Integration
 
-MapAnNai exposes an MCP server at `/api/mcp`. Any MCP-compatible AI client can connect and operate the map.
+MapAnNai exposes an MCP server at `/api/mcp`. AI clients supporting Streamable HTTP can connect and operate the map. Authentication uses the `Authorization: Bearer <token>` header on every request.
 
-### Claude Desktop
+### Client configuration
 
-Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
+For clients using `.mcp.json` (such as Claude Code):
 
 ```json
 {
   "mcpServers": {
     "mapannai": {
+      "type": "http",
       "url": "http://localhost:3000/api/mcp"
     }
   }
@@ -88,7 +89,11 @@ With authentication (`API_TOKEN` set):
 {
   "mcpServers": {
     "mapannai": {
-      "url": "http://localhost:3000/api/mcp?token=YOUR_TOKEN"
+      "type": "http",
+      "url": "http://localhost:3000/api/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN"
+      }
     }
   }
 }

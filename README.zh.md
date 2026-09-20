@@ -65,16 +65,17 @@ SQLite 数据库持久化存储在 `mapannai_data` Docker Volume 中。
 
 ## MCP 接入（AI 助手操作地图）
 
-MapAnNai 在 `/api/mcp` 暴露 MCP 服务器，任何支持 MCP 协议的 AI 客户端均可接入。
+MapAnNai 在 `/api/mcp` 暴露 MCP 服务器，支持 Streamable HTTP 的 AI 客户端均可接入。启用鉴权后，每次请求通过 `Authorization: Bearer <token>` Header 传递 token。
 
-### Claude Desktop 配置
+### 客户端配置
 
-编辑 `~/Library/Application Support/Claude/claude_desktop_config.json`：
+使用 `.mcp.json` 的客户端（如 Claude Code）可配置为：
 
 ```json
 {
   "mcpServers": {
     "mapannai": {
+      "type": "http",
       "url": "http://localhost:3000/api/mcp"
     }
   }
@@ -87,7 +88,11 @@ MapAnNai 在 `/api/mcp` 暴露 MCP 服务器，任何支持 MCP 协议的 AI 客
 {
   "mcpServers": {
     "mapannai": {
-      "url": "http://localhost:3000/api/mcp?token=YOUR_TOKEN"
+      "type": "http",
+      "url": "http://localhost:3000/api/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_TOKEN"
+      }
     }
   }
 }
