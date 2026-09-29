@@ -12,6 +12,25 @@ export type RoutePath = RouteCoordinate[]
 const cachePrefix = 'mapannai_route_v1:'
 const inFlight = new Map<string, Promise<RoutePath>>()
 const memoryCache = new Map<string, RoutePath>()
+const requestSpacingMs = 1200
+let requestQueue: Promise<void> = Promise.resolve()
+let nextRequestAt = 0
+
+function wait(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+// All map views share this queue, so overview and day views cannot burst requests.
+function enqueueRequest<T>(request: () => Promise<T>): Promise<T> {
+    const queued = requestQueue.catch(() => {}).then(async () => {
+        const delay = Math.max(0, nextRequestAt - Date.now())
+        if (delay) await wait(delay)
+        nextRequestAt = Date.now() + requestSpacingMs
+        return request()
+    })
+    requestQueue = queued.then(() => {}, () => {})
+    return queued
+}
 
 export function routeCacheKey(provider: string, mode: RouteMode, segment: RouteSegment): string {
     const point = (p: RouteCoordinate) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`
@@ -33,20 +52,30 @@ export async function getPlannedRoute(provider: string, mode: RouteMode, segment
     if (cached) return cached
     const existing = inFlight.get(key)
     if (existing) return existing
-    const promise = (async () => {
-        const response = await fetchWithAuth('/api/directions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ origin: segment.origin, destination: segment.destination, mode }),
-        })
-        if (!response.ok) throw new Error('路线规划失败')
-        const data = await response.json()
-        const path = data.path as RoutePath
-        if (!Array.isArray(path) || path.length < 2 || !path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))) throw new Error('路线数据无效')
-        memoryCache.set(key, path)
-        try { localStorage.setItem(key, JSON.stringify(path)) } catch { /* storage full/private mode */ }
-        return path
-    })().finally(() => inFlight.delete(key))
+    const promise = enqueueRequest(async () => {
+        for (let attempt = 0; attempt < 4; attempt++) {
+            const response = await fetchWithAuth('/api/directions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ origin: segment.origin, destination: segment.destination, mode }),
+            })
+            const data = await response.json().catch(() => ({}))
+            if (!response.ok) {
+                const message = typeof data.error === 'string' ? data.error : '路线规划失败'
+                if (/CUQPS_HAS_EXCEEDED_THE_LIMIT|QPS_HAS_EXCEEDED_THE_LIMIT/i.test(message) && attempt < 3) {
+                    await wait(1500 * 2 ** attempt)
+                    continue
+                }
+                throw new Error(message)
+            }
+            const path = data.path as RoutePath
+            if (!Array.isArray(path) || path.length < 2 || !path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))) throw new Error('路线数据无效')
+            memoryCache.set(key, path)
+            try { localStorage.setItem(key, JSON.stringify(path)) } catch { /* storage full/private mode */ }
+            return path
+        }
+        throw new Error('路线规划请求超过频率限制')
+    }).finally(() => inFlight.delete(key))
     inFlight.set(key, promise)
     return promise
 }
