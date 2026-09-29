@@ -827,8 +827,10 @@ export const useMapStore = create<MapStore>()(
             deleteTripDay: async (tripId, dayId) => {
                 const response = await fetchWithAuth(`/api/trips/${tripId}/days/${dayId}`, { method: 'DELETE' })
                 if (!response.ok) throw new Error('删除天失败')
+                const { trip, days }: { trip: Trip; days: TripDay[] } = await response.json()
                 set(state => ({
-                    tripDays: state.tripDays.filter(d => d.id !== dayId),
+                    trips: state.trips.map(t => t.id === tripId ? trip : t),
+                    tripDays: [...state.tripDays.filter(d => d.tripId !== tripId), ...days],
                     activeView: state.activeView.dayId === dayId
                         ? { mode: 'trip', tripId, dayId: null }
                         : state.activeView,

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import {
     DndContext,
@@ -261,21 +262,13 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
     } = useMapStore()
 
     const [showCreateTrip, setShowCreateTrip] = useState(false)
-    const [confirmDeleteTripId, setConfirmDeleteTripId] = useState<string | null>(null)
-    const confirmDeleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const [pendingDeletion, setPendingDeletion] = useState<{ kind: 'day' | 'trip'; id: string } | null>(null)
+    const [deleting, setDeleting] = useState(false)
+    useEffect(() => {
+        if (!addMarkerEnabled) setPendingDeletion(null)
+    }, [addMarkerEnabled])
     // Edit mode: number of pending (empty) chain slots user has clicked "create"
     const [pendingEmptyChains, setPendingEmptyChains] = useState(0)
-
-    const startConfirmDelete = (tripId: string) => {
-        setConfirmDeleteTripId(tripId)
-        if (confirmDeleteTimerRef.current) clearTimeout(confirmDeleteTimerRef.current)
-        confirmDeleteTimerRef.current = setTimeout(() => setConfirmDeleteTripId(null), 3000)
-    }
-
-    const cancelConfirmDelete = () => {
-        if (confirmDeleteTimerRef.current) clearTimeout(confirmDeleteTimerRef.current)
-        setConfirmDeleteTripId(null)
-    }
     const [activeDragId, setActiveDragId] = useState<string | null>(null)
 
     const [editingTripName, setEditingTripName] = useState(false)
@@ -313,7 +306,7 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
         // 1. 当前内容淡出（150ms）
         setSlideState('exit')
         setBlockClicksSync(true)
-        cancelConfirmDelete()
+        setPendingDeletion(null)
 
         // 2. 内容切换 + 新内容淡入
         const t = setTimeout(() => {
@@ -641,13 +634,24 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
         if (window.innerWidth < 1024) closeLeftSidebar()
     }
 
-    const handleDeleteTrip = async (tripId: string) => {
+    const handleConfirmDeletion = async () => {
+        if (!pendingDeletion || deleting) return
+        setDeleting(true)
         try {
-            await deleteTrip(tripId)
-            toast.success('旅行已删除')
-            cancelConfirmDelete()
+            if (pendingDeletion.kind === 'trip') {
+                await deleteTrip(pendingDeletion.id)
+                toast.success('旅行已删除')
+            } else {
+                const day = tripDays.find(d => d.id === pendingDeletion.id)
+                if (!day) throw new Error('行程日不存在')
+                await useMapStore.getState().deleteTripDay(day.tripId, day.id)
+                toast.success('行程日已删除')
+            }
+            setPendingDeletion(null)
         } catch {
             toast.error('删除失败，请重试')
+        } finally {
+            setDeleting(false)
         }
     }
 
@@ -1020,15 +1024,6 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
             await updateTrip(activeView.tripId, { endDate: nextDate })
         }
 
-        const handleRemoveDay = async () => {
-            if (!activeView.tripId || !lastDay) return
-            if (currentTripDays.length <= 1) return // 至少保留一天
-            await useMapStore.getState().deleteTripDay(activeView.tripId, lastDay.id)
-            // 同步更新 endDate
-            const newLast = currentTripDays[currentTripDays.length - 2]
-            if (newLast) await updateTrip(activeView.tripId, { endDate: newLast.date })
-        }
-
         return (
         <div className="flex-1 overflow-y-auto custom-scrollbar">
             <div className="p-3">
@@ -1044,9 +1039,10 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                             .filter(Boolean) as typeof markers
                         return (
                             <React.Fragment key={day.id}>
+                            <div className="flex items-stretch rounded-xl border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 transition-colors">
                             <button
                                 onClick={() => { setBlockClicksSync(true); setActiveView('day', activeView.tripId, day.id) }}
-                                className="w-full flex items-center gap-3 px-3 py-3 border border-gray-200 rounded-xl bg-white hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+                                className="flex-1 min-w-0 flex items-center gap-3 px-3 py-3 text-left"
                             >
                                 <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center text-sm font-bold text-blue-600 flex-shrink-0">
                                     {idx + 1}
@@ -1069,6 +1065,17 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
                             </button>
+                            {addMarkerEnabled && <button
+                                type="button"
+                                disabled={currentTripDays.length <= 1 || deleting}
+                                onClick={() => setPendingDeletion({ kind: 'day', id: day.id })}
+                                className="flex-shrink-0 px-3 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-r-xl disabled:opacity-30 disabled:pointer-events-none"
+                                aria-label={`删除第${idx + 1}天 ${formatDate(day.date)}`}
+                                title="删除这一天"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>}
+                            </div>
                             {idx < currentTripDays.length - 1 && (
                                 <div className="flex justify-center py-0.5">
                                     <svg className="w-4 h-4 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1081,46 +1088,16 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                     })
                 )}
 
-                {/* 增减天数 + 删除旅行 */}
-                <div className="grid grid-cols-3 gap-2 mt-2">
-                    <button
-                        onClick={handleRemoveDay}
-                        disabled={currentTripDays.length <= 1}
-                        className="flex items-center justify-center py-2 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-red-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-30 disabled:pointer-events-none"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                        </svg>
+                {addMarkerEnabled && <div className="grid grid-cols-2 gap-2 mt-2">
+                    <button type="button" onClick={handleAddDay} className="flex items-center justify-center gap-1.5 py-2 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="新增一天">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                        <span className="text-xs">新增一天</span>
                     </button>
-                    <button
-                        onClick={handleAddDay}
-                        className="flex items-center justify-center py-2 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
+                    <button type="button" onClick={() => activeView.tripId && setPendingDeletion({ kind: 'trip', id: activeView.tripId })} className="flex items-center justify-center gap-1.5 py-2 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-red-300 hover:text-red-600 hover:bg-red-50 transition-colors" title="删除旅行">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        <span className="text-xs">删除旅行</span>
                     </button>
-                    {confirmDeleteTripId !== null && confirmDeleteTripId === displayTripId ? (
-                        <div className="grid grid-cols-2 gap-2">
-                            <button onClick={() => handleDeleteTrip(activeView.tripId!)} className="flex items-center justify-center py-2 rounded-xl border-2 border-red-300 text-red-500 hover:bg-red-50 transition-colors">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                            </button>
-                            <button onClick={() => cancelConfirmDelete()} className="flex items-center justify-center py-2 rounded-xl border-2 border-gray-200 text-gray-400 hover:bg-gray-50 transition-colors">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                            </button>
-                        </div>
-                    ) : (
-                        <button
-                            onClick={() => startConfirmDelete(activeView.tripId!)}
-                            className="flex items-center justify-center py-2 rounded-xl border-2 border-dashed border-gray-200 text-gray-400 hover:border-red-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                            title="删除旅行"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                        </button>
-                    )}
-                </div>
+                </div>}
             </div>
         </div>
         )
@@ -1401,6 +1378,28 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
             </div>
 
             <CreateTripModal isOpen={showCreateTrip} onClose={() => setShowCreateTrip(false)} />
+            {pendingDeletion && createPortal((() => {
+                const isTrip = pendingDeletion.kind === 'trip'
+                const trip = trips.find(t => t.id === (isTrip ? pendingDeletion.id : tripDays.find(d => d.id === pendingDeletion.id)?.tripId))
+                const days = tripDays.filter(d => d.tripId === trip?.id).sort((a, b) => a.date.localeCompare(b.date))
+                const dayIndex = days.findIndex(d => d.id === pendingDeletion.id)
+                const day = days[dayIndex]
+                if (!trip || (!isTrip && !day)) return null
+                return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4" onMouseDown={event => { if (!deleting && event.target === event.currentTarget) setPendingDeletion(null) }} onKeyDown={event => { if (event.key === 'Escape' && !deleting) setPendingDeletion(null) }}>
+                    <div role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+                        <h3 id="delete-confirm-title" className="text-base font-semibold text-gray-900">{isTrip ? `删除「${trip.name}」？` : `删除第${dayIndex + 1}天？`}</h3>
+                        <p className="mt-2 text-sm text-gray-600">
+                            {isTrip
+                                ? `这次旅行和其中 ${days.length} 天的行程安排将被删除。地图标记仍会保留。`
+                                : `${formatDate(day.date)}${day.title ? ` · ${day.title}` : ''} 的行程安排将被删除。后续日期会前移一天，地图标记仍会保留。`}
+                        </p>
+                        <div className="mt-5 flex justify-end gap-2">
+                            <button type="button" autoFocus onClick={() => setPendingDeletion(null)} disabled={deleting} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600">取消</button>
+                            <button type="button" onClick={handleConfirmDeletion} disabled={deleting} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50">{deleting ? '删除中…' : '确认删除'}</button>
+                        </div>
+                    </div>
+                </div>
+            })(), document.body)}
         </>
     )
 }

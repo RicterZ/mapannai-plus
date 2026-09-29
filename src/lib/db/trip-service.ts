@@ -95,6 +95,31 @@ export function deleteTripDay(dayId: string): void {
     getDb().prepare(`DELETE FROM trip_days WHERE id = ?`).run(dayId)
 }
 
+export function removeTripDayAndCloseGap(tripId: string, dayId: string): { trip: Trip; days: TripDay[] } {
+    const db = getDb()
+    return db.transaction(() => {
+        const trip = getTripById(tripId)
+        if (!trip) throw new Error('旅行不存在')
+        const days = getTripDays(tripId)
+        if (days.length <= 1) throw new Error('行程至少保留一天')
+        if (!days.some(day => day.id === dayId)) throw new Error('行程日不存在')
+
+        db.prepare('DELETE FROM trip_days WHERE id = ? AND trip_id = ?').run(dayId, tripId)
+        const remaining = days.filter(day => day.id !== dayId)
+        const start = Date.parse(`${trip.startDate}T00:00:00Z`)
+        const dateAt = (index: number) => new Date(start + index * 86400000).toISOString().slice(0, 10)
+        const updateDay = db.prepare('UPDATE trip_days SET date = ? WHERE id = ?')
+        const updatedDays = remaining.map((day, index) => {
+            const date = dateAt(index)
+            updateDay.run(date, day.id)
+            return { ...day, date }
+        })
+        const updatedTrip = { ...trip, endDate: dateAt(remaining.length - 1), updatedAt: new Date().toISOString() }
+        upsertTrip(updatedTrip)
+        return { trip: updatedTrip, days: updatedDays }
+    })()
+}
+
 // ── Row mappers ───────────────────────────────────────
 
 function rowToTrip(row: any): Trip {
