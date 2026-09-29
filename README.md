@@ -186,4 +186,4 @@ NEXT_PUBLIC_OSM_TILE_PROXY=false
 
 地图右上角的「地图设置」可独立选择底图（OpenStreetMap / 高德）、地点搜索、地点详情和路线规划（Google / 高德）。选择保存在当前浏览器中。数据库坐标统一为 WGS-84，高德服务和瓦片所需的 GCJ-02 在边界转换。
 
-高德底图直接使用高德公开瓦片地址；地点服务需要在服务端设置 `AMAP_API_KEY`（高德开放平台的 Web 服务 Key）。可通过 `MAP_SEARCH_PROVIDER`、`MAP_DETAILS_PROVIDER`、`MAP_DIRECTIONS_PROVIDER` 分别设置服务端默认值，网页初始选择由对应的 `NEXT_PUBLIC_MAP_*_PROVIDER` 指定。完整变量示例见 `env.example`。高德地点和路线服务限中国，海外建议使用 Google；`search_places`、`get_place_details`、`get_walking_directions` MCP 工具可传 `provider` 单独覆盖默认值。
+高德底图经本站 `/amap-tiles/{z}/{x}/{y}` 同源代理，避免浏览器跨域；地点服务需要在服务端设置 `AMAP_API_KEY`（高德开放平台的 Web 服务 Key）。可通过 `MAP_SEARCH_PROVIDER`、`MAP_DETAILS_PROVIDER`、`MAP_DIRECTIONS_PROVIDER` 分别设置服务端默认值，网页初始选择由对应的 `NEXT_PUBLIC_MAP_*_PROVIDER` 指定。完整变量示例见 `env.example`。高德地点和路线服务限中国，海外建议使用 Google；`search_places`、`get_place_details`、`get_walking_directions` MCP 工具可传 `provider` 单独覆盖默认值。

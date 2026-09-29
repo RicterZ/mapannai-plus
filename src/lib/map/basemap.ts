@@ -11,7 +11,7 @@ export function fromMapCoordinates(c: MapCoordinates, basemap: BasemapProviderTy
 export function createBasemapStyle(basemap: BasemapProviderType, origin: string): StyleSpecification {
     const amap = basemap === 'amap'
     const tiles = amap
-        ? ['https://webrd01.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}', 'https://webrd02.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}']
+        ? [`${origin}/amap-tiles/{z}/{x}/{y}`]
         : [process.env.NEXT_PUBLIC_OSM_TILE_PROXY !== 'false' ? `${origin}/osm-tiles/{z}/{x}/{y}.png` : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png']
     return {
         version: 8, name: basemap,
