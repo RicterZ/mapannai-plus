@@ -256,12 +256,16 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
     const routeSettings = useRouteSettings()
     const {
         markers, trips, tripDays, activeView, interactionState,
-        leftSidebar, closeLeftSidebar,
+        leftSidebar, closeLeftSidebar, openLeftSidebar,
         selectMarker, openSidebar, openPopup,
         setActiveView, deleteTrip, updateTrip,
         removeMarkerFromDay,
         updateDayChains, updateTripDay,
     } = useMapStore()
+
+    useEffect(() => {
+        if (window.matchMedia('(min-width: 1024px)').matches) openLeftSidebar()
+    }, [openLeftSidebar])
 
     const [showCreateTrip, setShowCreateTrip] = useState(false)
     const [pendingDeletion, setPendingDeletion] = useState<{ kind: 'day' | 'trip'; id: string } | null>(null)
@@ -888,8 +892,9 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                 })}
                 <button
                     onClick={closeLeftSidebar}
-                    className="lg:hidden p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-white/80 transition-colors"
-                    aria-label="关闭"
+                    className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-white/80 transition-colors"
+                    aria-label="收起侧栏"
+                    title="收起侧栏"
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1357,10 +1362,8 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                     'w-full bg-white shadow-2xl',
                     'flex flex-col',
                     'lg:w-[360px]',
-                    // 桌面端：始终显示，无需动画
-                    // 移动端：关闭时滑出（transition），打开时滑入（animation）
-                    'lg:translate-x-0',
-                    !leftSidebar.isOpen ? 'max-lg:-translate-x-full max-lg:transition-transform max-lg:duration-200' : 'max-lg:animate-slide-in-left',
+                    'transition-transform duration-200',
+                    !leftSidebar.isOpen ? '-translate-x-full invisible' : 'translate-x-0',
                 )}
                 style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
                 onClickCapture={(e) => {

@@ -779,7 +779,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             )}
 
             {/* 左上角：标记列表按钮 */}
-            <div className="absolute left-4 z-50" style={{ top: 'calc(env(safe-area-inset-top) + env(safe-area-inset-top) + 12px)' }}>
+            <div className={cn('absolute left-4 z-50', leftSidebar.isOpen && 'hidden')} style={{ top: 'calc(env(safe-area-inset-top) + env(safe-area-inset-top) + 12px)' }}>
                 <button
                     onClick={toggleLeftSidebar}
                     className={cn(
@@ -788,8 +788,8 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                         'hover:bg-gray-50 transition-colors duration-150',
                         'focus:outline-none touch-manipulation'
                     )}
-                    aria-label="打开标记列表"
-                    title="打开标记列表"
+                    aria-label="展开 MapAnNai 侧栏"
+                    title="展开 MapAnNai 侧栏"
                 >
                     <svg className="w-[18px] h-[18px] text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                         <path d="M2,7 L8,8.5 L8,19.5 L2,18 Z" />
