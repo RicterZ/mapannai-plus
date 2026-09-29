@@ -5,7 +5,8 @@ import { toast } from 'sonner'
 import {
     DndContext,
     DragOverlay,
-    PointerSensor,
+    MouseSensor,
+    TouchSensor,
     KeyboardSensor,
     closestCenter,
     useSensor,
@@ -158,11 +159,12 @@ function ChainItem({ id, marker, index, hasArrowAfter, onRemove, onFlyTo }: Chai
 
 interface PaletteItemProps {
     marker: Marker
+    routeNumbers: number[]
     onFlyTo?: () => void
     onRemove?: () => void
 }
 
-function PaletteItem({ marker, onFlyTo, onRemove }: PaletteItemProps) {
+function PaletteItem({ marker, routeNumbers, onFlyTo, onRemove }: PaletteItemProps) {
     const paletteId = `palette::${marker.id}`
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: paletteId })
 
@@ -197,6 +199,15 @@ function PaletteItem({ marker, onFlyTo, onRemove }: PaletteItemProps) {
             >
                 <div className="text-sm font-medium text-gray-800 truncate">{marker.content.title || '未命名标记'}</div>
             </button>
+            {routeNumbers.length > 0 && (
+                <div className="flex flex-wrap justify-end gap-1 max-w-[45%] py-1">
+                    {routeNumbers.map(number => (
+                        <span key={number} className="whitespace-nowrap rounded bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-600">
+                            路线{number}
+                        </span>
+                    ))}
+                </div>
+            )}
             <button
                 onClick={onRemove}
                 className="px-2.5 py-2.5 text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 border-l border-gray-100"
@@ -452,11 +463,10 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
     // ── Drag and drop ─────────────────────────────────────────────────────────
 
     const sensors = useSensors(
-        useSensor(PointerSensor, {
-            // delay 模式：按住 200ms 后才激活拖拽，期间移动超过 8px 则取消（视为普通滚动/点击）
-            // 同时 dnd-kit 在 touchend 时会调用 preventDefault，阻止浏览器合成 ghost click
-            activationConstraint: { delay: 200, tolerance: 8 },
+        useSensor(MouseSensor, {
+            activationConstraint: { distance: 6 },
         }),
+        useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
         useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
     )
 
@@ -1205,13 +1215,19 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                                 <div className="flex-1 border-t border-gray-200" />
                             </div>
 
-                            {/* ── 下半区：当天节点（按类型排序，一行两个）── */}
-                            <div className="grid grid-cols-2 gap-2">
+                            {/* ── 下半区：当天节点（按类型排序，单列）── */}
+                            <div className="flex flex-col gap-2">
                                 {currentDayMarkers
                                     .slice()
                                     .sort((a, b) => (a.content.iconType || 'location').localeCompare(b.content.iconType || 'location'))
                                     .map(marker => (
-                                        <PaletteItem key={marker.id} marker={marker} onFlyTo={() => handleMarkerClick(marker.id)} onRemove={() => handleRemoveMarkerFromDay(marker.id)} />
+                                        <PaletteItem
+                                            key={marker.id}
+                                            marker={marker}
+                                            routeNumbers={(currentDay?.chains ?? []).flatMap((chain, index) => chain.includes(marker.id) ? [index + 1] : [])}
+                                            onFlyTo={() => handleMarkerClick(marker.id)}
+                                            onRemove={() => handleRemoveMarkerFromDay(marker.id)}
+                                        />
                                     ))}
                             </div>
                         </div>

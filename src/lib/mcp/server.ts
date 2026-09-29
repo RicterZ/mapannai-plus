@@ -10,7 +10,7 @@
  *   Markers: list_markers, create_marker, update_marker, delete_marker
  *   Search:  search_places, get_place_details, get_walking_directions
  *   Trips:   list_trips, get_trip_detail, create_trip, add_day_to_trip,
- *            assign_marker_to_day, plan_trip_day, reorder_day_markers, delete_trip
+ *            assign_marker_to_day, plan_trip_day, create_day_chain, reorder_day_markers, delete_trip
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -54,7 +54,8 @@ function createMcpServer(): McpServer {
 ### 新建行程
 1. \`create_trip\` — 创建旅行，指定名称和日期范围，自动生成每天的 TripDay。
 2. \`plan_trip_day\` — 对每一天批量创建地点 marker 并加入当天行程，自动生成行程链。
-3. 如需调整顺序，使用 \`reorder_day_markers\`。
+3. 已有标记可使用 \`create_day_chain\`，按标记 ID 创建行程链，无需重新创建地点。
+4. 如需调整当天标记列表的顺序，使用 \`reorder_day_markers\`；行程链顺序由 \`create_day_chain\` 的 \`markerIds\` 决定。
 
 ### 查看已有行程
 1. \`list_trips\` — 列出所有旅行。
@@ -110,6 +111,7 @@ function createMcpServer(): McpServer {
 | \`add_day_to_trip\` | 手动为旅行添加一天 |
 | \`assign_marker_to_day\` | 将已有 marker 加入某天 |
 | \`plan_trip_day\` | 批量创建地点并加入某天（推荐主力工具） |
+| \`create_day_chain\` | 按已有标记 ID 创建某天的行程链 |
 | \`reorder_day_markers\` | 调整某天地点顺序 |
 | \`delete_trip\` | 删除旅行 |`,
         },

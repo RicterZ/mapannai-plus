@@ -17,6 +17,7 @@ import {
     upsertTripDay,
 } from '@/lib/db/trip-service'
 import {
+    getMarkerById,
     upsertMarker,
     findNearbyMarker,
     generateCoordinateHash,
@@ -223,6 +224,33 @@ export function registerTripTools(server: McpServer) {
             }
 
             return { content: [{ type: 'text', text: JSON.stringify({ dayId, results }, null, 2) }] }
+        }
+    )
+
+    // create_day_chain
+    server.tool(
+        'create_day_chain',
+        '使用已有标记 ID 按顺序为某天新增一条行程链；不会创建新地点。尚未加入当天的标记会自动加入。',
+        {
+            tripId: z.string().describe('旅行 ID'),
+            dayId: z.string().describe('天 ID（来自 get_trip_detail）'),
+            markerIds: z.array(z.string()).min(2).describe('行程链中的标记 ID，按游览顺序排列，至少两个'),
+        },
+        async ({ tripId, dayId, markerIds }) => {
+            const day = getDayById(dayId)
+            if (!day || day.tripId !== tripId) throw new Error(`天不存在: ${dayId}`)
+            if (new Set(markerIds).size !== markerIds.length) throw new Error('行程链中不能重复使用同一个标记 ID')
+            const missing = markerIds.filter(id => !getMarkerById(id))
+            if (missing.length) throw new Error(`标记不存在: ${missing.join(', ')}`)
+
+            const addedIds = markerIds.filter(id => !day.markerIds.includes(id))
+            const updated: TripDay = {
+                ...day,
+                markerIds: [...day.markerIds, ...addedIds],
+                chains: [...(day.chains ?? []), markerIds],
+            }
+            upsertTripDay(updated)
+            return { content: [{ type: 'text', text: JSON.stringify({ dayId, chain: markerIds, addedMarkerIds: addedIds }, null, 2) }] }
         }
     )
 
