@@ -12,10 +12,10 @@
 
 ## 功能特点
 
-- **交互式地图** — 基于 MapLibre GL + OpenStreetMap 瓦片。点击地图放置标记，使用富文本编辑器编写笔记。
-- **行程规划** — 将标记组织到旅行和天中，支持拖拽排序，并以折线可视化路线。
+- **交互式地图** — 部署时可选 MapLibre + OpenStreetMap 或高德 JS API 2.0；点击地图添加标记并编辑富文本笔记。
+- **行程规划** — 按旅行、日期组织标记；拖拽或通过 MCP 创建多条行程链，可选曲线或带本地缓存的步行、驾车寻路。
 - **MCP 服务器** — 任何支持 MCP 协议的 AI 客户端都可直接创建标记、规划行程、查询路线。
-- **地点搜索** — 集成 Google Places，支持地点搜索、详情获取和步行路线规划。
+- **地点服务** — 地点搜索、详情和步行／驾车寻路可独立选择 Google 或高德后端。
 - **图片上传** — 通过腾讯云 COS 为标记附加图片。
 - **PWA** — 可作为渐进式 Web App 安装，支持离线瓦片缓存。
 - **可选鉴权** — 静态 Token 认证；不设置 `API_TOKEN` 即为开放访问。
@@ -28,21 +28,40 @@
 
 ```bash
 cp env.example .env
-# 编辑 .env，填入配置
+# 启动前编辑 .env
 ```
 
-| 变量 | 必填 | 说明 |
-|------|------|------|
-| `GOOGLE_API_KEY` | ✅ | Google Maps API Key，用于地点搜索和路线规划 |
-| `GOOGLE_API_BASE_URL` | | Google API 地址，默认 `https://maps.googleapis.com`（国内可填反代地址） |
-| `TENCENT_COS_SECRET_ID` | | 腾讯云 COS，图片上传必填 |
-| `TENCENT_COS_SECRET_KEY` | | 腾讯云 COS |
-| `TENCENT_COS_REGION` | | COS 地域，如 `ap-chongqing` |
-| `TENCENT_COS_BUCKET` | | COS 存储桶名称 |
-| `NEXT_PUBLIC_IMAGE_DOMAINS` | | 允许加载的图片域名（填你的 COS 域名） |
-| `SQLITE_PATH` | | SQLite 数据库路径，默认 `./data/mapannai.db` |
-| `API_TOKEN` | | 静态鉴权 Token，不填则关闭鉴权 |
-| `NEXT_PUBLIC_OSM_TILE_PROXY` | | 设为 `false` 直接从 OSM 获取瓦片，不经过自托管代理 |
+地图渲染和三项地点服务分别配置，可自由组合。`env.example` 包含全部变量说明及全高德示例。在中国地区使用高德的配置如下：
+
+```env
+MAP_RENDERER=amap
+MAP_SEARCH_PROVIDER=amap
+MAP_DETAILS_PROVIDER=amap
+MAP_DIRECTIONS_PROVIDER=amap
+AMAP_JS_KEY=你的高德Web端JS_API_Key
+AMAP_JS_SECURITY_CODE=对应的安全密钥
+AMAP_API_KEY=你的高德Web服务Key
+```
+
+在高德控制台申请 **Web 端 JS API Key** 和对应安全密钥，并配置部署域名；`AMAP_API_KEY` 须另行申请 **Web 服务 Key**。高德地点与寻路服务适用于中国，海外地点请选择 Google。当前实现会将高德 JS Key 和安全密钥下发到浏览器。
+
+| 变量 | 默认值／使用条件 | 用途 |
+|------|-----------------|------|
+| `MAP_RENDERER` | `osm` | `osm` 为 MapLibre + OSM；`amap` 为高德 JS API 2.0。 |
+| `MAP_SEARCH_PROVIDER` | `google` | 搜索后端：`google` 或 `amap`。 |
+| `MAP_DETAILS_PROVIDER` | `google` | 地点详情后端：`google` 或 `amap`。 |
+| `MAP_DIRECTIONS_PROVIDER` | `google` | 步行、驾车寻路后端：`google` 或 `amap`。 |
+| `AMAP_JS_KEY`、`AMAP_JS_SECURITY_CODE` | `MAP_RENDERER=amap` 时必填 | 高德 Web 端 JS API 凭据。 |
+| `AMAP_API_KEY` | 使用任一高德地点服务时必填 | 高德 Web 服务 Key。 |
+| `GOOGLE_API_KEY` | 使用任一 Google 地点服务时必填 | 按实际功能启用 Places、Geocoding、Directions API。 |
+| `AMAP_API_BASE_URL`、`GOOGLE_API_BASE_URL` | 各服务默认地址 | 可选的 API 代理地址，见 `env.example`。 |
+| `NEXT_PUBLIC_OSM_TILE_PROXY` | `true` | 设为 `false` 可直接获取 OSM 瓦片；否则须配置 `/osm-tiles/` 反代。 |
+| `SQLITE_PATH` | `./data/mapannai.db` | SQLite 数据库文件。 |
+| `API_TOKEN` | 空 | 可选 API 与 MCP Bearer Token；留空即开放访问。 |
+| `TENCENT_COS_SECRET_ID`、`TENCENT_COS_SECRET_KEY`、`TENCENT_COS_REGION`、`TENCENT_COS_BUCKET` | 可选 | 腾讯云 COS 图片上传。 |
+| `NEXT_PUBLIC_IMAGE_DOMAINS` | 可选 | 允许加载的图片域名，须在构建前设置。 |
+
+修改服务端变量后需重启或重新部署；`NEXT_PUBLIC_*` 变量须在构建前设置。数据库坐标统一保存为 WGS-84，接入高德时在边界转换坐标。
 
 ### 2. 本地开发
 
@@ -112,6 +131,7 @@ MapAnNai 在 `/api/mcp` 暴露 MCP 服务器，支持 Streamable HTTP 的 AI 客
 | **行程规划** | `plan_trip_day` | ⭐ 批量创建地点并加入指定天，一步完成 |
 | | `assign_marker_to_day` | 将已有标记加入某天 |
 | | `reorder_day_markers` | 调整当天地点顺序 |
+| | `create_day_chain` | 使用已有标记 ID 按顺序建链，不创建新地点 |
 | **标记** | `create_marker` | 按地名创建标记 |
 | | `list_markers` | 列出地图上所有标记 |
 | | `update_marker` | 更新标记内容或图标 |
@@ -133,7 +153,10 @@ MapAnNai 在 `/api/mcp` 暴露 MCP 服务器，支持 Streamable HTTP 的 AI 客
    ])
    → 一步创建标记并加入第1天
 
-3. 重复步骤2为每天规划地点
+3. 若地点已存在，调用 create_day_chain(tripId, dayId, markerIds)
+   → 按已有标记 ID 建链，不重复创建地点
+
+4. 按需为其他日期规划
 ```
 
 连接后可调用 `workflow` prompt，让 AI 自动获取操作指南。
@@ -177,12 +200,3 @@ location /osm-tiles/ {
 ```env
 NEXT_PUBLIC_OSM_TILE_PROXY=false
 ```
-
-
-
-
-## 地图与地点服务配置
-
-部署时设置 `MAP_RENDERER=osm`（默认，MapLibre）或 `MAP_RENDERER=amap`（高德 JS API 2.0）。高德地图需要单独的 **Web 端 JS API Key**（`AMAP_JS_KEY`）及安全密钥（`AMAP_JS_SECURITY_CODE`）。二者在服务端通过页面配置下发给高德 SDK；请在高德控制台配置域名白名单，并按高德要求保护密钥。旧的 `NEXT_PUBLIC_MAP_BASEMAP` 和浏览器保存的地图选择不再生效。
-
-地点搜索、地点详情、路线规划可独立设置 `MAP_SEARCH_PROVIDER`、`MAP_DETAILS_PROVIDER`、`MAP_DIRECTIONS_PROVIDER`，值为 `google` 或 `amap`，默认 `google`。选择高德地点服务需另配 **Web 服务 Key** `AMAP_API_KEY`。高德地点与路线服务限中国，海外可继续使用 Google。所有持久化坐标保持 WGS-84，接入高德时在边界转换 GCJ-02。完整配置见 `env.example`。

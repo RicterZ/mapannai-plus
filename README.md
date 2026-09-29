@@ -13,10 +13,10 @@ A Next.js 14 travel planning platform. Create and manage location markers on an 
 
 ## Features
 
-- **Interactive map** — Powered by MapLibre GL + OpenStreetMap tiles. Click to drop markers, edit with a rich markdown editor.
-- **Trip planning** — Organize markers into trips and days, with drag-and-drop reordering and polyline route visualization.
+- **Interactive map** — Select MapLibre + OpenStreetMap or the official AMap JS API 2.0 at deployment. Click to add markers and edit their rich text notes.
+- **Trip planning** — Organize markers by trip and day, build multiple ordered chains by dragging or with MCP, and choose curved lines or cached walking/driving directions.
 - **MCP server** — Any MCP-compatible AI client can create markers, plan itineraries, and query routes directly.
-- **Place search** — Google Places integration for place search, details, and walking directions.
+- **Place services** — Choose Google or AMap independently for search, place details, and walking/driving directions.
 - **Image uploads** — Attach images to markers via Tencent Cloud COS.
 - **PWA** — Installable as a Progressive Web App with offline tile caching.
 - **Optional auth** — Static token authentication; omit `API_TOKEN` for open access.
@@ -25,25 +25,44 @@ A Next.js 14 travel planning platform. Create and manage location markers on an 
 
 ## Quick Start
 
-### 1. Environment Variables
+### 1. Environment variables
 
 ```bash
 cp env.example .env
-# Edit .env and fill in your values
+# Edit .env before starting the app
 ```
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `GOOGLE_API_KEY` | ✅ | Google Maps API key — used for place search and routing |
-| `GOOGLE_API_BASE_URL` | | Google API base URL. Default: `https://maps.googleapis.com` (set a reverse proxy for mainland China) |
-| `TENCENT_COS_SECRET_ID` | | Tencent Cloud COS — required for image uploads |
-| `TENCENT_COS_SECRET_KEY` | | Tencent Cloud COS |
-| `TENCENT_COS_REGION` | | COS region, e.g. `ap-chongqing` |
-| `TENCENT_COS_BUCKET` | | COS bucket name |
-| `NEXT_PUBLIC_IMAGE_DOMAINS` | | Allowed image domains (your COS domain) |
-| `SQLITE_PATH` | | SQLite database path. Default: `./data/mapannai.db` |
-| `API_TOKEN` | | Static auth token. Omit to disable authentication |
-| `NEXT_PUBLIC_OSM_TILE_PROXY` | | Set `false` to fetch OSM tiles directly instead of through the self-hosted proxy |
+The map renderer and the three place services are configured independently. `env.example` lists every setting and an all-AMap example. For an AMap deployment in China:
+
+```env
+MAP_RENDERER=amap
+MAP_SEARCH_PROVIDER=amap
+MAP_DETAILS_PROVIDER=amap
+MAP_DIRECTIONS_PROVIDER=amap
+AMAP_JS_KEY=your-amap-web-js-key
+AMAP_JS_SECURITY_CODE=your-amap-js-security-code
+AMAP_API_KEY=your-amap-web-service-key
+```
+
+Get `AMAP_JS_KEY` (Web JS API key) and its security code from the AMap console and configure your deployment domain there. `AMAP_API_KEY` must be a separate **Web Service** key. AMap place and route services cover China; use Google providers for other countries. The AMap JS key and security code are sent to the browser by the current implementation.
+
+| Variable | Default / when needed | Purpose |
+|----------|-----------------------|---------|
+| `MAP_RENDERER` | `osm` | `osm` uses MapLibre + OSM tiles; `amap` uses AMap JS API 2.0. |
+| `MAP_SEARCH_PROVIDER` | `google` | Search backend: `google` or `amap`. |
+| `MAP_DETAILS_PROVIDER` | `google` | Place details backend: `google` or `amap`. |
+| `MAP_DIRECTIONS_PROVIDER` | `google` | Walking/driving directions backend: `google` or `amap`. |
+| `AMAP_JS_KEY`, `AMAP_JS_SECURITY_CODE` | Required for `MAP_RENDERER=amap` | AMap Web JS API credentials. |
+| `AMAP_API_KEY` | Required for any AMap place service | AMap Web Service key. |
+| `GOOGLE_API_KEY` | Required for any Google place service | Enable the corresponding Places, Geocoding, and Directions APIs. |
+| `AMAP_API_BASE_URL`, `GOOGLE_API_BASE_URL` | Provider defaults | Optional API proxy base URLs; see `env.example`. |
+| `NEXT_PUBLIC_OSM_TILE_PROXY` | `true` | Set `false` to fetch OSM tiles directly. Otherwise configure `/osm-tiles/` on your reverse proxy. |
+| `SQLITE_PATH` | `./data/mapannai.db` | SQLite database file. |
+| `API_TOKEN` | Empty | Optional API and MCP bearer token; empty means open access. |
+| `TENCENT_COS_SECRET_ID`, `TENCENT_COS_SECRET_KEY`, `TENCENT_COS_REGION`, `TENCENT_COS_BUCKET` | Optional | Tencent COS image uploads. |
+| `NEXT_PUBLIC_IMAGE_DOMAINS` | Optional | Allowed remote image hostnames; set before building. |
+
+Restart or redeploy after changing server variables. Set `NEXT_PUBLIC_*` variables before building. Map coordinates are stored as WGS-84 and converted at the AMap boundary.
 
 ### 2. Local Development
 
@@ -113,6 +132,7 @@ Replace `localhost:3000` with your domain for remote deployments.
 | **Planning** | `plan_trip_day` | ⭐ Batch-create places and add them to a day in one step |
 | | `assign_marker_to_day` | Assign an existing marker to a day |
 | | `reorder_day_markers` | Reorder markers within a day |
+| | `create_day_chain` | Connect existing marker IDs in order; does not create places |
 | **Markers** | `create_marker` | Create a marker by place name |
 | | `list_markers` | List all markers on the map |
 | | `update_marker` | Update marker content or icon |
@@ -134,7 +154,10 @@ Replace `localhost:3000` with your domain for remote deployments.
    ])
    → creates markers and adds them to day 1 in one call
 
-3. Repeat step 2 for each day
+3. For places already on the map, call create_day_chain(tripId, dayId, markerIds)
+   → connects existing marker IDs without creating places
+
+4. Repeat for each day
 ```
 
 After connecting, invoke the `workflow` prompt to have the AI automatically retrieve usage guidance.
@@ -158,7 +181,7 @@ After connecting, invoke the `workflow` prompt to have the AI automatically retr
 
 ---
 
-## OSM Tile Proxy
+## OSM tile proxy
 
 By default, map tiles are fetched through the same origin at `/osm-tiles/{z}/{x}/{y}.png`. Configure your nginx or CDN to forward this path to `https://tile.openstreetmap.org/`:
 
@@ -178,12 +201,3 @@ To skip the proxy and fetch tiles directly from OSM:
 ```env
 NEXT_PUBLIC_OSM_TILE_PROXY=false
 ```
-
-
-
-
-## 地图与地点服务配置
-
-部署时设置 `MAP_RENDERER=osm`（默认，MapLibre）或 `MAP_RENDERER=amap`（高德 JS API 2.0）。高德地图需要单独的 **Web 端 JS API Key**（`AMAP_JS_KEY`）及安全密钥（`AMAP_JS_SECURITY_CODE`）。二者在服务端通过页面配置下发给高德 SDK；请在高德控制台配置域名白名单，并按高德要求保护密钥。旧的 `NEXT_PUBLIC_MAP_BASEMAP` 和浏览器保存的地图选择不再生效。
-
-地点搜索、地点详情、路线规划可独立设置 `MAP_SEARCH_PROVIDER`、`MAP_DETAILS_PROVIDER`、`MAP_DIRECTIONS_PROVIDER`，值为 `google` 或 `amap`，默认 `google`。选择高德地点服务需另配 **Web 服务 Key** `AMAP_API_KEY`。高德地点与路线服务限中国，海外可继续使用 Google。所有持久化坐标保持 WGS-84，接入高德时在边界转换 GCJ-02。完整配置见 `env.example`。
