@@ -21,7 +21,7 @@ function getDayNumber(tripId: string, dayId: string, tripDays: ReturnType<typeof
 }
 
 export const ViewModeBanner = () => {
-    const { activeView, trips, tripDays, setActiveView, openLeftSidebar } = useMapStore()
+    const { activeView, trips, tripDays, setActiveView } = useMapStore()
     const [dayDropdownOpen, setDayDropdownOpen] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -51,13 +51,11 @@ export const ViewModeBanner = () => {
 
     const handleTripClick = () => {
         setActiveView('trip', activeView.tripId, null)
-        openLeftSidebar()
     }
 
     const handleDaySelect = (dayId: string) => {
         setDayDropdownOpen(false)
         setActiveView('day', activeView.tripId, dayId)
-        openLeftSidebar()
     }
 
     return (
@@ -70,7 +68,7 @@ export const ViewModeBanner = () => {
             )}
             style={{ top: 'calc(env(safe-area-inset-top) + 36px)' }}
         >
-            {/* Trip name — 点击打开侧边栏旅途详情 */}
+            {/* Trip name — 切换到旅途详情 */}
             <button
                 onClick={handleTripClick}
                 className={cn(
