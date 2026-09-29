@@ -37,6 +37,21 @@ export function upsertTrip(trip: Trip): void {
     })
 }
 
+export function moveTripStartDate(trip: Trip, startDate: string): { trip: Trip; days: TripDay[] } {
+    const db = getDb()
+    return db.transaction(() => {
+        const days = getTripDays(trip.id)
+        const start = new Date(`${startDate}T00:00:00Z`)
+        const dayCount = days.length || Math.round((Date.parse(`${trip.endDate}T00:00:00Z`) - Date.parse(`${trip.startDate}T00:00:00Z`)) / 86400000) + 1
+        const dateAt = (offset: number) => new Date(start.getTime() + offset * 86400000).toISOString().slice(0, 10)
+        const updated = { ...trip, startDate, endDate: dateAt(Math.max(dayCount - 1, 0)), updatedAt: new Date().toISOString() }
+        upsertTrip(updated)
+        const updateDay = db.prepare('UPDATE trip_days SET date = ? WHERE id = ?')
+        days.forEach((day, index) => updateDay.run(dateAt(index), day.id))
+        return { trip: updated, days: days.map((day, index) => ({ ...day, date: dateAt(index) })) }
+    })()
+}
+
 export function deleteTrip(id: string): void {
     // ON DELETE CASCADE automatically removes associated trip_days
     getDb().prepare(`DELETE FROM trips WHERE id = ?`).run(id)

@@ -269,6 +269,9 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
 
     const [editingTripName, setEditingTripName] = useState(false)
     const [tripNameDraft, setTripNameDraft] = useState('')
+    const [editingTripDate, setEditingTripDate] = useState(false)
+    const [savingTripDate, setSavingTripDate] = useState(false)
+    const tripDateInputRef = useRef<HTMLInputElement>(null)
     const [showEmojiPicker, setShowEmojiPicker] = useState(false)
 
     // 视图切换动画：向左滑出，从右滑入
@@ -788,10 +791,49 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                         </h2>
                     )}
                     {displayMode === 'trip' && currentTrip && (
-                        <p className="text-xs text-gray-500">
-                            {currentTrip.startDate.slice(5).replace('-', '/')} ~ {currentTrip.endDate.slice(5).replace('-', '/')}
-                            {' · '}{currentTripDays.length}天
-                        </p>
+                        <div className="relative">
+                            <button
+                                type="button"
+                                className="text-xs text-gray-500 hover:text-blue-600 cursor-pointer"
+                                title="点击修改开始日期"
+                                disabled={savingTripDate}
+                                onClick={() => {
+                                    setEditingTripDate(true)
+                                    requestAnimationFrame(() => {
+                                        const input = tripDateInputRef.current
+                                        input?.focus()
+                                        try { input?.showPicker?.() } catch { /* 日期输入仍可直接操作 */ }
+                                    })
+                                }}
+                            >
+                                {currentTrip.startDate.slice(5).replace('-', '/')} ~ {currentTrip.endDate.slice(5).replace('-', '/')}
+                                {' · '}{currentTripDays.length}天
+                            </button>
+                            {editingTripDate && (
+                                <input
+                                    ref={tripDateInputRef}
+                                    type="date"
+                                    aria-label="行程开始日期"
+                                    defaultValue={currentTrip.startDate}
+                                    className="absolute left-0 top-full z-20 w-36 rounded border border-blue-300 bg-white p-1 text-xs text-gray-900 shadow-lg"
+                                    onBlur={() => setEditingTripDate(false)}
+                                    onChange={async e => {
+                                        const date = e.target.value
+                                        setEditingTripDate(false)
+                                        if (!date || date === currentTrip.startDate) return
+                                        setSavingTripDate(true)
+                                        try {
+                                            await updateTrip(currentTrip.id, { startDate: date })
+                                            toast.success('行程日期已更新')
+                                        } catch {
+                                            toast.error('更新行程日期失败')
+                                        } finally {
+                                            setSavingTripDate(false)
+                                        }
+                                    }}
+                                />
+                            )}
+                        </div>
                     )}
                     {displayMode === 'day' && currentDay && (
                         <p className="text-xs text-gray-500">{formatDate(currentDay.date)}</p>

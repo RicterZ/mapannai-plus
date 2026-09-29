@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getTripById, upsertTrip, deleteTrip, getTripDays } from '@/lib/db/trip-service'
+import { getTripById, upsertTrip, deleteTrip, getTripDays, moveTripStartDate } from '@/lib/db/trip-service'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +24,16 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         if (!trip) return NextResponse.json({ error: '旅行不存在' }, { status: 404 })
 
         const body = await request.json()
+        if (body.startDate !== undefined && body.startDate !== trip.startDate) {
+            const startDate = body.startDate
+            const parsedDate = typeof startDate === 'string' ? new Date(`${startDate}T00:00:00Z`) : new Date(NaN)
+            if (typeof startDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
+                !Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== startDate) {
+                return NextResponse.json({ error: '开始日期无效' }, { status: 400 })
+            }
+            const { trip: updated, days } = moveTripStartDate({ ...trip, ...body, id: trip.id, startDate: trip.startDate, endDate: trip.endDate }, startDate)
+            return NextResponse.json({ ...updated, days })
+        }
         const updated = {
             ...trip,
             ...body,

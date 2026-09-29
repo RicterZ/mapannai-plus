@@ -777,9 +777,12 @@ export const useMapStore = create<MapStore>()(
                     body: JSON.stringify(data),
                 })
                 if (!response.ok) throw new Error('更新旅行失败')
-                const updated: Trip = await response.json()
+                const { days, ...updated }: Trip & { days?: TripDay[] } = await response.json()
                 set(state => ({
                     trips: state.trips.map(t => t.id === tripId ? updated : t),
+                    tripDays: days
+                        ? state.tripDays.map(d => days.find(day => day.id === d.id) ?? d)
+                        : state.tripDays,
                 }), false, 'updateTrip')
             },
 
@@ -930,4 +933,4 @@ export const useMapStore = create<MapStore>()(
             name: 'map-store',
         }
     )
-) 
+)
