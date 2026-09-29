@@ -28,7 +28,7 @@ import Map, { Marker as MapboxMarker, MapRef, ViewState, MapProvider as ReactMap
 // 根据地图提供者导入相应的样式
 import 'maplibre-gl/dist/maplibre-gl.css'
 
-export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode }: { renderer: BasemapProviderType; amapJsKey: string; amapSecurityCode: string }) => {
+export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvider }: { renderer: BasemapProviderType; amapJsKey: string; amapSecurityCode: string; routeProvider: string }) => {
     const mapRef = useRef<any>(null)
     const suppressMapClickRef = useRef(false) // popup 内操作后短暂屏蔽地图点击
     const [error, setError] = useState<string | null>(null)
@@ -815,6 +815,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode }: { rendere
                     ref={amapRef}
                     apiKey={amapJsKey}
                     securityCode={amapSecurityCode}
+                    routeProvider={routeProvider}
                     viewState={viewState}
                     markers={visibleMarkers}
                     selectedMarkerId={selectedMarkerId}
@@ -865,7 +866,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode }: { rendere
                     }}
                 >
                 {/* Render connection lines */}
-                <ConnectionLines markers={visibleMarkers} zoom={viewState.zoom} basemap={basemap} />
+                <ConnectionLines markers={visibleMarkers} zoom={viewState.zoom} basemap={basemap} routeProvider={routeProvider} />
 
                 {/* Render existing markers - 添加安全检查 */}
                 {visibleMarkers && visibleMarkers.length > 0 && visibleMarkers.map((marker) => {

@@ -8,6 +8,9 @@ import type { BasemapProviderType } from '@/types/map-provider'
 import { Marker } from '@/types/marker'
 import { useMapStore } from '@/store/map-store'
 import { getControlPoint, bezierPoint, getBezierPath } from '@/lib/map/connection-geometry'
+import { routeCacheKey, pointAlongPath, RouteSegment } from '@/lib/map/route-cache'
+import { usePlannedRoutes } from '@/lib/map/use-planned-routes'
+import { useRouteSettings } from '@/lib/map/route-settings'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
 
 const emptyFeatureCollection: GeoJSON.FeatureCollection = {
@@ -16,6 +19,7 @@ const emptyFeatureCollection: GeoJSON.FeatureCollection = {
 }
 
 interface ConnectionLinesProps {
+    routeProvider: string
     basemap?: BasemapProviderType
     markers?: Marker[]
     zoom?: number
@@ -26,9 +30,11 @@ interface ConnectionLine {
     from: Marker
     to: Marker
     dayId: string
+    fromId: string
+    toId: string
 }
 
-export const ConnectionLines = ({ zoom = 11, basemap = 'osm' }: ConnectionLinesProps) => {
+export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: ConnectionLinesProps) => {
     const { markers, tripDays, activeView, interactionState } = useMapStore()
     const { highlightedDayId } = interactionState
     const { current: map } = useMap()
@@ -132,6 +138,8 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm' }: ConnectionLinesP
                             from: fromMarker,
                             to: toMarker,
                             dayId: day.id,
+                            fromId: fromMarker.id,
+                            toId: toMarker.id,
                         })
                     }
                 }
@@ -141,6 +149,14 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm' }: ConnectionLinesP
         return lines
     }, [relevantDays, markers, basemap])
 
+    const routeSettings = useRouteSettings()
+    const segments = useMemo(() => connectionLines.map(line => ({
+        fromId: line.fromId, toId: line.toId,
+        origin: { lat: line.from.coordinates.latitude, lng: line.from.coordinates.longitude },
+        destination: { lat: line.to.coordinates.latitude, lng: line.to.coordinates.longitude },
+    })), [connectionLines])
+    const planned = usePlannedRoutes(segments, routeProvider)
+
     // 计算需要高亮的连线ID（hover 临时覆盖 click 锁定）
     const highlightedLineIds = useMemo(() => {
         if (!effectiveDayId) return []
@@ -149,20 +165,13 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm' }: ConnectionLinesP
             .map(l => l.id)
     }, [connectionLines, effectiveDayId])
 
-    // 预计算每条连线的控制点（避免动画循环中重复计算）
-    const lineControlPoints = useMemo(() =>
-        connectionLines.map(line => {
-            const from = { lat: line.from.coordinates.latitude, lng: line.from.coordinates.longitude }
-            const to = { lat: line.to.coordinates.latitude, lng: line.to.coordinates.longitude }
-            return {
-                id: line.id,
-                from,
-                ctrl: getControlPoint(from, to),
-                to,
-            }
-        }),
-        [connectionLines]
-    )
+    // Each segment uses its planned path once cached; pending/failed segments retain the curve.
+    const lineControlPoints = useMemo(() => connectionLines.map((line, index) => {
+        const from = { lat: line.from.coordinates.latitude, lng: line.from.coordinates.longitude }
+        const to = { lat: line.to.coordinates.latitude, lng: line.to.coordinates.longitude }
+        const route = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segments[index])] : null
+        return { id: line.id, from, ctrl: getControlPoint(from, to), to, route }
+    }), [connectionLines, planned.enabled, planned.routes, routeProvider, routeSettings.mode, segments])
 
     // 小圆球动画
     useEffect(() => {
@@ -189,7 +198,10 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm' }: ConnectionLinesP
             const features: GeoJSON.Feature[] = highlightedLineIds.flatMap(lineId => {
                 const lc = lineControlPoints.find(l => l.id === lineId)
                 if (!lc) return []
-                const [lng, lat] = bezierPoint(lc.from, lc.ctrl, lc.to, tRef.current)
+                const { lng, lat } = lc.route ? pointAlongPath(lc.route, tRef.current) : (() => {
+                    const [lng, lat] = bezierPoint(lc.from, lc.ctrl, lc.to, tRef.current)
+                    return { lng, lat }
+                })()
                 return [{
                     type: 'Feature' as const,
                     geometry: { type: 'Point' as const, coordinates: [lng, lat] },
@@ -221,11 +233,14 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm' }: ConnectionLinesP
             }
         }
 
-        const features = connectionLines.map(line => {
-            const coordinates = getBezierPath(
-                { lat: line.from.coordinates.latitude, lng: line.from.coordinates.longitude },
-                { lat: line.to.coordinates.latitude, lng: line.to.coordinates.longitude }
-            )
+        const features = connectionLines.map((line, index) => {
+            const plannedPath = lineControlPoints[index].route
+            const coordinates = plannedPath
+                ? plannedPath.map(point => [point.lng, point.lat] as [number, number])
+                : getBezierPath(
+                    { lat: line.from.coordinates.latitude, lng: line.from.coordinates.longitude },
+                    { lat: line.to.coordinates.latitude, lng: line.to.coordinates.longitude }
+                )
 
             return {
                 type: 'Feature' as const,
@@ -248,7 +263,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm' }: ConnectionLinesP
             type: 'FeatureCollection' as const,
             features
         }
-    }, [connectionLines])
+    }, [connectionLines, lineControlPoints])
 
     // 如果没有连接线，不渲染任何内容
     if (connectionLines.length === 0) {

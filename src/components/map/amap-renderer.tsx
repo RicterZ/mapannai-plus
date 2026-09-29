@@ -7,6 +7,9 @@ import type { Marker } from '@/types/marker'
 import type { MarkerCoordinates } from '@/types/marker'
 import { wgs84ToGcj02, gcj02ToWgs84 } from '@/lib/coord-transform'
 import { getControlPoint, bezierPoint, getBezierPath } from '@/lib/map/connection-geometry'
+import { routeCacheKey, pointAlongPath } from '@/lib/map/route-cache'
+import { usePlannedRoutes } from '@/lib/map/use-planned-routes'
+import { useRouteSettings } from '@/lib/map/route-settings'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { MapMarker } from './map-marker'
 
@@ -51,6 +54,7 @@ function loadAMap(key: string, securityCode: string): Promise<AMapNamespace> {
 export interface MapCamera { longitude: number; latitude: number; zoom: number; bearing?: number; pitch?: number }
 export interface MapRendererHandle { flyTo(options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }): void }
 interface Props {
+    routeProvider: string
     apiKey: string
     securityCode: string
     viewState: MapCamera
@@ -172,13 +176,24 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
         window.addEventListener('markerDayHover', handler)
         return () => window.removeEventListener('markerDayHover', handler)
     }, [])
+    const routeProvider = props.routeProvider
+    const routeSettings = useRouteSettings()
+    const routeSegments = React.useMemo(() => {
+        const byId = new Map(props.markers.map(marker => [marker.id, marker]))
+        const relevant = tripDays.filter(day => activeView.mode === 'day' ? day.id === activeView.dayId : activeView.mode === 'trip' ? day.tripId === activeView.tripId : true)
+        return relevant.flatMap(day => (day.chains || []).flatMap(chain => chain.slice(0, -1).flatMap((fromId, index) => {
+            const from = byId.get(fromId), to = byId.get(chain[index + 1])
+            return from && to ? [{ fromId, toId: to.id, origin: { lat: from.coordinates.latitude, lng: from.coordinates.longitude }, destination: { lat: to.coordinates.latitude, lng: to.coordinates.longitude } }] : []
+        })))
+    }, [props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId])
+    const planned = usePlannedRoutes(routeSegments, routeProvider)
     useEffect(() => {
         const map = mapRef.current, AMap = namespaceRef.current
         if (!ready || !map || !AMap || props.viewState.zoom < zoomThreshold) return
         const byId = new Map(props.markers.map(marker => [marker.id, marker]))
         const relevant = tripDays.filter(day => activeView.mode === 'day' ? day.id === activeView.dayId : activeView.mode === 'trip' ? day.tripId === activeView.tripId : true)
         const overlays: any[] = []
-        const animated: Array<{ dot: any; from: { lat: number; lng: number }; to: { lat: number; lng: number } }> = []
+        const animated: Array<{ dot: any; from: { lat: number; lng: number }; to: { lat: number; lng: number }; path: Array<{ lat: number; lng: number }> | null }> = []
         for (const day of relevant) for (const chain of day.chains || []) {
             for (let index = 0; index < chain.length - 1; index++) {
                 const fromMarker = byId.get(chain[index]), toMarker = byId.get(chain[index + 1])
@@ -186,7 +201,9 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                 const [fromLng, fromLat] = gcj(fromMarker.coordinates), [toLng, toLat] = gcj(toMarker.coordinates)
                 const from = { lng: fromLng, lat: fromLat }, to = { lng: toLng, lat: toLat }
                 const highlighted = day.id === effectiveDayId
-                const path = getBezierPath(from, to)
+                const segment = { fromId: fromMarker.id, toId: toMarker.id, origin: { lat: fromMarker.coordinates.latitude, lng: fromMarker.coordinates.longitude }, destination: { lat: toMarker.coordinates.latitude, lng: toMarker.coordinates.longitude } }
+                const cachedPath = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segment)] : null
+                const path = cachedPath ? cachedPath.map(point => gcj({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
                 const width = Math.max(3, 3 + (props.viewState.zoom - 10) * 0.2) + (highlighted ? 2 : 0)
                 const casing = new AMap.Polyline({ path, strokeColor: '#ffffff', strokeWeight: width + 4, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.4 : 0.8, zIndex: highlighted ? 52 : 48 })
                 const line = new AMap.Polyline({ path, strokeColor: highlighted ? '#3b82f6' : '#6366f1', strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.25 : 0.8, zIndex: highlighted ? 53 : 49 })
@@ -199,7 +216,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                     node.style.cssText = 'width:14px;height:14px;border:2px solid white;border-radius:50%;background:#3b82f6;box-sizing:border-box;pointer-events:none'
                     const dot = new AMap.Marker({ position: [from.lng, from.lat], content: node, offset: new AMap.Pixel(-7, -7), zIndex: 54, clickable: false })
                     overlays.push(dot)
-                    animated.push({ dot, from, to })
+                    animated.push({ dot, from, to, path: cachedPath ? path.map(([lng, lat]) => ({ lng, lat })) : null })
                 }
             }
         }
@@ -208,12 +225,15 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
         const started = performance.now()
         const animate = (now: number) => {
             const progress = ((now - started) / 2100) % 1
-            for (const { dot, from, to } of animated) dot.setPosition(bezierPoint(from, getControlPoint(from, to), to, progress))
+            for (const { dot, from, to, path } of animated) {
+                const position = path ? pointAlongPath(path, progress) : bezierPoint(from, getControlPoint(from, to), to, progress)
+                dot.setPosition(Array.isArray(position) ? position : [position.lng, position.lat])
+            }
             frame = requestAnimationFrame(animate)
         }
         if (animated.length) frame = requestAnimationFrame(animate)
         return () => { cancelAnimationFrame(frame); map.remove(overlays) }
-    }, [ready, props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId, effectiveDayId, props.viewState.zoom, zoomThreshold])
+    }, [ready, props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId, effectiveDayId, props.viewState.zoom, zoomThreshold, planned.enabled, planned.routes, routeProvider, routeSettings.mode])
 
     useEffect(() => {
         const map = mapRef.current, AMap = namespaceRef.current
