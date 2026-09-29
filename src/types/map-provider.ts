@@ -52,40 +52,31 @@ export interface MapProviderConfig {
     // 其他配置项
 }
 
-// 地图提供者接口
-export interface MapProvider {
-    // 地图实例相关
-    createMapInstance(container: HTMLElement, config: MapProviderConfig): Promise<any>
-    destroyMapInstance(mapInstance: any): void
-    
-    // 视图控制
-    setViewState(mapInstance: any, viewState: MapViewState): void
-    getViewState(mapInstance: any): MapViewState
-    flyTo(mapInstance: any, coordinates: MapCoordinates, zoom?: number): void
-    
-    // 标记管理
-    addMarker(mapInstance: any, marker: MapMarker): any
-    removeMarker(mapInstance: any, markerId: string): void
-    updateMarker(mapInstance: any, marker: MapMarker): void
-    
-    // 事件处理
-    onMapClick(mapInstance: any, callback: (coordinates: MapCoordinates, placeInfo?: DetailedPlaceInfo, clickPosition?: { x: number; y: number }, isMarkerClick?: boolean) => void): void
-    onMarkerClick(mapInstance: any, markerId: string, callback: () => void): void
-    onMapLoad(mapInstance: any, callback: () => void): void
-    onMapError(mapInstance: any, callback: (error: Error) => void): void
-    
-    // 搜索功能
-    searchPlaces(query: string, config: MapProviderConfig, country?: string): Promise<MapSearchResult[]>
-    
-    // 样式和配置
-    getMapStyle(config: MapProviderConfig): string
-    getAttribution(): string
+// 地图底图与后端能力分别选择；所有服务输入输出均为 WGS-84。
+export type BasemapProviderType = 'osm' | 'amap'
+export type MapProviderType = 'google' | 'amap'
+export type MapServiceCapability = 'search' | 'details' | 'directions'
+export interface PlaceDetails extends MapSearchResult {
+    phone?: string
+    website?: string
+    user_ratings_total?: number
+    price_level?: number
+    opening_hours?: unknown
 }
-
-// 地图提供者类型
-export type MapProviderType = 'google' | 'google-server'
-
-// 地图提供者工厂接口
+export interface RoutePoint { lat: number; lng: number }
+export type TravelMode = 'walking' | 'driving' | 'bicycling' | 'transit'
+export interface MapRoute {
+    path: RoutePoint[]
+    distance: number
+    duration: number
+    distanceText?: string
+    durationText?: string
+}
+export interface MapProvider {
+    searchPlaces(query: string, config?: MapProviderConfig, country?: string): Promise<MapSearchResult[]>
+    getPlaceDetails(coordinates: MapCoordinates): Promise<PlaceDetails>
+    getDirections(origin: RoutePoint, destination: RoutePoint, mode?: TravelMode): Promise<MapRoute>
+}
 export interface MapProviderFactory {
     createProvider(type: MapProviderType): MapProvider
     getSupportedProviders(): MapProviderType[]

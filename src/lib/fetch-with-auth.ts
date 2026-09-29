@@ -9,6 +9,7 @@
  */
 
 import { getToken, clearToken } from './auth'
+import { getMapPreferences } from './map/preferences'
 
 let unauthorizedPending = false
 
@@ -20,6 +21,14 @@ export async function fetchWithAuth(
   const headers = new Headers(init?.headers)
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  const path = typeof input === 'string' ? input : input instanceof URL ? input.pathname : input.url
+  if (/^\/api\/(search|places|directions)(?:[?/#]|$)/.test(path)) {
+    const preferences = getMapPreferences()
+    headers.set('x-map-search-provider', preferences.search)
+    headers.set('x-map-details-provider', preferences.details)
+    headers.set('x-map-directions-provider', preferences.directions)
   }
 
   const res = await fetch(input, { ...init, headers })

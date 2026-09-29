@@ -5,7 +5,6 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { config } from '@/lib/config'
 import {
     getAllTrips,
     getTripById,
@@ -155,10 +154,11 @@ export function registerTripTools(server: McpServer) {
     // plan_trip_day
     server.tool(
         'plan_trip_day',
-    '旅行规划工具：按名称批量创建地点 marker 并加入旅行的某一天。\n\n【地点名称规则】每个地点名称必须包含城市名，例如「东京 浅草寺」「京都 伏见稻荷」，禁止只写地点简称，避免 Google Places 返回错误地区的同名地点。\n\n【行程合理性校验 - 必须执行】所有地点创建完成后，计算同一天内任意两个成功定位的地点之间的直线距离。若存在两点距离超过 100 公里，必须停止并向用户报告：哪个地点疑似定位错误、其当前坐标是什么、距其他地点多远。不得默默忽略异常坐标继续规划。\n\n【错误处理】若某地点搜索失败（status: error），必须告知用户并建议换一个更精确的名称重试，不应跳过。',
+    '旅行规划工具：按名称批量创建地点 marker 并加入旅行的某一天。\n\n【地点名称规则】每个地点名称必须包含城市名，例如「东京 浅草寺」「京都 伏见稻荷」，禁止只写地点简称，避免搜索返回错误地区的同名地点。\n\n【行程合理性校验 - 必须执行】所有地点创建完成后，计算同一天内任意两个成功定位的地点之间的直线距离。若存在两点距离超过 100 公里，必须停止并向用户报告：哪个地点疑似定位错误、其当前坐标是什么、距其他地点多远。不得默默忽略异常坐标继续规划。\n\n【错误处理】若某地点搜索失败（status: error），必须告知用户并建议换一个更精确的名称重试，不应跳过。',
         {
             tripId: z.string().describe('旅行 ID'),
             dayId: z.string().describe('天 ID'),
+            provider: z.enum(['google', 'amap']).optional().describe('地点搜索后端，不填使用服务端配置'),
             country: z.string().optional().default('CN').describe('限定搜索国家代码，默认 CN（中国）。规划其他国家时必须修改，例如 JP（日本）、KR（韩国）、US（美国）。填错会导致同名地点定位到错误国家。'),
             places: z.array(z.object({
                 name: z.string().describe('地点名称，必须包含城市/区域名，例如「京都 金阁寺」「大阪 心斋桥」，避免只写地点简称'),
@@ -166,18 +166,17 @@ export function registerTripTools(server: McpServer) {
                 content: z.string().optional().describe('HTML 格式的描述内容（Tiptap 富文本编辑器输出，支持标题、加粗、斜体、下划线、列表、引用、图片等）'),
             })).min(1).describe('按访问顺序排列的地点列表。所有地点应在合理的同日游览范围内（任意两点距离不超过 100 公里）'),
         },
-        async ({ tripId, dayId, country = 'CN', places }) => {
+        async ({ tripId, dayId, country = 'CN', places, provider }) => {
             const day = getDayById(dayId)
             if (!day || day.tripId !== tripId) throw new Error(`天不存在: ${dayId}`)
 
             const { mapProviderFactory } = await import('@/lib/map/providers')
-            const googleProvider = mapProviderFactory.createGoogleServerProvider()
-            const mapCfg = { accessToken: config.map.google.accessToken, style: 'custom' }
+            const googleProvider = mapProviderFactory.createServiceProvider('search', provider)
 
             const results = []
             for (const place of places) {
                 try {
-                    const searchResults = await googleProvider.searchPlaces(place.name, mapCfg, country)
+                    const searchResults = await googleProvider.searchPlaces(place.name, undefined, country)
                     if (!searchResults?.length) throw new Error(`找不到: ${place.name}`)
 
                     const coordinates = searchResults[0].coordinates

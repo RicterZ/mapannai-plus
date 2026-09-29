@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { mapProviderFactory } from '@/lib/map/providers'
-import { config } from '@/lib/config'
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +11,6 @@ export async function GET(request: NextRequest) {
         const searchParams = request.nextUrl.searchParams;
         const query = searchParams.get('q')
         const limit = parseInt(searchParams.get('limit') || '5')
-        const language = searchParams.get('language') || 'zh-CN'
         const country = searchParams.get('country') || undefined
 
         if (!query) {
@@ -22,15 +20,9 @@ export async function GET(request: NextRequest) {
             )
         }
 
-        // 使用 Google 服务器端提供者进行搜索
-        const googleProvider = mapProviderFactory.createGoogleServerProvider()
-        const mapConfig = {
-            accessToken: config.map.google.accessToken,
-            style: 'custom',
-        }
-        
-        const searchResults = await googleProvider.searchPlaces(query, mapConfig, country)
-        
+        const provider = mapProviderFactory.createServiceProvider('search', searchParams.get('provider') || request.headers.get('x-map-search-provider'))
+        const searchResults = await provider.searchPlaces(query, undefined, country)
+
         // 转换为统一格式
         const results = searchResults.slice(0, limit).map(result => ({
             id: result.name,

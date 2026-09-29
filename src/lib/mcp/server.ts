@@ -22,7 +22,7 @@ function createMcpServer(): McpServer {
   const server = new McpServer({
     name: 'mapannai',
     version: '1.0.0',
-    description: `MapAnNai 交互式旅行地图编辑器。核心概念：Marker（地点标记）、Trip（旅行）、TripDay（旅行中的某天）。推荐 Workflow：1) create_trip 创建旅行 → 2) plan_trip_day 批量创建地点并加入某天。可调用 workflow prompt 获取完整使用指南。`,
+    description: `MapAnNai 交互式旅行地图编辑器。核心概念：Marker（地点标记）、Trip（旅行）、TripDay（旅行中的某天）。推荐 Workflow：1) create_trip 创建旅行 → 2) plan_trip_day 批量创建地点并加入某天。搜索、地点详情、路线可分别选择 Google 或高德后端；可调用 workflow prompt 获取完整使用指南。`,
   })
 
   // Register all tools
@@ -56,6 +56,11 @@ function createMcpServer(): McpServer {
 2. \`plan_trip_day\` — 对每一天批量创建地点 marker 并加入当天行程，自动生成行程链。
 3. 已有标记可使用 \`create_day_chain\`，按标记 ID 创建行程链，无需重新创建地点。
 4. 如需调整当天标记列表的顺序，使用 \`reorder_day_markers\`；行程链顺序由 \`create_day_chain\` 的 \`markerIds\` 决定。
+
+### 地图服务选择
+- 地图底图在网页右上角「地图设置」选择 OpenStreetMap 或高德。
+- \`search_places\`、\`get_place_details\`、\`get_walking_directions\`、\`create_marker\`、\`plan_trip_day\` 可分别传 \`provider: "google" | "amap"\`；省略时使用服务端的对应默认值。
+- 高德地点和路线服务仅支持中国，数据库坐标统一为 WGS-84。
 
 ### 查看已有行程
 1. \`list_trips\` — 列出所有旅行。

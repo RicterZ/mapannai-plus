@@ -45,7 +45,8 @@ export class MapSearchService implements SearchService {
             })
             
             if (!response.ok) {
-                throw new Error(`搜索API错误: ${response.status} ${response.statusText}`)
+                const error = await response.json().catch(() => ({}))
+                throw new Error(error.details || error.error || `搜索 API 错误: ${response.status}`)
             }
             
             const result = await response.json()
@@ -57,7 +58,7 @@ export class MapSearchService implements SearchService {
             return result.data || []
         } catch (error) {
             console.error('搜索服务错误:', error)
-            throw new Error('搜索失败')
+            throw error
         }
     }
 }

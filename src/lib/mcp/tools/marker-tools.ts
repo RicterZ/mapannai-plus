@@ -6,7 +6,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import { mapProviderFactory } from '@/lib/map/providers'
-import { config } from '@/lib/config'
 import { MarkerIconType } from '@/types/marker'
 import {
     getAllMarkers,
@@ -17,10 +16,9 @@ import {
     generateCoordinateHash,
 } from '@/lib/db/marker-service'
 
-async function searchPlaceCoordinates(name: string, country: string = 'CN'): Promise<{ latitude: number; longitude: number; address?: string }> {
-  const googleProvider = mapProviderFactory.createGoogleServerProvider()
-  const mapConfig = { accessToken: config.map.google.accessToken, style: 'custom' }
-  const results = await googleProvider.searchPlaces(name, mapConfig, country)
+async function searchPlaceCoordinates(name: string, country: string = 'CN', provider?: 'google' | 'amap'): Promise<{ latitude: number; longitude: number; address?: string }> {
+  const googleProvider = mapProviderFactory.createServiceProvider('search', provider)
+  const results = await googleProvider.searchPlaces(name, undefined, country)
   if (!results || results.length === 0) {
     throw new Error(`找不到地点: ${name}`)
   }
@@ -74,13 +72,14 @@ export function registerMarkerTools(server: McpServer) {
           .describe('图标类型'),
         content: z.string().optional().describe('HTML 格式的描述内容（Tiptap 富文本编辑器输出，支持标题、加粗、斜体、下划线、列表、引用、图片等）'),
       })).min(1).describe('要创建的地点列表（支持批量）'),
+      provider: z.enum(['google', 'amap']).optional().describe('地点搜索后端，不填使用服务端配置'),
       country: z.string().optional().default('CN').describe('限定搜索国家代码，默认 CN（中国）。规划其他国家时必须修改，例如 JP（日本）、KR（韩国）、US（美国）。填错会导致同名地点定位到错误国家。'),
     },
-    async ({ places, country }) => {
+    async ({ places, country, provider }) => {
       const results = []
       for (const place of places) {
         try {
-          const coordinates = await searchPlaceCoordinates(place.name, country)
+          const coordinates = await searchPlaceCoordinates(place.name, country, provider)
           const coordinateHash = generateCoordinateHash(coordinates.longitude, coordinates.latitude)
           const featureId = `coord_${coordinateHash}`
 

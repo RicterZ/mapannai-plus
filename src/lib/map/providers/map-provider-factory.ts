@@ -1,34 +1,26 @@
-import { MapProviderFactory, MapProviderType, MapProvider } from '@/types/map-provider'
+import type { MapProviderFactory, MapProviderType, MapProvider, MapServiceCapability } from '@/types/map-provider'
 import { GoogleServerProvider } from './google-server-provider'
+import { AmapServerProvider } from './amap-server-provider'
 
-export class MapProviderFactoryImpl implements MapProviderFactory {
-    private providers: Map<MapProviderType, () => MapProvider> = new Map()
-
-    constructor() {
-        // 未来可以注册其他地图提供者
-    }
-
-    // 创建 Google 服务器端提供者（仅用于后端 API）
-    createGoogleServerProvider(): GoogleServerProvider {
-        return new GoogleServerProvider()
-    }
-
-    createProvider(type: MapProviderType): MapProvider {
-        const providerFactory = this.providers.get(type)
-        if (!providerFactory) {
-            throw new Error(`Unsupported map provider: ${type}`)
-        }
-        return providerFactory()
-    }
-
-    getSupportedProviders(): MapProviderType[] {
-        return Array.from(this.providers.keys())
-    }
-
-    private registerProvider(type: MapProviderType, factory: () => MapProvider): void {
-        this.providers.set(type, factory)
-    }
+export function parseServiceProvider(value: string): MapProviderType {
+    if (value !== 'google' && value !== 'amap') throw new Error(`Unsupported map service provider: ${value}`)
+    return value
 }
-
-// 单例实例
+export function defaultServiceProvider(capability: MapServiceCapability): MapProviderType {
+    const values = { search: process.env.MAP_SEARCH_PROVIDER, details: process.env.MAP_DETAILS_PROVIDER, directions: process.env.MAP_DIRECTIONS_PROVIDER }
+    return parseServiceProvider(values[capability] || 'google')
+}
+export class MapProviderFactoryImpl implements MapProviderFactory {
+    createProvider(type: MapProviderType): MapProvider {
+        switch (type) {
+            case 'google': return new GoogleServerProvider()
+            case 'amap': return new AmapServerProvider()
+            default: throw new Error(`Unsupported map service provider: ${type}`)
+        }
+    }
+    createServiceProvider(capability: MapServiceCapability, override?: string | null): MapProvider {
+        return this.createProvider(override ? parseServiceProvider(override) : defaultServiceProvider(capability))
+    }
+    getSupportedProviders(): MapProviderType[] { return ['google', 'amap'] }
+}
 export const mapProviderFactory = new MapProviderFactoryImpl()

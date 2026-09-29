@@ -3,6 +3,8 @@
 import { useMemo, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Source, Layer, useMap } from 'react-map-gl/maplibre'
 import type { GeoJSONSource } from 'maplibre-gl'
+import { toMapCoordinates } from '@/lib/map/basemap'
+import type { BasemapProviderType } from '@/types/map-provider'
 import { Marker } from '@/types/marker'
 import { useMapStore } from '@/store/map-store'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
@@ -65,6 +67,7 @@ const emptyFeatureCollection: GeoJSON.FeatureCollection = {
 }
 
 interface ConnectionLinesProps {
+    basemap?: BasemapProviderType
     markers?: Marker[]
     zoom?: number
 }
@@ -76,7 +79,7 @@ interface ConnectionLine {
     dayId: string
 }
 
-export const ConnectionLines = ({ zoom = 11 }: ConnectionLinesProps) => {
+export const ConnectionLines = ({ zoom = 11, basemap = 'osm' }: ConnectionLinesProps) => {
     const { markers, tripDays, activeView, interactionState } = useMapStore()
     const { highlightedDayId } = interactionState
     const { current: map } = useMap()
@@ -165,7 +168,7 @@ export const ConnectionLines = ({ zoom = 11 }: ConnectionLinesProps) => {
     // 计算所有连接线：每个 day 的 chains 里相邻对
     const connectionLines = useMemo(() => {
         const lines: ConnectionLine[] = []
-        const markerMap = new Map(markers.map(m => [m.id, m]))
+        const markerMap = new Map(markers.map(m => [m.id, { ...m, coordinates: toMapCoordinates(m.coordinates, basemap) }]))
 
         for (const day of relevantDays) {
             const chains = day.chains ?? []
@@ -187,7 +190,7 @@ export const ConnectionLines = ({ zoom = 11 }: ConnectionLinesProps) => {
         }
 
         return lines
-    }, [relevantDays, markers])
+    }, [relevantDays, markers, basemap])
 
     // 计算需要高亮的连线ID（hover 临时覆盖 click 锁定）
     const highlightedLineIds = useMemo(() => {

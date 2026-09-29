@@ -3,6 +3,9 @@
 import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react'
 import { toast } from 'sonner'
 
+import { MapProviderSettings } from './map-provider-settings'
+import { defaultMapPreferences, getMapPreferences, saveMapPreferences, MapPreferences } from '@/lib/map/preferences'
+import { createBasemapStyle, toMapCoordinates, fromMapCoordinates } from '@/lib/map/basemap'
 import { config } from '@/lib/config'
 import { isInChina } from '@/lib/coord-transform'
 import { installZoomThresholdBackdoor } from '@/lib/zoom-threshold'
@@ -33,30 +36,12 @@ export const AbstractMap = () => {
     const [loadingRetryCount, setLoadingRetryCount] = useState(0)
     const [dataLoaded, setDataLoaded] = useState(false)
 
-    // 动态构造地图样式：
-    // 默认使用反向代理路径（origin/osm-tiles/），NEXT_PUBLIC_OSM_TILE_PROXY=false 时使用官方 OSM
-    const mapStyle = useMemo(() => {
-        const useProxy = process.env.NEXT_PUBLIC_OSM_TILE_PROXY !== 'false'
-        const origin = typeof window !== 'undefined' ? window.location.origin : ''
-        const tileUrl = useProxy
-            ? `${origin}/osm-tiles/{z}/{x}/{y}.png`
-            : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-        return {
-            version: 8,
-            name: 'OSM',
-            sources: {
-                'osm-tiles': {
-                    type: 'raster',
-                    tiles: [tileUrl],
-                    tileSize: 256,
-                    attribution: '© OpenStreetMap contributors',
-                    minzoom: 0,
-                    maxzoom: 19,
-                },
-            },
-            layers: [{ id: 'osm-layer', type: 'raster', source: 'osm-tiles' }],
-        }
-    }, [])
+    const [mapPreferences, setMapPreferences] = useState<MapPreferences>(defaultMapPreferences)
+    useEffect(() => { setMapPreferences(getMapPreferences()) }, [])
+    const basemap = mapPreferences.basemap
+    const toDisplay = useCallback((c: { longitude: number; latitude: number }) => toMapCoordinates(c, basemap), [basemap])
+    const fromDisplay = useCallback((c: { longitude: number; latitude: number }) => fromMapCoordinates(c, basemap), [basemap])
+    const mapStyle = useMemo(() => createBasemapStyle(basemap, typeof window !== 'undefined' ? window.location.origin : ''), [basemap])
     // 存储地点名称，用于更新 popup title
     const [currentPlaceName, setCurrentPlaceName] = useState<string | undefined>(undefined)
     
@@ -174,7 +159,7 @@ export const AbstractMap = () => {
 
         if (geoState === 'active' && userLocation) {
             // 已定位，重新飞到当前位置
-            mapRef.current?.flyTo({ center: [userLocation.lng, userLocation.lat], zoom: 15, duration: 800 })
+            mapRef.current?.flyTo({ center: [toDisplay({ longitude: userLocation.lng, latitude: userLocation.lat }).longitude, toDisplay({ longitude: userLocation.lng, latitude: userLocation.lat }).latitude], zoom: 15, duration: 800 })
             return
         }
 
@@ -188,7 +173,7 @@ export const AbstractMap = () => {
                 setUserLocation(loc)
                 setGeoState(prev => {
                     if (prev === 'loading') {
-                        mapRef.current?.flyTo({ center: [loc.lng, loc.lat], zoom: 15, duration: 800 })
+                        mapRef.current?.flyTo({ center: [toDisplay({ longitude: loc.lng, latitude: loc.lat }).longitude, toDisplay({ longitude: loc.lng, latitude: loc.lat }).latitude], zoom: 15, duration: 800 })
                     }
                     return 'active'
                 })
@@ -207,7 +192,7 @@ export const AbstractMap = () => {
             },
             { enableHighAccuracy: true, timeout: 10000 }
         )
-    }, [geoState, userLocation, hasGeolocation])
+    }, [geoState, userLocation, hasGeolocation, toDisplay])
 
     const {
         markers,
@@ -271,7 +256,8 @@ export const AbstractMap = () => {
         const handleJumpToCenter = (event: CustomEvent) => {
             const { coordinates, zoom } = event.detail
             if (mapRef.current) {
-                mapRef.current.flyTo({ center: [coordinates.longitude, coordinates.latitude], zoom, duration: 2000 })
+                const target = toDisplay(coordinates)
+                mapRef.current.flyTo({ center: [target.longitude, target.latitude], zoom, duration: 2000 })
             }
         }
 
@@ -279,7 +265,7 @@ export const AbstractMap = () => {
         return () => {
             window.removeEventListener('jumpToCenter', handleJumpToCenter as EventListener)
         }
-    }, [])
+    }, [toDisplay])
 
     // 根据两点距离计算 flyTo 时长：>=200km → 3500ms，<=10km → 2000ms，线性插值
     const flyDuration = useCallback((to: { longitude: number; latitude: number }): number => {
@@ -297,10 +283,11 @@ export const AbstractMap = () => {
     // 地图flyTo功能
     const handleFlyTo = useCallback((coordinates: { longitude: number; latitude: number }, zoom?: number) => {
         if (mapRef.current) {
+            const target = toDisplay(coordinates)
             // popup 显示在标记下方，标记上移让 popup 视觉居中（offset 负 y = 目标点在视口中心上方）
-            mapRef.current.flyTo({ center: [coordinates.longitude, coordinates.latitude], offset: [0, -80], zoom, duration: flyDuration(coordinates) })
+            mapRef.current.flyTo({ center: [target.longitude, target.latitude], offset: [0, -80], zoom, duration: flyDuration(coordinates) })
         }
-    }, [flyDuration])
+    }, [flyDuration, toDisplay])
 
     // 右下角搜索：防抖自动搜索（输入≥2字）
     useEffect(() => {
@@ -330,7 +317,7 @@ export const AbstractMap = () => {
                 const results = await searchService.searchPlaces(trimmedQuery, 10, 'zh-CN', 'CN')
                 setFabResults(results)
             } catch (e) {
-                setFabQueryError('搜索失败，请稍后再试')
+                setFabQueryError(e instanceof Error ? e.message : '搜索失败，请稍后再试')
                 setFabResults([])
             } finally {
                 setIsSearching(false)
@@ -341,7 +328,7 @@ export const AbstractMap = () => {
         return () => {
             clearTimeout(searchTimeout)
         }
-    }, [fabQuery])
+    }, [fabQuery, mapPreferences.search])
 
     const handleFabResultClick = useCallback((result: any) => {
         if (!result?.coordinates) return
@@ -554,10 +541,10 @@ export const AbstractMap = () => {
             // Mapbox 事件对象格式
             let coordinates: MarkerCoordinates
             if (event.lngLat && event.lngLat.lat !== undefined && event.lngLat.lng !== undefined) {
-                coordinates = {
+                coordinates = fromDisplay({
                     latitude: event.lngLat.lat,
                     longitude: event.lngLat.lng,
-                }
+                })
             } else {
                 return
             }
@@ -599,7 +586,7 @@ export const AbstractMap = () => {
             console.error('Map click error:', err)
             // 不设置严重错误，只是控制台输出
         }
-    }, [isPopupOpen, isSidebarOpen, openPopup, closePopup, closeSidebar, selectMarker, selectedMarkerId, addMarkerEnabled])
+    }, [isPopupOpen, isSidebarOpen, openPopup, closePopup, closeSidebar, selectMarker, selectedMarkerId, addMarkerEnabled, fromDisplay, getPlaceIdAsync])
 
     const handleMarkerClick = useCallback((markerId: string) => {
         try {
@@ -822,26 +809,29 @@ export const AbstractMap = () => {
             {/* 右侧详情栏 */}
             <Sidebar />
 
+            <MapProviderSettings value={mapPreferences} onChange={preferences => {
+                saveMapPreferences(preferences)
+                setMapPreferences(preferences)
+                placeCacheRef.current = {}
+                setCurrentPlaceName(undefined)
+                setCurrentPlaceAddress(undefined)
+                setFabResults([])
+            }} />
             {/* 地图组件 */}
                 <MapLibreComponent
                     ref={mapRef}
-                    viewState={viewState}
+                    viewState={{ ...viewState, ...toDisplay(viewState) }}
                     onMove={(evt) => {
-                        setViewState(evt.viewState)
-                        // 使用通用位置保存函数
-                        saveViewState({
-                            longitude: evt.viewState.longitude,
-                            latitude: evt.viewState.latitude,
-                            zoom: evt.viewState.zoom,
-                            bearing: evt.viewState.bearing,
-                            pitch: evt.viewState.pitch,
-                        })
+                        const canonicalView = { ...evt.viewState, ...fromDisplay(evt.viewState) }
+                        setViewState(canonicalView)
+                        saveViewState(canonicalView)
                     }}
                     onLoad={handleMapLoad}
                     onClick={handleMapClick}
                     mapboxAccessToken=""
-                    mapStyle={mapStyle as any}                    reuseMaps
-                    attributionControl={false}
+                    mapStyle={mapStyle}
+                    reuseMaps
+                    attributionControl={true}
                     logoPosition="bottom-left"
                     doubleClickZoom={false}
                     style={{ 
@@ -854,7 +844,7 @@ export const AbstractMap = () => {
                     }}
                 >
                 {/* Render connection lines */}
-                <ConnectionLines markers={visibleMarkers} zoom={viewState.zoom} />
+                <ConnectionLines markers={visibleMarkers} zoom={viewState.zoom} basemap={basemap} />
 
                 {/* Render existing markers - 添加安全检查 */}
                 {visibleMarkers && visibleMarkers.length > 0 && visibleMarkers.map((marker) => {
@@ -866,8 +856,8 @@ export const AbstractMap = () => {
                     return (
                         <MapboxMarker
                             key={marker.id}
-                            longitude={marker.coordinates.longitude}
-                            latitude={marker.coordinates.latitude}
+                            longitude={toDisplay(marker.coordinates).longitude}
+                            latitude={toDisplay(marker.coordinates).latitude}
                             anchor="center"
                         >
                             <MapMarker
@@ -884,6 +874,7 @@ export const AbstractMap = () => {
                 {isPopupOpen && popupCoordinates && (
                     <MapPopup
                         coordinates={popupCoordinates}
+                        basemap={basemap}
                         selectedMarkerId={selectedMarkerId}
                         onAddMarker={handleAddMarker}
                         onViewMarker={handleViewMarker}
@@ -899,7 +890,7 @@ export const AbstractMap = () => {
                 )}
                 {/* 用户当前位置蓝点 */}
                 {userLocation && (
-                    <MapboxMarker longitude={userLocation.lng} latitude={userLocation.lat} anchor="center">
+                    <MapboxMarker longitude={toDisplay({ longitude: userLocation.lng, latitude: userLocation.lat }).longitude} latitude={toDisplay({ longitude: userLocation.lng, latitude: userLocation.lat }).latitude} anchor="center">
                         <div className="relative flex items-center justify-center">
                             <div className="w-4 h-4 rounded-full bg-blue-500 border-2 border-white shadow-md" />
                         </div>
@@ -1033,7 +1024,7 @@ interface MapLibreComponentProps {
     onLoad: () => void
     onClick: (event: any) => void
     mapboxAccessToken: string
-    mapStyle: string
+    mapStyle: ReturnType<typeof createBasemapStyle>
     reuseMaps: boolean
     attributionControl: boolean
     logoPosition: "top-left" | "top-right" | "bottom-left" | "bottom-right"
@@ -1050,7 +1041,7 @@ const MapLibreComponent = React.forwardRef<MapRef, MapLibreComponentProps>((prop
             <Map
                 ref={ref}
                 {...restProps}
-                initialViewState={viewState}
+                {...viewState}
             />
         </ReactMapProvider>
     )

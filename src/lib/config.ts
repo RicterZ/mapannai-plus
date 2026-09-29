@@ -2,6 +2,10 @@
 export const config = {
     // 地图提供者配置
     map: {
+        amap: {
+            accessToken: process.env.AMAP_API_KEY || '',
+            baseUrl: process.env.AMAP_API_BASE_URL || 'https://restapi.amap.com',
+        },
         google: {
             accessToken: process.env.GOOGLE_API_KEY || '',
             // Google API 基础 URL - 使用反向代理

@@ -6,9 +6,12 @@ import { Popup } from 'react-map-gl/maplibre'
 import { MarkerCoordinates } from '@/types/marker'
 import { useMapStore } from '@/store/map-store'
 import { cn } from '@/utils/cn'
+import { toMapCoordinates } from '@/lib/map/basemap'
+import type { BasemapProviderType } from '@/types/map-provider'
 import { wgs84ToGcj02 } from '@/lib/coord-transform'
 
 interface MapPopupProps {
+    basemap?: BasemapProviderType
     coordinates: MarkerCoordinates
     selectedMarkerId: string | null
     onAddMarker: (name?: string) => void
@@ -22,6 +25,7 @@ interface MapPopupProps {
 
 export const MapPopup = ({
     coordinates,
+    basemap = 'osm',
     selectedMarkerId,
     onAddMarker,
     onViewMarker,
@@ -99,8 +103,8 @@ export const MapPopup = ({
 
     return (
         <Popup
-            longitude={coordinates.longitude}
-            latitude={coordinates.latitude}
+            longitude={toMapCoordinates(coordinates, basemap).longitude}
+            latitude={toMapCoordinates(coordinates, basemap).latitude}
             anchor="top"
             closeButton={false}
             closeOnClick={false}

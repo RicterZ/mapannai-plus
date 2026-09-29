@@ -6,13 +6,11 @@ import {
     generateCoordinateHash,
 } from '@/lib/db/marker-service';
 import { mapProviderFactory } from '@/lib/map/providers';
-import { config } from '@/lib/config';
 
 // 搜索地点获取坐标（直接调用服务层，不经过 HTTP）
-async function searchPlace(name: string): Promise<{latitude: number, longitude: number}> {
-  const googleProvider = mapProviderFactory.createGoogleServerProvider();
-  const mapConfig = { accessToken: config.map.google.accessToken, style: 'custom' };
-  const results = await googleProvider.searchPlaces(name, mapConfig, 'JP');
+async function searchPlace(name: string, country: string, provider?: string): Promise<{latitude: number, longitude: number}> {
+  const googleProvider = mapProviderFactory.createServiceProvider('search', provider);
+  const results = await googleProvider.searchPlaces(name, undefined, country);
 
   if (!results || results.length === 0) {
     throw new Error('未找到该地点');
@@ -28,7 +26,7 @@ async function searchPlace(name: string): Promise<{latitude: number, longitude: 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, iconType, content } = body;
+    const { name, iconType, content, country = 'JP', provider } = body;
 
     if (!name || !iconType) {
       return NextResponse.json(
@@ -38,7 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 搜索地点获取坐标
-    const coordinates = await searchPlace(name);
+    const coordinates = await searchPlace(name, country, provider);
 
     // 检查是否存在相近的标记（哈希 + 10米范围内）
     const existing = findNearbyMarker(coordinates.longitude, coordinates.latitude, 10);
