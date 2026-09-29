@@ -200,6 +200,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
 
     const {
         markers,
+        tripDays,
         interactionState,
         addMarkerModal,
         editMarkerModal,
@@ -290,6 +291,21 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             flyMap({ center: [coordinates.longitude, coordinates.latitude], offset: [0, -80], zoom, duration: flyDuration(coordinates) })
         }
     }, [flyDuration, flyMap])
+
+    const lastFocusedDayRef = useRef<string | null>(null)
+    useEffect(() => {
+        if (activeView.mode !== 'day' || !activeView.dayId) {
+            lastFocusedDayRef.current = null
+            return
+        }
+        if (lastFocusedDayRef.current === activeView.dayId || (!mapRef.current && !amapRef.current)) return
+        const day = tripDays.find(item => item.id === activeView.dayId)
+        const firstMarkerId = day?.chains.find(chain => chain.length > 0)?.[0]
+        const marker = markers.find(item => item.id === firstMarkerId)
+        if (!marker) return
+        lastFocusedDayRef.current = activeView.dayId
+        handleFlyTo(marker.coordinates)
+    }, [activeView.mode, activeView.dayId, tripDays, markers, handleFlyTo, mapInitialized])
 
     // 右下角搜索：防抖自动搜索（输入≥2字）
     useEffect(() => {

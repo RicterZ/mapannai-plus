@@ -108,6 +108,10 @@ body {
     animation: fadeIn 0.15s ease-out;
 }
 
+.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+    border-bottom-color: white;
+}
+
 /* Editor.js styles */
 .ce-block__content,
 .ce-toolbar__content {

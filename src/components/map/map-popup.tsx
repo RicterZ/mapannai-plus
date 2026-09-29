@@ -251,7 +251,10 @@ export const MapPopup = ({
                 </button>
             </div>
     )
-    if (embedded) return content
+    if (embedded) return <div className="relative">
+        <span aria-hidden="true" className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 bg-white shadow-sm" />
+        {content}
+    </div>
     return <Popup
         longitude={toMapCoordinates(coordinates, basemap).longitude}
         latitude={toMapCoordinates(coordinates, basemap).latitude}
