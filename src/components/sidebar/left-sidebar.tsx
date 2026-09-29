@@ -366,7 +366,20 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
         }
     }, [trips, tripDays, setActiveView])
 
-    const TRIP_EMOJIS = ['✈️', '🚞', '🚢', '🚗', '🏍️', '🏕️', '🏖️', '🗻', '🏯', '🎒', '🇨🇳', '🇯🇵', '🇰🇷', '🇸🇬', '🇹🇭', '🇺🇸', '🇫🇷', '🇬🇧', '🇮🇹', '🇩🇪', '🍜', '🍣', '🍲', '🍛', '🍖']
+    const TRIP_EMOJIS = [
+        '✈️', '🚞', '🚢', '🚗', '🏍️',
+        '🏕️', '🏖️', '🗻', '🏯', '🎒',
+        '🇨🇳', '🇯🇵', '🇰🇷', '🇸🇬', '🇹🇭',
+        '🇺🇸', '🇫🇷', '🇬🇧', '🇮🇹', '🇩🇪',
+        '🍜', '🍣', '🍲', '🍛', '🍖',
+        '🚲', '🚐', '⛵', '🚠', '🎈',
+        '🏜️', '🌋', '🏝️', '🌌', '🌸',
+        '🏰', '🗼', '🕌', '⛩️', '🗽',
+        '🎿', '🤿', '🏄', '🥾', '♨️',
+        '🎭', '🎨', '🎡', '🎪', '🎶',
+        '🐼', '🐘', '🐋', '🦒', '🐧',
+        '☕', '🍷', '🍺', '🥐', '🍕',
+    ]
 
     useEffect(() => {
         if (!showEmojiPicker) return
@@ -739,7 +752,7 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                         {displayMode === 'overview' ? '🗺️' : displayMode === 'trip' ? (currentTrip?.emoji ?? '✈️') : '📅'}
                     </div>
                     {showEmojiPicker && displayMode === 'trip' && currentTrip && (
-                        <div data-emoji-picker className="absolute left-0 top-9 z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-2 grid grid-cols-5 gap-1 w-44">
+                        <div data-emoji-picker className="absolute left-0 top-9 z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-2 grid grid-cols-5 gap-1 w-44 max-h-64 overflow-y-auto">
                             {TRIP_EMOJIS.map(e => (
                                 <button
                                     key={e}
