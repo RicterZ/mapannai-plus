@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MapAnNai 路线图标">
+  <rect width="512" height="512" rx="112" fill="#2563eb"/>
+  <path d="M142 350 C142 235 230 232 234 314 C238 374 304 374 332 307" fill="none" stroke="#fff" stroke-width="30" stroke-linecap="round"/>
+  <circle cx="142" cy="350" r="25" fill="#fff"/>
+  <path d="M332 126 C292 126 264 156 264 194 C264 240 332 307 332 307 C332 307 400 240 400 194 C400 156 372 126 332 126Z" fill="#fff"/>
+  <circle cx="332" cy="190" r="24" fill="#2563eb"/>
+</svg>
