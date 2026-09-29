@@ -260,7 +260,7 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
         selectMarker, openSidebar, openPopup,
         setActiveView, deleteTrip, updateTrip,
         removeMarkerFromDay,
-        updateDayChains,
+        updateDayChains, updateTripDay,
     } = useMapStore()
 
     const [showCreateTrip, setShowCreateTrip] = useState(false)
@@ -742,27 +742,31 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                     <div
                         className={cn(
                             'w-11 h-11 rounded-xl flex items-center justify-center text-2xl',
-                            displayMode === 'trip'
+                            displayMode !== 'overview'
                                 ? 'bg-blue-100 cursor-pointer hover:bg-blue-200 transition-colors'
                                 : 'bg-blue-100',
                         )}
-                        onClick={() => displayMode === 'trip' && setShowEmojiPicker(v => !v)}
-                        title={displayMode === 'trip' ? '更换图标' : undefined}
+                        onClick={() => displayMode !== 'overview' && setShowEmojiPicker(v => !v)}
+                        title={displayMode !== 'overview' ? '更换图标' : undefined}
                     >
-                        {displayMode === 'overview' ? '🗺️' : displayMode === 'trip' ? (currentTrip?.emoji ?? '✈️') : '📅'}
+                        {displayMode === 'overview' ? '🗺️' : displayMode === 'trip' ? (currentTrip?.emoji ?? '✈️') : (currentDay?.emoji ?? '📅')}
                     </div>
-                    {showEmojiPicker && displayMode === 'trip' && currentTrip && (
+                    {showEmojiPicker && ((displayMode === 'trip' && currentTrip) || (displayMode === 'day' && currentDay)) && (
                         <div data-emoji-picker className="absolute left-0 top-9 z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-2 grid grid-cols-5 gap-1 w-44 max-h-64 overflow-y-auto">
                             {TRIP_EMOJIS.map(e => (
                                 <button
                                     key={e}
                                     onClick={() => {
-                                        updateTrip(currentTrip.id, { emoji: e })
+                                        if (displayMode === 'trip' && currentTrip) {
+                                            updateTrip(currentTrip.id, { emoji: e }).catch(() => toast.error('更新图标失败'))
+                                        } else if (currentDay) {
+                                            updateTripDay(currentDay.tripId, currentDay.id, { emoji: e }).catch(() => toast.error('更新图标失败'))
+                                        }
                                         setShowEmojiPicker(false)
                                     }}
                                     className={cn(
                                         'text-lg w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-50 transition-colors',
-                                        (currentTrip.emoji ?? '✈️') === e && 'bg-blue-100'
+                                        (displayMode === 'trip' ? (currentTrip?.emoji ?? '✈️') : currentDay?.emoji) === e && 'bg-blue-100'
                                     )}
                                 >
                                     {e}
@@ -871,6 +875,17 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
             </div>
 
             <div className="flex items-center gap-1">
+                {displayMode === 'day' && ([-1, 1] as const).map(offset => {
+                    const index = currentTripDays.findIndex(day => day.id === displayDayId)
+                    const target = index >= 0 ? currentTripDays[index + offset] : undefined
+                    const label = offset < 0 ? '上一天' : '下一天'
+                    return <button key={offset} type="button" aria-label={label} title={label}
+                        disabled={!target || blockClicks}
+                        onClick={() => { if (target) { setShowEmojiPicker(false); setBlockClicksSync(true); setActiveView('day', target.tripId, target.id) } }}
+                        className="p-1.5 rounded-md text-blue-600 hover:bg-white/80 disabled:opacity-30 disabled:pointer-events-none">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={offset < 0 ? 'M15 19l-7-7 7-7' : 'M9 5l7 7-7 7'} /></svg>
+                    </button>
+                })}
                 <button
                     onClick={closeLeftSidebar}
                     className="lg:hidden p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-white/80 transition-colors"
@@ -1060,7 +1075,7 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                                 className="flex-1 min-w-0 flex items-center gap-3 px-3 py-3 text-left"
                             >
                                 <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center text-sm font-bold text-blue-600 flex-shrink-0">
-                                    {idx + 1}
+                                    {day.emoji || idx + 1}
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="font-medium text-sm text-gray-900">

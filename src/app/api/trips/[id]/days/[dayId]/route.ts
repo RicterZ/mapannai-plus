@@ -10,8 +10,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         if (!day || day.tripId !== params.id) return NextResponse.json({ error: '天不存在' }, { status: 404 })
 
         const body = await request.json()
+        if (body.emoji !== undefined && (typeof body.emoji !== 'string' || body.emoji.length > 32)) {
+            return NextResponse.json({ error: '图标格式无效' }, { status: 400 })
+        }
         const updated = {
             ...day,
+            emoji: body.emoji !== undefined ? (body.emoji.trim() || undefined) : day.emoji,
             title: body.title !== undefined ? (body.title?.trim() || undefined) : day.title,
             markerIds: body.markerIds !== undefined ? body.markerIds : day.markerIds,
             chains: body.chains !== undefined ? body.chains : day.chains,

@@ -59,6 +59,9 @@ function initSchema(db: Database.Database) {
 
     // Runtime migration: add chains column if it doesn't exist yet (for existing DBs)
     const cols = db.prepare(`PRAGMA table_info(trip_days)`).all() as { name: string }[]
+    if (!cols.some(c => c.name === 'emoji')) {
+        db.exec(`ALTER TABLE trip_days ADD COLUMN emoji TEXT`)
+    }
     if (!cols.some(c => c.name === 'chains')) {
         db.exec(`ALTER TABLE trip_days ADD COLUMN chains TEXT NOT NULL DEFAULT '[]'`)
     }

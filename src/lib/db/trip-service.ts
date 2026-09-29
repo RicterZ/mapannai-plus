@@ -74,11 +74,12 @@ export function getDayById(dayId: string): TripDay | null {
 
 export function upsertTripDay(day: TripDay): void {
     getDb().prepare(`
-        INSERT INTO trip_days (id, trip_id, date, title, marker_ids, chains)
-        VALUES (@id, @tripId, @date, @title, @markerIds, @chains)
+        INSERT INTO trip_days (id, trip_id, date, title, emoji, marker_ids, chains)
+        VALUES (@id, @tripId, @date, @title, @emoji, @markerIds, @chains)
         ON CONFLICT(id) DO UPDATE SET
             date       = excluded.date,
             title      = excluded.title,
+            emoji      = excluded.emoji,
             marker_ids = excluded.marker_ids,
             chains     = excluded.chains
     `).run({
@@ -86,6 +87,7 @@ export function upsertTripDay(day: TripDay): void {
         tripId: day.tripId,
         date: day.date,
         title: day.title ?? null,
+        emoji: day.emoji ?? null,
         markerIds: JSON.stringify(day.markerIds),
         chains: JSON.stringify(day.chains ?? []),
     })
@@ -142,6 +144,7 @@ function rowToDay(row: any): TripDay {
         tripId: row.trip_id,
         date: row.date,
         title: row.title ?? undefined,
+        emoji: row.emoji ?? undefined,
         markerIds: JSON.parse(row.marker_ids || '[]'),
         chains: JSON.parse(row.chains || '[]'),
     }
