@@ -442,3 +442,9 @@ body {
 .rich-content code { background: #f3f4f6; border-radius: 0.25rem; padding: 0.1em 0.35em; font-size: 0.85em; font-family: monospace; }
 .rich-content pre { background: #1f2937; color: #f9fafb; border-radius: 0.5rem; padding: 1rem; overflow-x: auto; margin: 0.5rem 0; font-size: 0.85rem; }
 .rich-content pre code { background: none; padding: 0; color: inherit; }
+
+/* Prevent SDK branding controls from covering the itinerary sidebar. */
+.amap-container .amap-logo,
+.amap-container .amap-copyright {
+    display: none !important;
+}

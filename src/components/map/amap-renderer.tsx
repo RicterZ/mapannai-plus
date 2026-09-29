@@ -1,11 +1,13 @@
 'use client'
 
-import React, { useEffect, useImperativeHandle, useRef, useState } from 'react'
+import React, { useEffect, useImperativeHandle, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useMapStore } from '@/store/map-store'
 import type { Marker } from '@/types/marker'
 import type { MarkerCoordinates } from '@/types/marker'
 import { wgs84ToGcj02, gcj02ToWgs84 } from '@/lib/coord-transform'
+import { getControlPoint, bezierPoint, getBezierPath } from '@/lib/map/connection-geometry'
+import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { MapMarker } from './map-marker'
 
 interface AMapPoint { lng?: number; lat?: number; getLng?: () => number; getLat?: () => number }
@@ -159,23 +161,59 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     }, [ready, props.markers, props.selectedMarkerId])
 
     const { tripDays, activeView, interactionState } = useMapStore()
+    const [hoveredDayId, setHoveredDayId] = useState<string | null>(null)
+    const effectiveDayId = hoveredDayId ?? interactionState.highlightedDayId
+    const zoomThreshold = useSyncExternalStore(
+        callback => { window.addEventListener('zoomThresholdChange', callback); return () => window.removeEventListener('zoomThresholdChange', callback) },
+        getZoomThreshold, getZoomThreshold,
+    )
+    useEffect(() => {
+        const handler = (event: Event) => setHoveredDayId((event as CustomEvent).detail.dayId)
+        window.addEventListener('markerDayHover', handler)
+        return () => window.removeEventListener('markerDayHover', handler)
+    }, [])
     useEffect(() => {
         const map = mapRef.current, AMap = namespaceRef.current
-        if (!ready || !map || !AMap) return
+        if (!ready || !map || !AMap || props.viewState.zoom < zoomThreshold) return
         const byId = new Map(props.markers.map(marker => [marker.id, marker]))
         const relevant = tripDays.filter(day => activeView.mode === 'day' ? day.id === activeView.dayId : activeView.mode === 'trip' ? day.tripId === activeView.tripId : true)
-        const lines: any[] = []
+        const overlays: any[] = []
+        const animated: Array<{ dot: any; from: { lat: number; lng: number }; to: { lat: number; lng: number } }> = []
         for (const day of relevant) for (const chain of day.chains || []) {
-            const path = chain.map(id => byId.get(id)).filter(Boolean).map(marker => gcj(marker!.coordinates))
-            if (path.length < 2) continue
-            const line = new AMap.Polyline({ path, strokeColor: day.id === interactionState.highlightedDayId ? '#3b82f6' : '#6366f1', strokeWeight: 5, strokeOpacity: 0.8, zIndex: 50 })
-            line.on('mouseover', () => useMapStore.getState().setHighlightedDay(day.id))
-            line.on('click', () => useMapStore.getState().setHighlightedDay(day.id))
-            lines.push(line)
+            for (let index = 0; index < chain.length - 1; index++) {
+                const fromMarker = byId.get(chain[index]), toMarker = byId.get(chain[index + 1])
+                if (!fromMarker || !toMarker) continue
+                const [fromLng, fromLat] = gcj(fromMarker.coordinates), [toLng, toLat] = gcj(toMarker.coordinates)
+                const from = { lng: fromLng, lat: fromLat }, to = { lng: toLng, lat: toLat }
+                const highlighted = day.id === effectiveDayId
+                const path = getBezierPath(from, to)
+                const width = Math.max(3, 3 + (props.viewState.zoom - 10) * 0.2) + (highlighted ? 2 : 0)
+                const casing = new AMap.Polyline({ path, strokeColor: '#ffffff', strokeWeight: width + 4, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.4 : 0.8, zIndex: highlighted ? 52 : 48 })
+                const line = new AMap.Polyline({ path, strokeColor: highlighted ? '#3b82f6' : '#6366f1', strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.25 : 0.8, zIndex: highlighted ? 53 : 49 })
+                line.on('mouseover', () => setHoveredDayId(day.id))
+                line.on('mouseout', () => setHoveredDayId(null))
+                line.on('click', () => { if (activeView.mode !== 'day') useMapStore.getState().setHighlightedDay(day.id) })
+                overlays.push(casing, line)
+                if (highlighted) {
+                    const node = document.createElement('div')
+                    node.style.cssText = 'width:14px;height:14px;border:2px solid white;border-radius:50%;background:#3b82f6;box-sizing:border-box;pointer-events:none'
+                    const dot = new AMap.Marker({ position: [from.lng, from.lat], content: node, offset: new AMap.Pixel(-7, -7), zIndex: 54, clickable: false })
+                    overlays.push(dot)
+                    animated.push({ dot, from, to })
+                }
+            }
         }
-        map.add(lines)
-        return () => map.remove(lines)
-    }, [ready, props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId, interactionState.highlightedDayId])
+        map.add(overlays)
+        let frame = 0
+        const started = performance.now()
+        const animate = (now: number) => {
+            const progress = ((now - started) / 2100) % 1
+            for (const { dot, from, to } of animated) dot.setPosition(bezierPoint(from, getControlPoint(from, to), to, progress))
+            frame = requestAnimationFrame(animate)
+        }
+        if (animated.length) frame = requestAnimationFrame(animate)
+        return () => { cancelAnimationFrame(frame); map.remove(overlays) }
+    }, [ready, props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId, effectiveDayId, props.viewState.zoom, zoomThreshold])
 
     useEffect(() => {
         const map = mapRef.current, AMap = namespaceRef.current
@@ -212,7 +250,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     }, [ready, props.userLocation])
 
     return <>
-        <div ref={containerRef} className="absolute inset-0" />
+        <div ref={containerRef} className="absolute inset-0 isolate z-0" />
         {ready && markerNodes.map((node, index) => props.markers[index] && createPortal(
             <MapMarker marker={props.markers[index]} isSelected={props.markers[index].id === props.selectedMarkerId} onClick={() => props.onMarkerClick(props.markers[index].id)} zoom={props.viewState.zoom} />,
             node, props.markers[index].id,
