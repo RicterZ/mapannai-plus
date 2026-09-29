@@ -1,24 +1,8 @@
-'use client'
+import { MapClient } from './map-client'
 
-import dynamic from 'next/dynamic'
-
-// 动态导入地图组件，避免SSR问题
-const InteractiveMap = dynamic(() => import('@/components/map/abstract-map').then(mod => ({ default: mod.AbstractMap })), {
-    ssr: false,
-    loading: () => (
-        <div className="w-full h-screen flex items-center justify-center bg-gray-100">
-            <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">加载地图中...</p>
-            </div>
-        </div>
-    )
-})
+export const dynamic = 'force-dynamic'
 
 export default function HomePage() {
-    return (
-        <main className="fixed inset-0">
-            <InteractiveMap />
-        </main>
-    )
-} 
+    const renderer = process.env.MAP_RENDERER === 'amap' ? 'amap' : 'osm'
+    return <MapClient renderer={renderer} amapJsKey={process.env.AMAP_JS_KEY || ''} amapSecurityCode={process.env.AMAP_JS_SECURITY_CODE || ''} />
+}

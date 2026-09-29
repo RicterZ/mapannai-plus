@@ -8,14 +8,11 @@ export function toMapCoordinates(c: MapCoordinates, basemap: BasemapProviderType
 export function fromMapCoordinates(c: MapCoordinates, basemap: BasemapProviderType): MapCoordinates {
     return basemap === 'amap' ? gcj02ToWgs84(c.longitude, c.latitude) : c
 }
-export function createBasemapStyle(basemap: BasemapProviderType, origin: string): StyleSpecification {
-    const amap = basemap === 'amap'
-    const tiles = amap
-        ? [`${origin}/amap-tiles/{z}/{x}/{y}`]
-        : [process.env.NEXT_PUBLIC_OSM_TILE_PROXY !== 'false' ? `${origin}/osm-tiles/{z}/{x}/{y}.png` : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png']
+export function createBasemapStyle(origin: string): StyleSpecification {
+    const tiles = [process.env.NEXT_PUBLIC_OSM_TILE_PROXY !== 'false' ? `${origin}/osm-tiles/{z}/{x}/{y}.png` : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png']
     return {
-        version: 8, name: basemap,
-        sources: { basemap: { type: 'raster', tiles, tileSize: 256, minzoom: 0, maxzoom: amap ? 18 : 19, attribution: amap ? '© 高德地图' : '© OpenStreetMap contributors' } },
+        version: 8, name: 'osm',
+        sources: { basemap: { type: 'raster', tiles, tileSize: 256, minzoom: 0, maxzoom: 19, attribution: '© OpenStreetMap contributors' } },
         layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }],
     }
 }

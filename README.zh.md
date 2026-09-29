@@ -181,8 +181,8 @@ NEXT_PUBLIC_OSM_TILE_PROXY=false
 
 
 
-## 可切换的地图服务
+## 地图与地点服务配置
 
-地图右上角的「地图设置」可独立选择底图（OpenStreetMap / 高德）、地点搜索、地点详情和路线规划（Google / 高德）。选择保存在当前浏览器中。数据库坐标统一为 WGS-84，高德服务和瓦片所需的 GCJ-02 在边界转换。
+部署时设置 `MAP_RENDERER=osm`（默认，MapLibre）或 `MAP_RENDERER=amap`（高德 JS API 2.0）。高德地图需要单独的 **Web 端 JS API Key**（`AMAP_JS_KEY`）及安全密钥（`AMAP_JS_SECURITY_CODE`）。二者在服务端通过页面配置下发给高德 SDK；请在高德控制台配置域名白名单，并按高德要求保护密钥。旧的 `NEXT_PUBLIC_MAP_BASEMAP` 和浏览器保存的地图选择不再生效。
 
-高德底图经本站 `/amap-tiles/{z}/{x}/{y}` 同源代理，避免浏览器跨域；地点服务需要在服务端设置 `AMAP_API_KEY`（高德开放平台的 Web 服务 Key）。可通过 `MAP_SEARCH_PROVIDER`、`MAP_DETAILS_PROVIDER`、`MAP_DIRECTIONS_PROVIDER` 分别设置服务端默认值，网页初始选择由对应的 `NEXT_PUBLIC_MAP_*_PROVIDER` 指定。完整变量示例见 `env.example`。高德地点和路线服务限中国，海外建议使用 Google；`search_places`、`get_place_details`、`get_walking_directions` MCP 工具可传 `provider` 单独覆盖默认值。
+地点搜索、地点详情、路线规划可独立设置 `MAP_SEARCH_PROVIDER`、`MAP_DETAILS_PROVIDER`、`MAP_DIRECTIONS_PROVIDER`，值为 `google` 或 `amap`，默认 `google`。选择高德地点服务需另配 **Web 服务 Key** `AMAP_API_KEY`。高德地点与路线服务限中国，海外可继续使用 Google。所有持久化坐标保持 WGS-84，接入高德时在边界转换 GCJ-02。完整配置见 `env.example`。

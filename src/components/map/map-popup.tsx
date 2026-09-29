@@ -12,6 +12,7 @@ import { wgs84ToGcj02 } from '@/lib/coord-transform'
 
 interface MapPopupProps {
     basemap?: BasemapProviderType
+    embedded?: boolean
     coordinates: MarkerCoordinates
     selectedMarkerId: string | null
     onAddMarker: (name?: string) => void
@@ -26,6 +27,7 @@ interface MapPopupProps {
 export const MapPopup = ({
     coordinates,
     basemap = 'osm',
+    embedded = false,
     selectedMarkerId,
     onAddMarker,
     onViewMarker,
@@ -58,6 +60,7 @@ export const MapPopup = ({
             if (popupRef.current && !popupRef.current.contains(event.target as Node)) {
                 if (!(event.target as HTMLElement).closest('.map-marker') &&
                     !(event.target as HTMLElement).closest('.maplibregl-map') &&
+                    !(event.target as HTMLElement).closest('.amap-container') &&
                     !(event.target as HTMLElement).closest('.left-sidebar') &&
                     !(event.target as HTMLElement).closest('.right-sidebar')) {
                     onClose()
@@ -101,17 +104,7 @@ export const MapPopup = ({
         }
     }
 
-    return (
-        <Popup
-            longitude={toMapCoordinates(coordinates, basemap).longitude}
-            latitude={toMapCoordinates(coordinates, basemap).latitude}
-            anchor="top"
-            closeButton={false}
-            closeOnClick={false}
-            closeOnMove={false}
-            className="map-popup"
-            maxWidth="300px"
-        >
+    const content = (
             <div
                 ref={popupRef}
                 className={cn(
@@ -257,6 +250,12 @@ export const MapPopup = ({
                     </svg>
                 </button>
             </div>
-        </Popup>
     )
+    if (embedded) return content
+    return <Popup
+        longitude={toMapCoordinates(coordinates, basemap).longitude}
+        latitude={toMapCoordinates(coordinates, basemap).latitude}
+        anchor="top" closeButton={false} closeOnClick={false} closeOnMove={false}
+        className="map-popup" maxWidth="300px"
+    >{content}</Popup>
 }

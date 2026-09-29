@@ -58,7 +58,7 @@ function createMcpServer(): McpServer {
 4. 如需调整当天标记列表的顺序，使用 \`reorder_day_markers\`；行程链顺序由 \`create_day_chain\` 的 \`markerIds\` 决定。
 
 ### 地图服务选择
-- 地图底图在网页右上角「地图设置」选择 OpenStreetMap 或高德。
+- 地图渲染引擎由部署环境的 \`MAP_RENDERER\` 选择 OpenStreetMap/MapLibre 或高德 JS API 2.0。
 - \`search_places\`、\`get_place_details\`、\`get_walking_directions\`、\`create_marker\`、\`plan_trip_day\` 可分别传 \`provider: "google" | "amap"\`；省略时使用服务端的对应默认值。
 - 高德地点和路线服务仅支持中国，数据库坐标统一为 WGS-84。
 

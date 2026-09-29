@@ -3,8 +3,7 @@
 import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react'
 import { toast } from 'sonner'
 
-import { MapProviderSettings } from './map-provider-settings'
-import { defaultMapPreferences, getMapPreferences, saveMapPreferences, MapPreferences } from '@/lib/map/preferences'
+import { AMapRenderer, MapRendererHandle } from './amap-renderer'
 import { createBasemapStyle, toMapCoordinates, fromMapCoordinates } from '@/lib/map/basemap'
 import { config } from '@/lib/config'
 import { isInChina } from '@/lib/coord-transform'
@@ -12,6 +11,7 @@ import { installZoomThresholdBackdoor } from '@/lib/zoom-threshold'
 import { searchService } from '@/lib/api/search-service'
 import { useMapStore } from '@/store/map-store'
 import { MarkerCoordinates } from '@/types/marker'
+import type { BasemapProviderType } from '@/types/map-provider'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import { MapMarker } from './map-marker'
 import { MapPopup } from './map-popup'
@@ -28,7 +28,7 @@ import Map, { Marker as MapboxMarker, MapRef, ViewState, MapProvider as ReactMap
 // 根据地图提供者导入相应的样式
 import 'maplibre-gl/dist/maplibre-gl.css'
 
-export const AbstractMap = () => {
+export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode }: { renderer: BasemapProviderType; amapJsKey: string; amapSecurityCode: string }) => {
     const mapRef = useRef<any>(null)
     const suppressMapClickRef = useRef(false) // popup 内操作后短暂屏蔽地图点击
     const [error, setError] = useState<string | null>(null)
@@ -36,12 +36,16 @@ export const AbstractMap = () => {
     const [loadingRetryCount, setLoadingRetryCount] = useState(0)
     const [dataLoaded, setDataLoaded] = useState(false)
 
-    const [mapPreferences, setMapPreferences] = useState<MapPreferences>(defaultMapPreferences)
-    useEffect(() => { setMapPreferences(getMapPreferences()) }, [])
-    const basemap = mapPreferences.basemap
+    const basemap = renderer
+    const isAmap = basemap === 'amap'
+    const amapRef = useRef<MapRendererHandle>(null)
+    const flyMap = useCallback((options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }) => {
+        if (isAmap) amapRef.current?.flyTo(options)
+        else mapRef.current?.flyTo(options)
+    }, [isAmap])
     const toDisplay = useCallback((c: { longitude: number; latitude: number }) => toMapCoordinates(c, basemap), [basemap])
     const fromDisplay = useCallback((c: { longitude: number; latitude: number }) => fromMapCoordinates(c, basemap), [basemap])
-    const mapStyle = useMemo(() => createBasemapStyle(basemap, typeof window !== 'undefined' ? window.location.origin : ''), [basemap])
+    const mapStyle = useMemo(() => createBasemapStyle(typeof window !== 'undefined' ? window.location.origin : ''), [basemap])
     // 存储地点名称，用于更新 popup title
     const [currentPlaceName, setCurrentPlaceName] = useState<string | undefined>(undefined)
     
@@ -159,7 +163,7 @@ export const AbstractMap = () => {
 
         if (geoState === 'active' && userLocation) {
             // 已定位，重新飞到当前位置
-            mapRef.current?.flyTo({ center: [toDisplay({ longitude: userLocation.lng, latitude: userLocation.lat }).longitude, toDisplay({ longitude: userLocation.lng, latitude: userLocation.lat }).latitude], zoom: 15, duration: 800 })
+            flyMap({ center: [userLocation.lng, userLocation.lat], zoom: 15, duration: 800 })
             return
         }
 
@@ -173,7 +177,7 @@ export const AbstractMap = () => {
                 setUserLocation(loc)
                 setGeoState(prev => {
                     if (prev === 'loading') {
-                        mapRef.current?.flyTo({ center: [toDisplay({ longitude: loc.lng, latitude: loc.lat }).longitude, toDisplay({ longitude: loc.lng, latitude: loc.lat }).latitude], zoom: 15, duration: 800 })
+                        flyMap({ center: [loc.lng, loc.lat], zoom: 15, duration: 800 })
                     }
                     return 'active'
                 })
@@ -192,7 +196,7 @@ export const AbstractMap = () => {
             },
             { enableHighAccuracy: true, timeout: 10000 }
         )
-    }, [geoState, userLocation, hasGeolocation, toDisplay])
+    }, [geoState, userLocation, hasGeolocation, flyMap])
 
     const {
         markers,
@@ -255,9 +259,8 @@ export const AbstractMap = () => {
     useEffect(() => {
         const handleJumpToCenter = (event: CustomEvent) => {
             const { coordinates, zoom } = event.detail
-            if (mapRef.current) {
-                const target = toDisplay(coordinates)
-                mapRef.current.flyTo({ center: [target.longitude, target.latitude], zoom, duration: 2000 })
+            if (mapRef.current || amapRef.current) {
+                flyMap({ center: [coordinates.longitude, coordinates.latitude], zoom, duration: 2000 })
             }
         }
 
@@ -265,7 +268,7 @@ export const AbstractMap = () => {
         return () => {
             window.removeEventListener('jumpToCenter', handleJumpToCenter as EventListener)
         }
-    }, [toDisplay])
+    }, [flyMap])
 
     // 根据两点距离计算 flyTo 时长：>=200km → 3500ms，<=10km → 2000ms，线性插值
     const flyDuration = useCallback((to: { longitude: number; latitude: number }): number => {
@@ -282,12 +285,11 @@ export const AbstractMap = () => {
 
     // 地图flyTo功能
     const handleFlyTo = useCallback((coordinates: { longitude: number; latitude: number }, zoom?: number) => {
-        if (mapRef.current) {
-            const target = toDisplay(coordinates)
+        if (mapRef.current || amapRef.current) {
             // popup 显示在标记下方，标记上移让 popup 视觉居中（offset 负 y = 目标点在视口中心上方）
-            mapRef.current.flyTo({ center: [target.longitude, target.latitude], offset: [0, -80], zoom, duration: flyDuration(coordinates) })
+            flyMap({ center: [coordinates.longitude, coordinates.latitude], offset: [0, -80], zoom, duration: flyDuration(coordinates) })
         }
-    }, [flyDuration, toDisplay])
+    }, [flyDuration, flyMap])
 
     // 右下角搜索：防抖自动搜索（输入≥2字）
     useEffect(() => {
@@ -328,7 +330,7 @@ export const AbstractMap = () => {
         return () => {
             clearTimeout(searchTimeout)
         }
-    }, [fabQuery, mapPreferences.search])
+    }, [fabQuery])
 
     const handleFabResultClick = useCallback((result: any) => {
         if (!result?.coordinates) return
@@ -519,7 +521,6 @@ export const AbstractMap = () => {
         const currentSelectedMarkerId = currentState.interactionState.selectedMarkerId
 
         try {
-            // 只支持 Mapbox 地图
             // Prevent map click when clicking on markers
             if (event.originalEvent?.target &&
                 (event.originalEvent.target as HTMLElement).closest('.map-marker')) {
@@ -541,7 +542,7 @@ export const AbstractMap = () => {
             // Mapbox 事件对象格式
             let coordinates: MarkerCoordinates
             if (event.lngLat && event.lngLat.lat !== undefined && event.lngLat.lng !== undefined) {
-                coordinates = fromDisplay({
+                coordinates = event.canonical ? { latitude: event.lngLat.lat, longitude: event.lngLat.lng } : fromDisplay({
                     latitude: event.lngLat.lat,
                     longitude: event.lngLat.lng,
                 })
@@ -809,15 +810,35 @@ export const AbstractMap = () => {
             {/* 右侧详情栏 */}
             <Sidebar />
 
-            <MapProviderSettings value={mapPreferences} onChange={preferences => {
-                saveMapPreferences(preferences)
-                setMapPreferences(preferences)
-                placeCacheRef.current = {}
-                setCurrentPlaceName(undefined)
-                setCurrentPlaceAddress(undefined)
-                setFabResults([])
-            }} />
             {/* 地图组件 */}
+                {isAmap ? <AMapRenderer
+                    ref={amapRef}
+                    apiKey={amapJsKey}
+                    securityCode={amapSecurityCode}
+                    viewState={viewState}
+                    markers={visibleMarkers}
+                    selectedMarkerId={selectedMarkerId}
+                    popupCoordinates={isPopupOpen ? popupCoordinates : null}
+                    userLocation={userLocation}
+                    onMove={next => { setViewState(previous => ({ ...previous, ...next })); saveViewState(next) }}
+                    onLoad={handleMapLoad}
+                    onClick={(coordinates, originalEvent) => handleMapClick({ lngLat: { lng: coordinates.longitude, lat: coordinates.latitude }, originalEvent, canonical: true })}
+                    onMarkerClick={handleMarkerClick}
+                    onError={error => { console.error('AMap error:', error); setError(error.message) }}
+                    popup={isPopupOpen && popupCoordinates ? <MapPopup
+                        coordinates={popupCoordinates}
+                        basemap="amap"
+                        embedded
+                        selectedMarkerId={selectedMarkerId}
+                        onAddMarker={handleAddMarker}
+                        onViewMarker={handleViewMarker}
+                        onDeleteMarker={handleDeleteMarker}
+                        onClose={closePopup}
+                        placeName={currentPlaceName}
+                        placeAddress={currentPlaceAddress}
+                        onInteract={() => { suppressMapClickRef.current = true; setTimeout(() => { suppressMapClickRef.current = false }, 300) }}
+                    /> : null}
+                /> : <React.Fragment>
                 <MapLibreComponent
                     ref={mapRef}
                     viewState={{ ...viewState, ...toDisplay(viewState) }}
@@ -897,6 +918,7 @@ export const AbstractMap = () => {
                     </MapboxMarker>
                 )}
                 </MapLibreComponent>
+                </React.Fragment>}
 
             {/* 右下角：搜索栏 */}
             <div className="fixed bottom-6 right-4 left-4 lg:left-auto lg:w-72 z-30 flex flex-col items-stretch lg:items-end gap-2">

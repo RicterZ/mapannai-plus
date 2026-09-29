@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
             )
         }
 
-        const provider = mapProviderFactory.createServiceProvider('search', searchParams.get('provider') || request.headers.get('x-map-search-provider'))
+        const provider = mapProviderFactory.createServiceProvider('search')
         const searchResults = await provider.searchPlaces(query, undefined, country)
 
         // 转换为统一格式

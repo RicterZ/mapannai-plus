@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
         const body = await request.json()
         const { latitude, longitude } = body
         if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return NextResponse.json({ error: '需要有效坐标' }, { status: 400 })
-        const provider = mapProviderFactory.createServiceProvider('details', body.provider || request.headers.get('x-map-details-provider'))
+        const provider = mapProviderFactory.createServiceProvider('details')
         const result = await provider.getPlaceDetails({ latitude, longitude })
         return NextResponse.json({ success: true, data: result })
     } catch (error) {
