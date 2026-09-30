@@ -92,15 +92,22 @@ export function smoothRoutePath(path: RoutePath): RoutePath {
         if (furthest >= 0) { keep.add(furthest); stack.push([start, furthest], [furthest, end]) }
     }
     const simplified = cleaned.filter((_, i) => keep.has(i))
+    // Cut short needle-like backtracks even when provider vertices are sparse.
+    for (let i = 1; i < simplified.length - 1;) {
+        const a = simplified[i - 1], b = simplified[i], c = simplified[i + 1]
+        const ab = distance(a, b), bc = distance(b, c)
+        const cosine = ((x(b) - x(a)) * (x(c) - x(b)) + (y(b) - y(a)) * (y(c) - y(b))) / (ab * bc || 1)
+        if (cosine < -0.85 && Math.min(ab, bc) <= 80 && segmentError(b, a, c) <= 60) {
+            simplified.splice(i, 1)
+            i = Math.max(1, i - 1)
+        } else i++
+    }
     const result = [simplified[0]]
     const lerp = (a: RouteCoordinate, b: RouteCoordinate, t: number): RouteCoordinate => ({ lng: a.lng + (b.lng - a.lng) * t, lat: a.lat + (b.lat - a.lat) * t })
     for (let i = 1; i < simplified.length - 1; i++) {
         const previous = simplified[i - 1], point = simplified[i], next = simplified[i + 1]
         const incoming = distance(previous, point), outgoing = distance(point, next)
-        const cosine = incoming && outgoing ? ((x(point) - x(previous)) * (x(next) - x(point)) + (y(point) - y(previous)) * (y(next) - y(point))) / (incoming * outgoing) : -1
-        // Large reversals remain intentional. Broader tangent-aligned rounds
-        // remove the tiny straight stubs produced by the previous 25% trim.
-        if (cosine < -0.85 || !incoming || !outgoing) { result.push(point); continue }
+        if (!incoming || !outgoing) { result.push(point); continue }
         const radius = Math.min(45, incoming * 0.45, outgoing * 0.45)
         const entry = lerp(point, previous, radius / incoming), exit = lerp(point, next, radius / outgoing)
         result.push(entry)
@@ -184,7 +191,7 @@ export function layoutRoutePaths(routes: DisplayRoute[]): Array<RoutePath | null
             dense.push(b)
         }
         let travelled = 0
-        return dense.map((point, i) => {
+        const displaced = dense.map((point, i) => {
             if (i === 0) return path[0]
             if (i === dense.length - 1) return path[path.length - 1]
             travelled += Math.hypot((point.lng - dense[i - 1].lng) * 111000 * sample.scale, (point.lat - dense[i - 1].lat) * 111000)
@@ -200,5 +207,8 @@ export function layoutRoutePaths(routes: DisplayRoute[]): Array<RoutePath | null
             const offset = amplitude * weight * Math.sin(Math.PI * progress) ** 2
             return { lng: point.lng + (a.x * (1 - t) + b.x * t) * offset / (111000 * sample.scale), lat: point.lat + (a.y * (1 - t) + b.y * t) * offset / 111000 }
         })
+        // Corridor displacement can expose a short reversal at an access spur.
+        // Clean it again so the layout cannot reintroduce a needle-shaped tip.
+        return smoothRoutePath(displaced)
     })
 }

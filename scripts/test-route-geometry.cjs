@@ -24,6 +24,11 @@ const largeLoop = [p(0, 0), p(0, 400), p(400, 400), p(400, 0), p(10, 0), p(1000,
 assert(length(smoothRoutePath(largeLoop)) > 2400, 'large waypoint detour survives')
 const corner = [p(0, 0), p(0, 100), p(100, 100)]
 assert(length(smoothRoutePath(corner)) > 180, 'major corner is rounded, not erased')
+const needle = [p(-1000, 0), p(0, 0), p(30, 0), p(2, 1), p(1000, 20)]
+const needleDisplay = smoothRoutePath(needle)
+assert(length(needleDisplay) < length(needle) - 40, 'sparse short backtrack is pruned')
+const hairpin = [p(0, 0), p(200, 0), p(20, 30)]
+assert(smoothRoutePath(hairpin).length > 3, 'substantial reversal is rounded')
 const outbound = [p(0, 0), p(100, 0), p(500, 0), p(1000, 0)]
 const inbound = outbound.slice().reverse()
 const snapshot = JSON.stringify([outbound, inbound])
