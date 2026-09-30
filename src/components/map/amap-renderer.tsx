@@ -281,7 +281,8 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                             return { x: projected.getX(), y: projected.getY() }
                         }) }))
                         const picked = pickRouteDay({ x: pixel.getX(), y: pixel.getY() }, candidates, state.interactionState.highlightedDayId)
-                        if (picked) { setHoveredDayId(null); state.setHighlightedDay(picked) }
+                        const day = state.tripDays.find(item => item.id === picked)
+                        if (day) { setHoveredDayId(null); state.setActiveView('day', day.tripId, day.id) }
                     })
                     routeOverlaysRef.current.set(key, entry)
                     overlays.push(entry.casing, entry.line, entry.hitArea)

@@ -109,7 +109,8 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                 return [{ dayId: String(feature.properties.dayId), path: feature.geometry.coordinates.map(position => mapInstance.project([position[0], position[1]])) }]
             })
             const picked = pickRouteDay(e.point, candidates, state.interactionState.highlightedDayId)
-            if (picked) { setHoveredDayId(null); state.setHighlightedDay(picked) }
+            const day = state.tripDays.find(item => item.id === picked)
+            if (day) { setHoveredDayId(null); state.setActiveView('day', day.tripId, day.id) }
         }
 
         LINE_LAYERS.forEach(layer => {
