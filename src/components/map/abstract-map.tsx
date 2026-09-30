@@ -312,6 +312,10 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             lastFocusedDayRef.current = null
             return
         }
+        if (activeView.focusFirstMarker === false) {
+            lastFocusedDayRef.current = null
+            return
+        }
         if (lastFocusedDayRef.current === activeView.dayId || (!mapRef.current && !amapRef.current)) return
         const day = tripDays.find(item => item.id === activeView.dayId)
         const firstMarkerId = day?.chains.find(chain => chain.length > 0)?.[0]
@@ -319,7 +323,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         if (!marker) return
         lastFocusedDayRef.current = activeView.dayId
         handleFlyTo(marker.coordinates)
-    }, [activeView.mode, activeView.dayId, tripDays, markers, handleFlyTo, mapInitialized])
+    }, [activeView.mode, activeView.dayId, activeView.focusFirstMarker, tripDays, markers, handleFlyTo, mapInitialized])
 
     // 右下角搜索：防抖自动搜索（输入≥2字）
     useEffect(() => {

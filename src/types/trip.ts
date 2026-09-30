@@ -25,6 +25,8 @@ export interface TripDay {
 export type ActiveViewMode = 'overview' | 'trip' | 'day'
 
 export interface ActiveView {
+    /** Route clicks preserve the map camera; date selectors focus the first marker. */
+    focusFirstMarker?: boolean
   mode: ActiveViewMode
   tripId: string | null
   dayId: string | null

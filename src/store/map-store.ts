@@ -101,7 +101,7 @@ interface MapStore {
 
     // ── Trip actions ───────────────────────────────
     loadTripsFromDataset: () => Promise<void>
-    setActiveView: (mode: ActiveView['mode'], tripId?: string | null, dayId?: string | null) => void
+    setActiveView: (mode: ActiveView['mode'], tripId?: string | null, dayId?: string | null, options?: { focusFirstMarker?: boolean }) => void
     createTrip: (data: { name: string; description?: string; startDate: string; endDate: string }) => Promise<Trip>
     updateTrip: (tripId: string, data: Partial<Trip>) => Promise<void>
     deleteTrip: (tripId: string) => Promise<void>
@@ -731,8 +731,8 @@ export const useMapStore = create<MapStore>()(
                 }
             },
 
-            setActiveView: (mode, tripId = null, dayId = null) => {
-                set({ activeView: { mode, tripId, dayId } }, false, 'setActiveView')
+            setActiveView: (mode, tripId = null, dayId = null, options) => {
+                set({ activeView: { mode, tripId, dayId, focusFirstMarker: options?.focusFirstMarker ?? true } }, false, 'setActiveView')
 
                 // 同步写 URL hash
                 if (typeof window !== 'undefined') {
