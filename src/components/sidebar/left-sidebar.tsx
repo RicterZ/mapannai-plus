@@ -1458,7 +1458,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     'app-panel',
                     !leftSidebar.isOpen ? '-translate-x-full panel-closed' : 'translate-x-0 panel-open',
                 )}
-                style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+                style={{ paddingTop: 'env(safe-area-inset-top)' }}
                 onClickCapture={(e) => {
                     // 在捕获阶段拦截 ghost click：CSS pointer-events-none 无法阻止已合成的事件，
                     // 用 ref（非 state）同步判断，stopPropagation + preventDefault 双重阻断
@@ -1493,14 +1493,14 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 </div>
 
                 {/* 全局路线规划设置 */}
-                <div className="border-t border-gray-100 px-4 py-3 flex-shrink-0">
+                <div className="route-settings-bar border-t border-gray-100 px-4 py-2 flex-shrink-0">
                     <div className="flex items-center justify-between gap-2 whitespace-nowrap">
                         <span className="text-xs text-gray-600 whitespace-nowrap">路线规划</span>
                         {routeSettings.enabled && <span role="status" aria-live="polite" className="min-w-0 flex-1 truncate text-right text-xs text-gray-500" title={progress.calculating ? `正在计算 ${progress.completed + progress.failed}/${progress.total}，虚线为示意连接` : progress.failed ? `${progress.failed} 段暂时无法规划，虚线为示意连接` : progress.total ? '路线已更新' : '当前没有需要规划的路段'}>
-                            {progress.calculating ? `${progress.completed + progress.failed}/${progress.total}` : progress.failed ? <button type="button" onClick={progress.retry} className="text-blue-600 hover:underline" aria-label={`重试 ${progress.failed} 段失败路线`}>重试 {progress.failed} 段</button> : null}
+                            {progress.calculating ? `${progress.completed + progress.failed}/${progress.total}` : progress.failed ? <button type="button" onClick={progress.retry} className="route-retry-button text-blue-600 hover:underline" aria-label={`重试 ${progress.failed} 段失败路线`}>重试 {progress.failed} 段</button> : null}
                         </span>}
                         {routeSettings.enabled && <div className="ml-auto flex gap-1 rounded-lg bg-gray-100 p-1" role="group" aria-label="全局寻路模式">
-                            {(['walking', 'driving'] as const).map(mode => <button key={mode} type="button" onClick={() => setRouteSettings({ enabled: true, mode })} aria-pressed={routeSettings.mode === mode} className={cn('rounded-md px-2 py-1 text-xs transition-colors', routeSettings.mode === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>{mode === 'walking' ? '步行' : '驾车'}</button>)}
+                            {(['walking', 'driving'] as const).map(mode => <button key={mode} type="button" onClick={() => setRouteSettings({ enabled: true, mode })} aria-pressed={routeSettings.mode === mode} className={cn('route-mode-button h-7 min-w-[48px] rounded-md px-3 text-xs transition-colors', routeSettings.mode === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>{mode === 'walking' ? '步行' : '驾车'}</button>)}
                         </div>}
                         <button type="button" role="switch" aria-checked={routeSettings.enabled} aria-label="路线规划" onClick={() => setRouteSettings({ ...routeSettings, enabled: !routeSettings.enabled })} className={cn('relative w-11 h-6 flex-shrink-0 rounded-full transition-colors', routeSettings.enabled ? 'bg-blue-500' : 'bg-gray-300')}>
                             <span className={cn('absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow transition-transform', routeSettings.enabled ? 'translate-x-6' : 'translate-x-1')} />

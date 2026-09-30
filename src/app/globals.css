@@ -544,3 +544,19 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
         inset: -10px 0;
     }
 }
+
+/* Compact segmented control: avoid inheriting square sidebar button sizing. */
+@media (pointer: coarse) {
+    .left-sidebar .route-settings-bar .route-mode-button {
+        min-height: 28px;
+        min-width: 48px;
+    }
+    .left-sidebar .route-settings-bar .route-retry-button {
+        min-height: 28px;
+    }
+}
+
+/* Combine the footer spacing and home-indicator inset instead of stacking them. */
+.route-settings-bar {
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+}
