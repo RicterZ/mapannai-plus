@@ -189,7 +189,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
     // Each segment uses its planned path once cached; pending/failed segments retain the curve.
     const lineControlPoints = useMemo(() => {
         const displayPaths = layoutRoutePaths(connectionLines.map((line, index) => {
-            const path = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segments[index])] ?? null : null
+            const path = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.auto ? 'auto' : routeSettings.mode, segments[index])] ?? null : null
             return { dayId: line.dayId, path: isRangeFallback(path) ? null : path }
         }))
         return connectionLines.map((line, index) => {
@@ -197,7 +197,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
             const to = { lat: line.to.coordinates.latitude, lng: line.to.coordinates.longitude }
             return { id: line.id, from, ctrl: getControlPoint(from, to), to, route: displayPaths[index] }
         })
-    }, [connectionLines, planned.enabled, planned.routes, routeProvider, routeSettings.mode, segments])
+    }, [connectionLines, planned.enabled, planned.routes, routeProvider, routeSettings.mode, routeSettings.auto, segments])
 
     // 小圆球动画
     useEffect(() => {
@@ -272,7 +272,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                     isDragPreview: false,
                     isWalkingRoute: false,
                     color: line.color,
-                    schematic: planned.enabled && (!plannedPath || isRangeFallback(planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segments[index])])),
+                    schematic: planned.enabled && (!plannedPath || isRangeFallback(planned.routes[routeCacheKey(routeProvider, routeSettings.auto ? 'auto' : routeSettings.mode, segments[index])])),
                 }
             }
         })
@@ -281,7 +281,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
             type: 'FeatureCollection' as const,
             features
         }
-    }, [connectionLines, lineControlPoints, planned.enabled, planned.routes, routeProvider, routeSettings.mode, segments])
+    }, [connectionLines, lineControlPoints, planned.enabled, planned.routes, routeProvider, routeSettings.mode, routeSettings.auto, segments])
 
     // 如果没有连接线，不渲染任何内容
     if (connectionLines.length === 0) {

@@ -237,11 +237,11 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     const planned = usePlannedRoutes(routeSegments, routeProvider, routeViewport)
     const displayPaths = React.useMemo(() => {
         const paths = layoutRoutePaths(routeSegments.map(segment => {
-            const path = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segment)] ?? null : null
+            const path = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.auto ? 'auto' : routeSettings.mode, segment)] ?? null : null
             return { dayId: segment.dayId, path: isRangeFallback(path) ? null : path }
         }))
         return new Map(routeSegments.map((segment, index) => [segment.displayKey, paths[index]]))
-    }, [routeSegments, planned.enabled, planned.routes, routeProvider, routeSettings.mode])
+    }, [routeSegments, planned.enabled, planned.routes, routeProvider, routeSettings.mode, routeSettings.auto])
     useEffect(() => {
         const map = mapRef.current, AMap = namespaceRef.current
         if (!ready || !map || !AMap) return
@@ -265,7 +265,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                 const from = { lng: fromLng, lat: fromLat }, to = { lng: toLng, lat: toLat }
                 const highlighted = day.id === effectiveDayId
                 const segment = { fromId: fromMarker.id, toId: toMarker.id, origin: { lat: fromMarker.coordinates.latitude, lng: fromMarker.coordinates.longitude }, destination: { lat: toMarker.coordinates.latitude, lng: toMarker.coordinates.longitude } }
-                const cachedPath = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segment)] : null
+                const cachedPath = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.auto ? 'auto' : routeSettings.mode, segment)] : null
                 const path = cachedPath && !isRangeFallback(cachedPath) ? displayPaths.get(`${day.id}:${chainIndex}:${index}`)!.map(point => gcj({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
                 pickableRoutesRef.current.push({ dayId: day.id, path })
                 const width = Math.max(3, 3 + (props.viewState.zoom - 10) * 0.2) + (highlighted ? 2 : 0)
@@ -336,7 +336,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
         return startAnimationLoop(animate, () => {
             for (const { dot } of animated) dot.getContent().style.opacity = '0'
         })
-    }, [ready, props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId, effectiveDayId, props.viewState.zoom, zoomThreshold, planned.enabled, planned.routes, displayPaths, routeProvider, routeSettings.mode])
+    }, [ready, props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId, effectiveDayId, props.viewState.zoom, zoomThreshold, planned.enabled, planned.routes, displayPaths, routeProvider, routeSettings.mode, routeSettings.auto])
 
     useEffect(() => {
         const map = mapRef.current, AMap = namespaceRef.current

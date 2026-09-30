@@ -538,7 +538,7 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
     .modal-fullscreen .dialog-card { padding-bottom: env(safe-area-inset-bottom); }
 }
 @media (pointer: coarse) {
-    :is(.left-sidebar, .right-sidebar) button[role="switch"]::before {
+    :is(.left-sidebar, .right-sidebar) button[role="switch"].rounded-full::before {
         content: '';
         position: absolute;
         inset: -10px 0;

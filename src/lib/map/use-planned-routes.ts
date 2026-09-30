@@ -19,7 +19,9 @@ function priority(segment: RouteSegment, viewport: RouteViewport): [number, numb
 }
 
 export function usePlannedRoutes(segments: RouteSegment[], provider: string, viewport: RouteViewport | null): { enabled: boolean; routes: Record<string, RoutePath>; failedKeys: Set<string> } {
-    const { enabled, mode } = useRouteSettings()
+    const settings = useRouteSettings()
+    const { enabled } = settings
+    const mode = settings.auto ? 'auto' : settings.mode
     const signature = segments.map(segment => routeCacheKey(provider, mode, segment)).join('|')
     const [routes, setRoutes] = useState<Record<string, RoutePath>>({})
     const [failedKeys, setFailedKeys] = useState<Set<string>>(new Set())

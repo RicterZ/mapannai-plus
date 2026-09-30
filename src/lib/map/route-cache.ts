@@ -1,5 +1,6 @@
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
-import type { RouteMode } from './route-settings'
+import { calculateDistance } from '@/utils/distance'
+import type { RouteMode, RoutePolicy } from './route-settings'
 
 export interface RouteCoordinate { lat: number; lng: number }
 export interface RouteSegment {
@@ -36,7 +37,14 @@ function enqueueRequest<T>(request: () => Promise<T>): Promise<T> {
     return queued
 }
 
-export function routeCacheKey(provider: string, mode: RouteMode, segment: RouteSegment): string {
+export function resolveRouteMode(policy: RoutePolicy, segment: RouteSegment): RouteMode {
+    if (policy !== 'auto') return policy
+    const metres = calculateDistance(segment.origin.lat, segment.origin.lng, segment.destination.lat, segment.destination.lng)
+    // Remove sub-micrometre rounding noise at the exact 2km boundary.
+    return Math.round(metres * 1e6) < 2000 * 1e6 ? 'walking' : 'driving'
+}
+export function routeCacheKey(provider: string, policy: RoutePolicy, segment: RouteSegment): string {
+    const mode = resolveRouteMode(policy, segment)
     const point = (p: RouteCoordinate) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`
     return `${cachePrefix}${provider}:${mode}:${segment.fromId}:${segment.toId}:${point(segment.origin)}:${point(segment.destination)}`
 }
@@ -62,7 +70,8 @@ export function readRouteMetrics(key: string): RouteMetrics | null {
         return Number.isFinite(metrics.distance) && metrics.distance >= 0 && Number.isFinite(metrics.duration) && metrics.duration >= 0 ? metrics : null
     } catch { return null }
 }
-export async function getPlannedRoute(provider: string, mode: RouteMode, segment: RouteSegment): Promise<RoutePath> {
+export async function getPlannedRoute(provider: string, policy: RoutePolicy, segment: RouteSegment): Promise<RoutePath> {
+    const mode = resolveRouteMode(policy, segment)
     const key = routeCacheKey(provider, mode, segment)
     const cached = readCachedRoute(key)
     if (cached) return cached

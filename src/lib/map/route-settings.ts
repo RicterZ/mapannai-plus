@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from 'react'
 
 export type RouteMode = 'walking' | 'driving'
-export interface RouteSettings { enabled: boolean; mode: RouteMode }
+export type RoutePolicy = RouteMode | 'auto'
+export interface RouteSettings { enabled: boolean; mode: RouteMode; auto: boolean }
 const key = 'mapannai_route_settings'
 const fallback = '{"enabled":false,"mode":"walking"}'
 
@@ -21,8 +22,8 @@ export function useRouteSettings(): RouteSettings {
     const value = useSyncExternalStore(subscribe, snapshot, () => fallback)
     try {
         const parsed = JSON.parse(value)
-        return { enabled: parsed.enabled === true, mode: parsed.mode === 'driving' ? 'driving' : 'walking' }
-    } catch { return { enabled: false, mode: 'walking' } }
+        return { enabled: parsed.enabled === true, mode: parsed.mode === 'driving' ? 'driving' : 'walking', auto: parsed.auto === true }
+    } catch { return { enabled: false, mode: 'walking', auto: false } }
 }
 export function setRouteSettings(settings: RouteSettings): void {
     localStorage.setItem(key, JSON.stringify(settings))
