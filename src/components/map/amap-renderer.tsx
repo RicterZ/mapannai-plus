@@ -349,13 +349,13 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
         if (!props.popupCoordinates) return
         const node = document.createElement('div')
         node.className = 'map-popup'
-        const overlay = new AMap.Marker({ position: gcj(props.popupCoordinates), content: node, offset: new AMap.Pixel(-120, 20), zIndex: 130 })
+        const overlay = new AMap.Marker({ position: gcj(props.popupCoordinates), content: node, offset: new AMap.Pixel(-120, props.selectedMarkerId ? 36 : 20), zIndex: 130 })
         map.add([overlay])
         popupOverlayRef.current = overlay
         popupNodeRef.current = node
         setPopupNode(node)
         return () => { map.remove([overlay]); node.remove(); popupOverlayRef.current = null; popupNodeRef.current = null }
-    }, [ready, props.popupCoordinates])
+    }, [ready, props.popupCoordinates, props.selectedMarkerId])
 
     useEffect(() => {
         const map = mapRef.current, AMap = namespaceRef.current

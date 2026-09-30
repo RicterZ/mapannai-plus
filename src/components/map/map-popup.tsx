@@ -259,7 +259,7 @@ export const MapPopup = ({
     return <Popup
         longitude={toMapCoordinates(coordinates, basemap).longitude}
         latitude={toMapCoordinates(coordinates, basemap).latitude}
-        anchor="top" closeButton={false} closeOnClick={false} closeOnMove={false}
+        anchor="top" offset={selectedMarkerId ? 28 : 0} closeButton={false} closeOnClick={false} closeOnMove={false}
         className="map-popup" maxWidth="300px"
     >{content}</Popup>
 }
