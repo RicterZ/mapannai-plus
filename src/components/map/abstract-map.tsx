@@ -973,36 +973,37 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                 </React.Fragment>}
 
             {/* 右下角：搜索栏 */}
-            <div className="fixed bottom-6 right-4 left-4 lg:left-auto lg:w-72 z-30 flex flex-col items-stretch lg:items-end gap-2">
-                {/* 搜索结果列表（向上弹出，与输入框等宽） */}
-                {fabResults.length > 0 && (
-                    <div className="w-full lg:w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-scale-in">
-                        <div className="max-h-64 overflow-y-auto custom-scrollbar">
-                            {fabResults.map((r: any, idx: number) => (
-                                <button
-                                    key={`${r.name}-${idx}`}
-                                    onClick={() => handleFabResultClick(r)}
-                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors text-left border-b border-gray-50 last:border-0"
-                                >
-                                    <span className="text-blue-500 flex-shrink-0">
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        </svg>
-                                    </span>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-medium text-gray-900 truncate">{r.name}</div>
-                                        {r.address && <div className="text-xs text-gray-400 truncate mt-0.5">{r.address}</div>}
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
+            <div className="fixed bottom-6 right-4 left-4 lg:left-auto z-30">
                 {/* 搜索输入框 + 定位按钮 同一排 */}
                 <div className="flex items-center gap-2">
-                    <div className="relative flex-1 lg:w-72 lg:flex-none">
+                    <div className="relative min-w-0 flex-1 lg:w-72 lg:flex-none">
+                        {/* 搜索结果列表（向上弹出，与输入框等宽） */}
+                        {fabResults.length > 0 && (
+                            <div className="absolute bottom-full mb-2 inset-x-0 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-scale-in">
+                                <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                                    {fabResults.map((r: any, idx: number) => (
+                                        <button
+                                            key={`${r.name}-${idx}`}
+                                            onClick={() => handleFabResultClick(r)}
+                                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors text-left border-b border-gray-50 last:border-0"
+                                        >
+                                            <span className="text-blue-500 flex-shrink-0">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                </svg>
+                                            </span>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-medium text-gray-900 truncate">{r.name}</div>
+                                                {r.address && <div className="text-xs text-gray-400 truncate mt-0.5">{r.address}</div>}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+
                         <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
                             {isSearching ? (
                                 <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
