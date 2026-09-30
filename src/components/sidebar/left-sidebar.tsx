@@ -324,47 +324,6 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         if (sidebarRef.current) sidebarRef.current.inert = !leftSidebar.isOpen
     }, [leftSidebar.isOpen])
 
-    // 从 URL hash 恢复 activeView，或在冷启动时自动跳转到今天的行程日（执行一次）
-    // sessionStorage 标记区分冷启动（新 tab / 硬刷新）和 SPA 内部导航：
-    //   冷启动 → 标记不存在 → 允许自动跳转；写入标记后本 session 不再触发
-    //   SPA 内部导航 → 标记已存在 → 直接跳过，不覆盖用户意图
-    const SESSION_INIT_KEY = 'mapannai_session_init'
-    const hashRestoredRef = useRef(false)
-    useEffect(() => {
-        if (hashRestoredRef.current) return
-        if (trips.length === 0) return  // 数据还没加载完
-        hashRestoredRef.current = true
-
-        // 判断是否为冷启动（sessionStorage 在 tab 关闭或硬刷新后会被清空）
-        const isReturningSession = sessionStorage.getItem(SESSION_INIT_KEY) !== null
-        sessionStorage.setItem(SESSION_INIT_KEY, '1')  // 写入标记，本 session 后续不再触发
-
-        if (isReturningSession) return  // SPA 内部导航，不自动跳转
-
-        // 冷启动：优先恢复 hash（用户带链接来，或上次 SPA 导航写入的 hash）
-        const hash = window.location.hash.slice(1)  // 去掉 #
-        if (hash) {
-            const parts = hash.split('/')
-            if (parts[0] === 'trip' && parts[1]) {
-                const trip = trips.find(t => t.id === parts[1])
-                if (trip) { setActiveView('trip', parts[1], null); return }
-            } else if (parts[0] === 'day' && parts[1] && parts[2]) {
-                const trip = trips.find(t => t.id === parts[1])
-                const day = tripDays.find(d => d.id === parts[2])
-                if (trip && day) { setActiveView('day', parts[1], parts[2]); return }
-            }
-        }
-
-        // 冷启动 + 无有效 hash：查找今天是否有行程日，有则自动跳转
-        // toLocaleDateString('sv') 输出本地时区的 YYYY-MM-DD，避免 toISOString() 的 UTC 偏差
-        const todayStr = new Date().toLocaleDateString('sv')
-        const todayDay = tripDays.find(d => d.date === todayStr)
-        if (todayDay) {
-            const trip = trips.find(t => t.id === todayDay.tripId)
-            if (trip) setActiveView('day', trip.id, todayDay.id)
-        }
-    }, [trips, tripDays, setActiveView])
-
     const TRIP_EMOJIS = [
         '✈️', '🚞', '🚢', '🚗', '🏍️',
         '🏕️', '🏖️', '🗻', '🏯', '🎒',

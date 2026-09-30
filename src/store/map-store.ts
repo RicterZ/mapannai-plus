@@ -38,6 +38,7 @@ interface MapStore {
     // ── Trip 系统 ──────────────────────────────────
     trips: Trip[]
     tripDays: TripDay[]
+    tripsLoaded: boolean
     activeView: ActiveView
 
     // Actions
@@ -179,6 +180,7 @@ export const useMapStore = create<MapStore>()(
             // ── Trip 初始状态 ──
             trips: [],
             tripDays: [],
+            tripsLoaded: false,
             activeView: { mode: 'overview', tripId: null, dayId: null },
 
             // 新增弹窗初始状态
@@ -725,7 +727,7 @@ export const useMapStore = create<MapStore>()(
                     const data = await response.json()
                     const trips = data.map((t: any) => ({ ...t, days: undefined }))
                     const tripDays = data.flatMap((t: any) => t.days || [])
-                    set({ trips, tripDays }, false, 'loadTripsFromDataset')
+                    set({ trips, tripDays, tripsLoaded: true }, false, 'loadTripsFromDataset')
                 } catch (error) {
                     console.error('loadTripsFromDataset error:', error)
                 }

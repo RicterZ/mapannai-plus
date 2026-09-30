@@ -210,3 +210,5 @@ Routes and terminal AMap OVER_DIRECTION_RANGE and unsupported-region results per
 Route progress disappears after calculation completes; terminal coverage failures do not produce retry prompts.
 
 Automatic route mode selects walking for endpoint straight-line distances below 2km and driving otherwise. The compact Auto toggle remembers the last manual mode; choosing Walking or Driving disables Auto. Cache keys use the resolved mode, sharing existing server and browser caches.
+
+On each page launch, fit the map to the nearest upcoming trip (including today) without selecting a trip, day or marker. Use the local date, skip trips with no valid places, and retain the previous/default camera if no upcoming trip has places. Startup no longer restores a trip/day selection from the URL or sessionStorage.

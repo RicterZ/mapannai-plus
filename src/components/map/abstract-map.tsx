@@ -22,6 +22,7 @@ import { LeftSidebar } from '@/components/sidebar/left-sidebar'
 import { Sidebar } from '@/components/sidebar/sidebar'
 import { ViewModeBanner } from '@/components/map/view-mode-banner'
 import { cn } from '@/utils/cn'
+import { upcomingTripMarkers } from '@/lib/map/startup-camera'
 import { routeCamera } from '@/lib/map/route-presentation'
 import { Modal } from '@/components/ui/modal'
 import { MarkerIconType } from '@/types/marker'
@@ -204,7 +205,9 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
 
     const {
         markers,
+        trips,
         tripDays,
+        tripsLoaded,
         interactionState,
         addMarkerModal,
         editMarkerModal,
@@ -306,6 +309,20 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         const longitude = camera.longitude
         flyMap({ center: [longitude, camera.latitude], zoom: camera.zoom, duration: 1000, offset: [offset, 0] })
     }, [flyMap, isAmap])
+
+    const startupCameraApplied = useRef(false)
+    useEffect(() => {
+        if (startupCameraApplied.current || !mapInitialized || !dataLoaded || !tripsLoaded) return
+        startupCameraApplied.current = true
+        const state = useMapStore.getState()
+        // Opening always starts in overview, even if the URL retains yesterday's selection.
+        state.setActiveView('overview', null, null)
+        state.selectMarker(null)
+        state.closePopup()
+        state.closeSidebar()
+        const places = upcomingTripMarkers(trips, tripDays, markers)
+        if (places.length) handleFitMarkers(places.map(marker => marker.id))
+    }, [mapInitialized, dataLoaded, tripsLoaded, trips, tripDays, markers, handleFitMarkers])
 
     const lastFocusedDayRef = useRef<string | null>(null)
     useEffect(() => {
