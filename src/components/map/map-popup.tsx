@@ -252,7 +252,7 @@ export const MapPopup = ({
             </div>
     )
     if (embedded) return <div className="relative">
-        <span aria-hidden="true" className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rotate-45 bg-white shadow-sm" />
+        <span aria-hidden="true" className="absolute -top-2 left-1/2 -translate-x-1/2 w-0 h-0 border-x-[9px] border-x-transparent border-b-[9px] border-b-white" />
         {content}
     </div>
     return <Popup
