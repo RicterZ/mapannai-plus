@@ -1,11 +1,11 @@
-import { MapProvider, MapProviderConfig, MapSearchResult, MapCoordinates, PlaceDetails, RoutePoint, MapRoute, TravelMode } from '@/types/map-provider'
+import { MapProvider, MapProviderConfig, MapSearchResult, MapCoordinates, PlaceDetails, RoutePoint, MapRoute, TravelMode, MapSearchOptions } from '@/types/map-provider'
 import { config } from '@/lib/config'
 import { gcj02ToWgs84, wgs84ToGcj02, isInChina } from '@/lib/coord-transform'
 import { decode } from '@googlemaps/polyline-codec'
 
 export class GoogleServerProvider implements MapProvider {
     // 后端搜索功能 - 支持
-    async searchPlaces(query: string, mapConfig: MapProviderConfig = { accessToken: config.map.google.accessToken }, country?: string): Promise<MapSearchResult[]> {
+    async searchPlaces(query: string, mapConfig: MapProviderConfig = { accessToken: config.map.google.accessToken }, country?: string, options?: MapSearchOptions): Promise<MapSearchResult[]> {
         try {
             const apiKey = mapConfig.accessToken
             if (!apiKey) {
@@ -20,6 +20,15 @@ export class GoogleServerProvider implements MapProvider {
                 language: 'zh-CN',
                 region: country || 'CN'
             })
+            if (options?.bounds) {
+                const bounds = options.bounds
+                const latitude = (bounds.south + bounds.north) / 2
+                const longitude = (bounds.west + bounds.east) / 2
+                const center = (country || 'CN').toUpperCase() === 'CN' ? wgs84ToGcj02(longitude, latitude) : { longitude, latitude }
+                const radius = Math.min(50000, Math.max(500, Math.hypot((bounds.north - bounds.south) * 55500, (bounds.east - bounds.west) * 55500 * Math.cos(latitude * Math.PI / 180))))
+                params.set('location', `${center.latitude},${center.longitude}`)
+                params.set('radius', String(Math.round(radius)))
+            }
 
             const response = await fetch(`${baseUrl}?${params}`)
 

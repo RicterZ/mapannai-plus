@@ -33,6 +33,12 @@ export interface MapSearchResult {
     types?: string[]
 }
 
+export interface MapSearchBounds { west: number; south: number; east: number; north: number }
+export interface MapSearchOptions {
+    bounds?: MapSearchBounds
+    signal?: AbortSignal
+}
+
 // 详细的地点信息接口
 export interface DetailedPlaceInfo {
     name: string
@@ -73,7 +79,7 @@ export interface MapRoute {
     durationText?: string
 }
 export interface MapProvider {
-    searchPlaces(query: string, config?: MapProviderConfig, country?: string): Promise<MapSearchResult[]>
+    searchPlaces(query: string, config?: MapProviderConfig, country?: string, options?: MapSearchOptions): Promise<MapSearchResult[]>
     getPlaceDetails(coordinates: MapCoordinates): Promise<PlaceDetails>
     getDirections(origin: RoutePoint, destination: RoutePoint, mode?: TravelMode): Promise<MapRoute>
 }

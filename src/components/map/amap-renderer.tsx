@@ -13,6 +13,7 @@ import { useRouteSettings } from '@/lib/map/route-settings'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { MapMarker } from './map-marker'
 import { routeColor } from '@/lib/map/route-presentation'
+import type { MapSearchBounds } from '@/types/map-provider'
 
 interface AMapPoint { lng?: number; lat?: number; getLng?: () => number; getLat?: () => number }
 interface AMapInstance {
@@ -54,7 +55,10 @@ function loadAMap(key: string, securityCode: string): Promise<AMapNamespace> {
 }
 
 export interface MapCamera { longitude: number; latitude: number; zoom: number; bearing?: number; pitch?: number }
-export interface MapRendererHandle { flyTo(options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }): void }
+export interface MapRendererHandle {
+    flyTo(options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }): void
+    getSearchBounds(): MapSearchBounds | undefined
+}
 interface Props {
     routeProvider: string
     apiKey: string
@@ -96,6 +100,12 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     const locationNodeRef = useRef<HTMLElement | null>(null)
 
     useImperativeHandle(ref, () => ({
+        getSearchBounds() {
+            const bounds = mapRef.current?.getBounds()
+            if (!bounds) return
+            const sw = wgs(bounds.getSouthWest()), ne = wgs(bounds.getNorthEast())
+            return { west: sw.longitude, south: sw.latitude, east: ne.longitude, north: ne.latitude }
+        },
         flyTo({ center, zoom, duration }) {
             const map = mapRef.current
             if (!map) return
@@ -252,6 +262,10 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                     routeOverlaysRef.current.set(key, entry)
                     overlays.push(entry.casing, entry.line, entry.hitArea)
                 } else {
+                    // AMap geometry updates use setPath; setOptions only updates style.
+                    entry.casing.setPath(path)
+                    entry.line.setPath(path)
+                    entry.hitArea.setPath(path)
                     entry.casing.setOptions(casingOptions)
                     entry.line.setOptions(lineOptions)
                     entry.hitArea.setOptions(hitOptions)

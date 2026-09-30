@@ -1,5 +1,6 @@
 // 搜索服务 - 统一使用 /api/search 端点
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
+import type { MapSearchOptions } from '@/types/map-provider'
 
 export interface SearchResult {
     id: string
@@ -17,7 +18,7 @@ export interface SearchResult {
 }
 
 export interface SearchService {
-    searchPlaces(query: string, limit?: number, language?: string, country?: string): Promise<SearchResult[]>
+    searchPlaces(query: string, limit?: number, language?: string, country?: string, options?: MapSearchOptions): Promise<SearchResult[]>
 }
 
 export class MapSearchService implements SearchService {
@@ -25,7 +26,7 @@ export class MapSearchService implements SearchService {
         // 不再需要地图提供者配置
     }
 
-    async searchPlaces(query: string, limit: number = 5, language: string = 'zh-CN', country?: string): Promise<SearchResult[]> {
+    async searchPlaces(query: string, limit: number = 5, language: string = 'zh-CN', country?: string, options?: MapSearchOptions): Promise<SearchResult[]> {
         try {
             // 直接调用 /api/search 端点
             const params = new URLSearchParams({
@@ -34,11 +35,13 @@ export class MapSearchService implements SearchService {
                 language: language,
                 country: country || 'CN'
             })
+            if (options?.bounds) params.set('bounds', JSON.stringify(options.bounds))
             
             const url = `/api/search?${params}`
 
             const response = await fetchWithAuth(url, {
                 method: 'GET',
+                signal: options?.signal,
                 headers: {
                     'Content-Type': 'application/json'
                 }

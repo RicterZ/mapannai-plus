@@ -1,6 +1,6 @@
 import { config } from '@/lib/config'
 import { gcj02ToWgs84, wgs84ToGcj02, isInChina } from '@/lib/coord-transform'
-import type { MapProvider, MapProviderConfig, MapSearchResult, MapCoordinates, PlaceDetails, RoutePoint, MapRoute, TravelMode } from '@/types/map-provider'
+import type { MapProvider, MapProviderConfig, MapSearchResult, MapCoordinates, PlaceDetails, RoutePoint, MapRoute, TravelMode, MapSearchOptions } from '@/types/map-provider'
 
 function text(value: unknown): string { return typeof value === 'string' ? value : '' }
 function coordinates(location: string): MapCoordinates {
@@ -24,9 +24,21 @@ export class AmapServerProvider implements MapProvider {
         if (data.status !== '1') throw new Error(`高德 API 错误: ${data.info || data.infocode}`)
         return data
     }
-    async searchPlaces(query: string, mapConfig?: MapProviderConfig, country = 'CN'): Promise<MapSearchResult[]> {
+    async searchPlaces(query: string, mapConfig?: MapProviderConfig, country = 'CN', options?: MapSearchOptions): Promise<MapSearchResult[]> {
         if (country.toUpperCase() !== 'CN') throw new Error('高德地点搜索仅支持中国，请选择 Google 搜索后端')
-        const data = await this.request('/v3/place/text', { keywords: query, extensions: 'all', offset: '20', page: '1' }, mapConfig?.accessToken)
+        const params: Record<string, string> = { keywords: query, extensions: 'all', offset: '20', page: '1' }
+        let endpoint = '/v3/place/text'
+        if (options?.bounds) {
+            const bounds = options.bounds
+            const sw = wgs84ToGcj02(bounds.west, bounds.south), ne = wgs84ToGcj02(bounds.east, bounds.north)
+            params.polygon = `${sw.longitude},${sw.latitude}|${ne.longitude},${ne.latitude}`
+            endpoint = '/v3/place/polygon'
+            // Category names often do not occur in POI names (e.g. 呼和浩特东站).
+            const categories: Record<string, string> = { 酒店: '100000', 宾馆: '100000', 住宿: '100000', 高铁站: '150200', 火车站: '150200', 铁路车站: '150200' }
+            const category = categories[query.trim()]
+            if (category) { params.types = category; delete params.keywords }
+        }
+        const data = await this.request(endpoint, params, mapConfig?.accessToken)
         return (data.pois || []).filter((p: any) => typeof p.location === 'string' && p.location).map(poiResult)
     }
     async getPlaceDetails(coords: MapCoordinates): Promise<PlaceDetails> {

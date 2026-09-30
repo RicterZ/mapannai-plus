@@ -17,6 +17,7 @@ A Next.js 14 travel planning platform. Create and manage location markers on an 
 - **Trip planning** — Organize markers by trip and day, build multiple ordered chains by dragging or with MCP, and choose curved lines or cached walking/driving directions.
 - **MCP server** — Any MCP-compatible AI client can create markers, plan itineraries, and query routes directly.
 - **Place services** — Choose Google or AMap independently for search, place details, and walking/driving directions.
+- **Viewport search** — The search box uses the visible map bounds with a 20% margin on each side. AMap searches that area and maps hotel/train-station category keywords to POI types; Google biases results toward the viewport center and radius. MCP place-name searches remain unscoped.
 - **Image uploads** — Attach images to markers via Tencent Cloud COS.
 - **PWA** — Installable as a Progressive Web App with offline tile caching.
 - **Optional auth** — Static token authentication; omit `API_TOKEN` for open access.

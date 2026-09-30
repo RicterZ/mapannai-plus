@@ -342,25 +342,41 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         }
         
         // 防抖：延迟500ms后执行搜索
+        const controller = new AbortController()
         const searchTimeout = setTimeout(async () => {
             try {
                 setIsSearching(true)
                 setFabQueryError('')
-                const results = await searchService.searchPlaces(trimmedQuery, 10, 'zh-CN', 'CN')
+                const map = mapRef.current?.getMap()
+                const bounds = isAmap ? amapRef.current?.getSearchBounds() : (() => {
+                    const b = map?.getBounds()
+                    return b ? { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() } : undefined
+                })()
+                // Extend each side by 20% so nearby places remain discoverable.
+                const searchBounds = bounds && bounds.west < bounds.east ? {
+                    west: Math.max(-180, bounds.west - (bounds.east - bounds.west) * 0.2),
+                    east: Math.min(180, bounds.east + (bounds.east - bounds.west) * 0.2),
+                    south: Math.max(-90, bounds.south - (bounds.north - bounds.south) * 0.2),
+                    north: Math.min(90, bounds.north + (bounds.north - bounds.south) * 0.2),
+                } : undefined
+                const results = await searchService.searchPlaces(trimmedQuery, 10, 'zh-CN', 'CN', { bounds: searchBounds, signal: controller.signal })
+                if (controller.signal.aborted) return
                 setFabResults(results)
             } catch (e) {
+                if (controller.signal.aborted) return
                 setFabQueryError(e instanceof Error ? e.message : '搜索失败，请稍后再试')
                 setFabResults([])
             } finally {
-                setIsSearching(false)
+                if (!controller.signal.aborted) setIsSearching(false)
             }
         }, 500)
         
         // 清理定时器
         return () => {
             clearTimeout(searchTimeout)
+            controller.abort()
         }
-    }, [fabQuery])
+    }, [fabQuery, isAmap])
 
     const handleFabResultClick = useCallback((result: any) => {
         if (!result?.coordinates) return
