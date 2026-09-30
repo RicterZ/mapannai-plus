@@ -11,11 +11,27 @@ export function smoothRoutePath(path: RoutePath): RoutePath {
     const x = (p: RouteCoordinate) => (p.lng - path[0].lng) * 111000 * scale
     const y = (p: RouteCoordinate) => (p.lat - path[0].lat) * 111000
     const distance = (a: RouteCoordinate, b: RouteCoordinate) => Math.hypot(x(a) - x(b), y(a) - y(b))
-    const points = [path[0]]
+    const deduplicated = [path[0]]
     for (let i = 1; i < path.length - 1; i++) {
-        if (distance(points[points.length - 1], path[i]) >= 0.3) points.push(path[i])
+        if (distance(deduplicated[deduplicated.length - 1], path[i]) >= 0.3) deduplicated.push(path[i])
     }
-    points.push(path[path.length - 1])
+    deduplicated.push(path[path.length - 1])
+
+    // At a waypoint, remove an arrival/departure excursion that revisits
+    // the same entrance. Preserve the waypoint itself, not the road detour.
+    const trimEnd = (values: RoutePath): RoutePath => {
+        const endpoint = values[values.length - 1]
+        let arc = 0, extent = 0, chosen = values.length - 1
+        for (let i = values.length - 2; i >= 0; i--) {
+            arc += distance(values[i], values[i + 1])
+            extent = Math.max(extent, distance(values[i], endpoint))
+            if (arc > 500 || extent > 180) break
+            const chord = distance(values[i], endpoint)
+            if (chord <= 65 && arc - chord >= 30 && arc >= Math.max(1, chord) * 1.6) chosen = i
+        }
+        return chosen < values.length - 1 ? [...values.slice(0, chosen + 1), endpoint] : values
+    }
+    const endpointCleaned = trimEnd(trimEnd(deduplicated).slice().reverse()).reverse()
 
     const segmentError = (p: RouteCoordinate, a: RouteCoordinate, b: RouteCoordinate) => {
         const dx = x(b) - x(a), dy = y(b) - y(a), length2 = dx * dx + dy * dy
@@ -25,21 +41,37 @@ export function smoothRoutePath(path: RoutePath): RoutePath {
     }
     // Collapse only short excursions inside a narrow corridor. Bounded length
     // and deviation prevent large road loops / U-turns from being shortcut.
-    const cleaned = [points[0]]
-    for (let start = 0; start < points.length - 1;) {
+    const localPoints = [endpointCleaned[0]]
+    for (let start = 0; start < endpointCleaned.length - 1;) {
+        let chosen = start + 1
+        if (Math.min(distance(endpointCleaned[start], path[0]), distance(endpointCleaned[start], path[path.length - 1])) <= 300) {
+            let arc = 0, extent = 0
+            for (let end = start + 1; end < endpointCleaned.length; end++) {
+                arc += distance(endpointCleaned[end - 1], endpointCleaned[end])
+                extent = Math.max(extent, distance(endpointCleaned[start], endpointCleaned[end]))
+                if (arc > 500 || extent > 180) break
+                const chord = distance(endpointCleaned[start], endpointCleaned[end])
+                if (end >= start + 3 && chord <= 50 && arc - chord >= 100 && arc >= Math.max(1, chord) * 3.5) chosen = end
+            }
+        }
+        localPoints.push(endpointCleaned[chosen])
+        start = chosen
+    }
+    const cleaned = [localPoints[0]]
+    for (let start = 0; start < localPoints.length - 1;) {
         let chosen = start + 1, arc = 0
-        for (let end = start + 1; end < Math.min(points.length, start + 33); end++) {
-            arc += distance(points[end - 1], points[end])
+        for (let end = start + 1; end < Math.min(localPoints.length, start + 33); end++) {
+            arc += distance(localPoints[end - 1], localPoints[end])
             if (arc > 80) break
-            const chord = distance(points[start], points[end])
+            const chord = distance(localPoints[start], localPoints[end])
             if (end < start + 2 || arc < 3 || arc < Math.max(1, chord) * 1.4) continue
             let maximum = 0
             for (let i = start + 1; i < end; i++) {
-                maximum = Math.max(maximum, segmentError(points[i], points[start], points[end]))
+                maximum = Math.max(maximum, segmentError(localPoints[i], localPoints[start], localPoints[end]))
             }
             if (maximum <= 10) chosen = end
         }
-        cleaned.push(points[chosen])
+        cleaned.push(localPoints[chosen])
         start = chosen
     }
 
