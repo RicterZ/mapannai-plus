@@ -31,6 +31,7 @@ import Map, { Marker as MapboxMarker, MapRef, ViewState, MapProvider as ReactMap
 import 'maplibre-gl/dist/maplibre-gl.css'
 
 export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvider }: { renderer: BasemapProviderType; amapJsKey: string; amapSecurityCode: string; routeProvider: string }) => {
+    const searchPanelRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<any>(null)
     const suppressMapClickRef = useRef(false) // popup 内操作后短暂屏蔽地图点击
     const [error, setError] = useState<string | null>(null)
@@ -302,7 +303,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         state.closePopup()
         if (window.innerWidth < 1024) state.closeLeftSidebar()
         const offset = width !== window.innerWidth ? 180 : 0
-        const longitude = camera.longitude - (isAmap ? offset * 360 / (256 * 2 ** camera.zoom) : 0)
+        const longitude = camera.longitude
         flyMap({ center: [longitude, camera.latitude], zoom: camera.zoom, duration: 1000, offset: [offset, 0] })
     }, [flyMap, isAmap])
 
@@ -418,9 +419,19 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             zoomLevel = 16
         }
         
-        // 延迟跳转，确保结果列表收起
+        // Measure the actual retained results panel before positioning the search target.
         setTimeout(() => {
-            handleFlyTo({ longitude: result.coordinates.longitude, latitude: result.coordinates.latitude }, zoomLevel)
+            if (window.innerWidth < 1024 && searchPanelRef.current) {
+                const bounds = searchPanelRef.current.getBoundingClientRect()
+                const viewport = window.visualViewport
+                const visibleTop = viewport?.offsetTop ?? 0
+                const visibleBottom = visibleTop + (viewport?.height ?? window.innerHeight)
+                const freeBottom = Math.max(visibleTop, Math.min(bounds.top, visibleBottom))
+                const targetY = (visibleTop + freeBottom) / 2
+                flyMap({ center: [result.coordinates.longitude, result.coordinates.latitude], zoom: zoomLevel, offset: [0, targetY - window.innerHeight / 2], duration: flyDuration(result.coordinates) })
+            } else {
+                handleFlyTo({ longitude: result.coordinates.longitude, latitude: result.coordinates.latitude }, zoomLevel)
+            }
 
             // 自动弹出添加标记的 popup（先清除选中标记，避免显示旧内容）
             setTimeout(() => {
@@ -431,7 +442,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                 })
             }, 500)
         }, 100)
-    }, [handleFlyTo, openPopup])
+    }, [handleFlyTo, openPopup, flyMap, flyDuration])
 
     // 静默重试加载数据
     const silentRetryLoad = useCallback(async () => {
@@ -973,13 +984,40 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                 </React.Fragment>}
 
             {/* 右下角：搜索栏 */}
-            <div className="fixed bottom-6 right-4 left-4 lg:left-auto z-30">
+            <div ref={searchPanelRef} className="fixed bottom-6 right-4 left-4 lg:left-auto z-30 flex flex-col gap-2">
+                        {/* 搜索结果列表（向上弹出，与输入框等宽） */}
+                        {fabResults.length > 0 && (
+                            <div className="w-full lg:hidden bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-scale-in">
+                                <div className="max-h-64 overflow-y-auto custom-scrollbar">
+                                    {fabResults.map((r: any, idx: number) => (
+                                        <button
+                                            key={`${r.name}-${idx}`}
+                                            onClick={() => handleFabResultClick(r)}
+                                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors text-left border-b border-gray-50 last:border-0"
+                                        >
+                                            <span className="text-blue-500 flex-shrink-0">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                </svg>
+                                            </span>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-medium text-gray-900 truncate">{r.name}</div>
+                                                {r.address && <div className="text-xs text-gray-400 truncate mt-0.5">{r.address}</div>}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+
                 {/* 搜索输入框 + 定位按钮 同一排 */}
                 <div className="flex items-center gap-2">
                     <div className="relative min-w-0 flex-1 lg:w-72 lg:flex-none">
                         {/* 搜索结果列表（向上弹出，与输入框等宽） */}
                         {fabResults.length > 0 && (
-                            <div className="absolute bottom-full mb-2 inset-x-0 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-scale-in">
+                            <div className="hidden lg:block absolute bottom-full mb-2 inset-x-0 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-scale-in">
                                 <div className="max-h-64 overflow-y-auto custom-scrollbar">
                                     {fabResults.map((r: any, idx: number) => (
                                         <button

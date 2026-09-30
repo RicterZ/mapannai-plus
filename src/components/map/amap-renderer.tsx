@@ -110,14 +110,18 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
             const sw = wgs(bounds.getSouthWest()), ne = wgs(bounds.getNorthEast())
             return { west: sw.longitude, south: sw.latitude, east: ne.longitude, north: ne.latitude }
         },
-        flyTo({ center, zoom, duration }) {
+        flyTo({ center, zoom, duration, offset }) {
             const map = mapRef.current
             if (!map) return
             const point = wgs84ToGcj02(center[0], center[1])
-            const target = [point.longitude, point.latitude]
-            // The popup overlay is offset from its marker; center the marker itself.
+            const targetZoom = zoom ?? map.getZoom()
+            const worldSize = 256 * 2 ** targetZoom
+            const latitude = Math.max(-85, Math.min(85, point.latitude)) * Math.PI / 180
+            const worldY = (1 - Math.log(Math.tan(latitude) + 1 / Math.cos(latitude)) / Math.PI) / 2
+            const centerY = worldY + (offset?.[1] ?? 0) / worldSize
+            const target = [point.longitude - (offset?.[0] ?? 0) * 360 / worldSize, Math.atan(Math.sinh(Math.PI * (1 - 2 * centerY))) * 180 / Math.PI]
             const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-            map.setZoomAndCenter(zoom ?? map.getZoom(), target, reduced, reduced ? 0 : duration ?? 700)
+            map.setZoomAndCenter(targetZoom, target, reduced, reduced ? 0 : duration ?? 700)
         },
     }), [])
 
