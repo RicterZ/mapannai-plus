@@ -22,7 +22,7 @@ import { LeftSidebar } from '@/components/sidebar/left-sidebar'
 import { Sidebar } from '@/components/sidebar/sidebar'
 import { ViewModeBanner } from '@/components/map/view-mode-banner'
 import { cn } from '@/utils/cn'
-import { upcomingTripMarkers } from '@/lib/map/startup-camera'
+import { upcomingTripFirstMarker } from '@/lib/map/startup-camera'
 import { routeCamera } from '@/lib/map/route-presentation'
 import { Modal } from '@/components/ui/modal'
 import { MarkerIconType } from '@/types/marker'
@@ -320,9 +320,9 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         state.selectMarker(null)
         state.closePopup()
         state.closeSidebar()
-        const places = upcomingTripMarkers(trips, tripDays, markers)
-        if (places.length) handleFitMarkers(places.map(marker => marker.id))
-    }, [mapInitialized, dataLoaded, tripsLoaded, trips, tripDays, markers, handleFitMarkers])
+        const marker = upcomingTripFirstMarker(trips, tripDays, markers)
+        if (marker) flyMap({ center: [marker.coordinates.longitude, marker.coordinates.latitude], zoom: 15, duration: 1000 })
+    }, [mapInitialized, dataLoaded, tripsLoaded, trips, tripDays, markers, flyMap])
 
     const lastFocusedDayRef = useRef<string | null>(null)
     useEffect(() => {
