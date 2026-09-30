@@ -9,7 +9,7 @@ import { Marker } from '@/types/marker'
 import { useMapStore } from '@/store/map-store'
 import { getControlPoint, bezierPoint, getBezierPath } from '@/lib/map/connection-geometry'
 import { routeCacheKey, pointAlongPath, RouteSegment } from '@/lib/map/route-cache'
-import { usePlannedRoutes } from '@/lib/map/use-planned-routes'
+import { usePlannedRoutes, RouteViewport } from '@/lib/map/use-planned-routes'
 import { useRouteSettings } from '@/lib/map/route-settings'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
 
@@ -38,6 +38,18 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
     const { markers, tripDays, activeView, interactionState } = useMapStore()
     const { highlightedDayId } = interactionState
     const { current: map } = useMap()
+    const [routeViewport, setRouteViewport] = useState<RouteViewport | null>(null)
+    useEffect(() => {
+        const instance = map?.getMap()
+        if (!instance) return
+        const update = () => {
+            const bounds = instance.getBounds(), center = instance.getCenter()
+            setRouteViewport({ west: bounds.getWest(), east: bounds.getEast(), south: bounds.getSouth(), north: bounds.getNorth(), centerLat: center.lat, centerLng: center.lng })
+        }
+        update()
+        instance.on('moveend', update)
+        return () => { instance.off('moveend', update) }
+    }, [map])
 
     // 订阅 zoomThreshold 动态变化（响应 window.__setZoomThreshold 调用）
     const zoomThreshold = useSyncExternalStore(
@@ -155,7 +167,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
         origin: { lat: line.from.coordinates.latitude, lng: line.from.coordinates.longitude },
         destination: { lat: line.to.coordinates.latitude, lng: line.to.coordinates.longitude },
     })), [connectionLines])
-    const planned = usePlannedRoutes(segments, routeProvider)
+    const planned = usePlannedRoutes(segments, routeProvider, routeViewport)
 
     // 计算需要高亮的连线ID（hover 临时覆盖 click 锁定）
     const highlightedLineIds = useMemo(() => {

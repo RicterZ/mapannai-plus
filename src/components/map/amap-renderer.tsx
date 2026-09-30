@@ -8,7 +8,7 @@ import type { MarkerCoordinates } from '@/types/marker'
 import { wgs84ToGcj02, gcj02ToWgs84 } from '@/lib/coord-transform'
 import { getControlPoint, bezierPoint, getBezierPath } from '@/lib/map/connection-geometry'
 import { routeCacheKey, pointAlongPath } from '@/lib/map/route-cache'
-import { usePlannedRoutes } from '@/lib/map/use-planned-routes'
+import { usePlannedRoutes, RouteViewport } from '@/lib/map/use-planned-routes'
 import { useRouteSettings } from '@/lib/map/route-settings'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { MapMarker } from './map-marker'
@@ -23,6 +23,7 @@ interface AMapInstance {
     setZoom(zoom: number): void
     getCenter(): AMapPoint
     getZoom(): number
+    getBounds(): { getSouthWest(): AMapPoint; getNorthEast(): AMapPoint }
     add(overlays: any[]): void
     remove(overlays: any[]): void
 }
@@ -80,6 +81,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     const mapRef = useRef<AMapInstance | null>(null)
     const namespaceRef = useRef<AMapNamespace | null>(null)
     const [ready, setReady] = useState(false)
+    const [routeViewport, setRouteViewport] = useState<RouteViewport | null>(null)
     const [markerNodes, setMarkerNodes] = useState<HTMLElement[]>([])
     const [popupNode, setPopupNode] = useState<HTMLElement | null>(null)
     const latest = useRef(props)
@@ -116,6 +118,9 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
             if (!map) return
             const center = wgs(map.getCenter())
             latest.current.onMove({ ...center, zoom: map.getZoom() })
+            const bounds = map.getBounds()
+            const sw = wgs(bounds.getSouthWest()), ne = wgs(bounds.getNorthEast())
+            setRouteViewport({ west: sw.longitude, east: ne.longitude, south: sw.latitude, north: ne.latitude, centerLat: center.latitude, centerLng: center.longitude })
         }
         loadAMap(key, props.securityCode).then(AMap => {
             if (cancelled || !containerRef.current) return
@@ -131,6 +136,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
             map.on('moveend', onMove)
             map.on('zoomend', onMove)
             setReady(true)
+            onMove()
             latest.current.onLoad()
         }).catch(error => { if (!cancelled) latest.current.onError(error) })
         return () => {
@@ -186,7 +192,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
             return from && to ? [{ fromId, toId: to.id, origin: { lat: from.coordinates.latitude, lng: from.coordinates.longitude }, destination: { lat: to.coordinates.latitude, lng: to.coordinates.longitude } }] : []
         })))
     }, [props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId])
-    const planned = usePlannedRoutes(routeSegments, routeProvider)
+    const planned = usePlannedRoutes(routeSegments, routeProvider, routeViewport)
     useEffect(() => {
         const map = mapRef.current, AMap = namespaceRef.current
         if (!ready || !map || !AMap || props.viewState.zoom < zoomThreshold) return
