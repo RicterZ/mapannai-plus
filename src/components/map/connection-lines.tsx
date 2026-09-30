@@ -14,7 +14,7 @@ import { useRouteSettings } from '@/lib/map/route-settings'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { routeColor } from '@/lib/map/route-presentation'
 import { pickRouteDay } from '@/lib/map/route-picking'
-import { smoothRoutePath } from '@/lib/map/route-geometry'
+import { layoutRoutePaths } from '@/lib/map/route-geometry'
 
 const emptyFeatureCollection: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
@@ -186,12 +186,17 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
     }, [connectionLines, effectiveDayId])
 
     // Each segment uses its planned path once cached; pending/failed segments retain the curve.
-    const lineControlPoints = useMemo(() => connectionLines.map((line, index) => {
-        const from = { lat: line.from.coordinates.latitude, lng: line.from.coordinates.longitude }
-        const to = { lat: line.to.coordinates.latitude, lng: line.to.coordinates.longitude }
-        const route = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segments[index])] : null
-        return { id: line.id, from, ctrl: getControlPoint(from, to), to, route: route ? smoothRoutePath(route) : null }
-    }), [connectionLines, planned.enabled, planned.routes, routeProvider, routeSettings.mode, segments])
+    const lineControlPoints = useMemo(() => {
+        const displayPaths = layoutRoutePaths(connectionLines.map((line, index) => ({
+            dayId: line.dayId,
+            path: planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segments[index])] ?? null : null,
+        })))
+        return connectionLines.map((line, index) => {
+            const from = { lat: line.from.coordinates.latitude, lng: line.from.coordinates.longitude }
+            const to = { lat: line.to.coordinates.latitude, lng: line.to.coordinates.longitude }
+            return { id: line.id, from, ctrl: getControlPoint(from, to), to, route: displayPaths[index] }
+        })
+    }, [connectionLines, planned.enabled, planned.routes, routeProvider, routeSettings.mode, segments])
 
     // 小圆球动画
     useEffect(() => {

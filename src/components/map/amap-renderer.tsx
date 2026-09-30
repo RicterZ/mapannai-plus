@@ -14,7 +14,7 @@ import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { MapMarker } from './map-marker'
 import { routeColor } from '@/lib/map/route-presentation'
 import { pickRouteDay } from '@/lib/map/route-picking'
-import { smoothRoutePath } from '@/lib/map/route-geometry'
+import { layoutRoutePaths } from '@/lib/map/route-geometry'
 import type { MapSearchBounds } from '@/types/map-provider'
 
 interface AMapPoint { lng?: number; lat?: number; getLng?: () => number; getLat?: () => number }
@@ -221,12 +221,19 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     const routeSegments = React.useMemo(() => {
         const byId = new Map(props.markers.map(marker => [marker.id, marker]))
         const relevant = tripDays.filter(day => activeView.mode === 'day' ? day.id === activeView.dayId : activeView.mode === 'trip' ? day.tripId === activeView.tripId : true)
-        return relevant.flatMap(day => (day.chains || []).flatMap(chain => chain.slice(0, -1).flatMap((fromId, index) => {
+        return relevant.flatMap(day => (day.chains || []).flatMap((chain, chainIndex) => chain.slice(0, -1).flatMap((fromId, index) => {
             const from = byId.get(fromId), to = byId.get(chain[index + 1])
-            return from && to ? [{ fromId, toId: to.id, origin: { lat: from.coordinates.latitude, lng: from.coordinates.longitude }, destination: { lat: to.coordinates.latitude, lng: to.coordinates.longitude } }] : []
+            return from && to ? [{ dayId: day.id, displayKey: `${day.id}:${chainIndex}:${index}`, fromId, toId: to.id, origin: { lat: from.coordinates.latitude, lng: from.coordinates.longitude }, destination: { lat: to.coordinates.latitude, lng: to.coordinates.longitude } }] : []
         })))
     }, [props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId])
     const planned = usePlannedRoutes(routeSegments, routeProvider, routeViewport)
+    const displayPaths = React.useMemo(() => {
+        const paths = layoutRoutePaths(routeSegments.map(segment => ({
+            dayId: segment.dayId,
+            path: planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segment)] ?? null : null,
+        })))
+        return new Map(routeSegments.map((segment, index) => [segment.displayKey, paths[index]]))
+    }, [routeSegments, planned.enabled, planned.routes, routeProvider, routeSettings.mode])
     useEffect(() => {
         const map = mapRef.current, AMap = namespaceRef.current
         if (!ready || !map || !AMap) return
@@ -251,7 +258,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                 const highlighted = day.id === effectiveDayId
                 const segment = { fromId: fromMarker.id, toId: toMarker.id, origin: { lat: fromMarker.coordinates.latitude, lng: fromMarker.coordinates.longitude }, destination: { lat: toMarker.coordinates.latitude, lng: toMarker.coordinates.longitude } }
                 const cachedPath = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segment)] : null
-                const path = cachedPath ? smoothRoutePath(cachedPath).map(point => gcj({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
+                const path = cachedPath ? displayPaths.get(`${day.id}:${chainIndex}:${index}`)!.map(point => gcj({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
                 pickableRoutesRef.current.push({ dayId: day.id, path })
                 const width = Math.max(3, 3 + (props.viewState.zoom - 10) * 0.2) + (highlighted ? 2 : 0)
                 const color = routeColor(chainIndex, day.id, day.colorIndex)
@@ -321,7 +328,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
         }
         if (animated.length && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) frame = requestAnimationFrame(animate)
         return () => { cancelAnimationFrame(frame) }
-    }, [ready, props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId, effectiveDayId, props.viewState.zoom, zoomThreshold, planned.enabled, planned.routes, routeProvider, routeSettings.mode])
+    }, [ready, props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId, effectiveDayId, props.viewState.zoom, zoomThreshold, planned.enabled, planned.routes, displayPaths, routeProvider, routeSettings.mode])
 
     useEffect(() => {
         const map = mapRef.current, AMap = namespaceRef.current
