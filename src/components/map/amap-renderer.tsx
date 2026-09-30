@@ -251,9 +251,9 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                 const key = `${day.id}:${chainIndex}:${index}`
                 liveKeys.add(key)
                 let entry = routeOverlaysRef.current.get(key)
-                const casingOptions = { path, strokeColor: '#ffffff', strokeWeight: width + 4, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.4 : 0.8, zIndex: highlighted ? 52 : 48 }
+                const casingOptions = { path, strokeColor: '#ffffff', strokeWeight: width + 2, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.4 : 0.8, zIndex: highlighted ? 52 : 48 }
                 const lineOptions = { path, strokeColor: color, strokeStyle: planned.enabled && !cachedPath ? 'dashed' : 'solid', strokeDasharray: [8, 6], strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.25 : 0.8, zIndex: highlighted ? 53 : 49 }
-                const hitOptions = { path, strokeColor: color, strokeWeight: 28, strokeOpacity: 0.01, zIndex: highlighted ? 56 : 55, bubble: false }
+                const hitOptions = { path, strokeColor: color, strokeWeight: 28, strokeOpacity: 0, zIndex: highlighted ? 56 : 55, bubble: false }
                 if (!entry) {
                     entry = { casing: new AMap.Polyline(casingOptions), line: new AMap.Polyline(lineOptions), hitArea: new AMap.Polyline(hitOptions) }
                     entry.hitArea.on('mouseover', () => setHoveredDayId(day.id))

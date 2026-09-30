@@ -304,9 +304,9 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         'line-color': 'rgba(255, 255, 255, 0.95)',
                         'line-width': [
                             'interpolate', ['linear'], ['zoom'],
-                            10, 6,
-                            15, 8,
-                            20, 10
+                            10, 5,
+                            15, 6,
+                            20, 7
                         ],
                         'line-opacity': [
                             'case',
@@ -351,9 +351,9 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         'line-color': 'rgba(255, 255, 255, 0.95)',
                         'line-width': [
                             'interpolate', ['linear'], ['zoom'],
-                            10, 8,
-                            15, 11,
-                            20, 14
+                            10, 6,
+                            15, 8,
+                            20, 10
                         ],
                         'line-opacity': 1,
                     }}
