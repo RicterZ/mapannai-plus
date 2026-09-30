@@ -81,7 +81,7 @@ export const ViewModeBanner = () => {
     return (
         <div
             className={cn(
-                'fixed left-1/2 -translate-x-1/2 -translate-y-1/2 z-40',
+                'view-mode-banner fixed left-1/2 -translate-x-1/2 -translate-y-1/2 z-40',
                 'bg-white/95 backdrop-blur border border-gray-200 shadow-lg rounded-full',
                 'flex flex-nowrap items-center gap-1 px-3 py-1.5 text-sm whitespace-nowrap w-max max-w-[calc(100vw-96px)] sm:max-w-[90vw]',
                 'animate-fade-in'
@@ -92,7 +92,7 @@ export const ViewModeBanner = () => {
             <button
                 onClick={handleTripClick}
                 className={cn(
-                    'min-w-0 font-medium transition-colors truncate max-w-[120px]',
+                    'min-w-0 outline-none font-medium transition-colors truncate max-w-[120px]',
                     activeView.mode === 'trip' ? 'text-blue-600' : 'text-gray-600 hover:text-blue-500'
                 )}
                 title={trip?.name}
@@ -104,15 +104,19 @@ export const ViewModeBanner = () => {
             {activeView.mode === 'day' && day && (
                 <>
                     <span className="text-gray-300 flex-shrink-0">›</span>
-                    <div ref={dropdownRef} className="relative">
+                    <div ref={dropdownRef} className="relative min-w-0">
                         <button
                             onClick={() => setDayDropdownOpen(v => !v)}
-                            className="font-medium text-blue-600 truncate max-w-[140px] flex items-center gap-0.5"
+                            className="outline-none font-medium text-blue-600 max-w-[140px] sm:max-w-[240px] min-w-0 flex items-center gap-1"
+                            aria-label="选择行程日期"
+                            aria-expanded={dayDropdownOpen}
                             title={day.date}
                         >
-                            {day.title || `第${dayNum}天`}
-                            <span className="ml-1 text-xs text-gray-400 font-normal hidden sm:inline">
-                                · {formatDate(day.date)}
+                            <span className="min-w-0 truncate">
+                                {day.title || `第${dayNum}天`}
+                                <span className="ml-1 text-xs text-gray-400 font-normal hidden sm:inline">
+                                    · {formatDate(day.date)}
+                                </span>
                             </span>
                             <svg className={cn('w-3 h-3 text-gray-400 flex-shrink-0 transition-transform', dayDropdownOpen && 'rotate-180')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
@@ -147,7 +151,7 @@ export const ViewModeBanner = () => {
                 <div ref={dropdownRef} className="relative flex-shrink-0">
                     <button
                         onClick={() => setDayDropdownOpen(v => !v)}
-                        className="text-xs text-gray-400 ml-1 flex-shrink-0 flex items-center gap-0.5 whitespace-nowrap hover:text-gray-600 transition-colors"
+                        className="outline-none text-xs text-gray-400 ml-1 flex-shrink-0 flex items-center gap-0.5 whitespace-nowrap hover:text-gray-600 transition-colors"
                     >
                         总览 · 共{totalDays}天
                         <svg className={cn('w-3 h-3 transition-transform', dayDropdownOpen && 'rotate-180')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -175,7 +179,7 @@ export const ViewModeBanner = () => {
             {/* Exit button */}
             <button
                 onClick={() => setActiveView('overview', null, null)}
-                className="ml-1 w-5 h-5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 flex items-center justify-center transition-colors flex-shrink-0"
+                className="outline-none ml-1 w-5 h-5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 flex items-center justify-center transition-colors flex-shrink-0"
                 title="退出旅行模式"
             >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

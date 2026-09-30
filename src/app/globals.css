@@ -560,3 +560,5 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
 .route-settings-bar {
     padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
 }
+
+.view-mode-banner button { outline: none; }
