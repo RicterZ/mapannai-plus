@@ -5,19 +5,6 @@ import type { MapRoute } from '@/types/map-provider'
 
 export const dynamic = 'force-dynamic'
 const inFlight = new Map<string, Promise<MapRoute>>()
-let providerQueue: Promise<void> = Promise.resolve()
-let nextProviderRequestAt = 0
-
-function queueProviderRequest(request: () => Promise<MapRoute>): Promise<MapRoute> {
-    const pending = providerQueue.then(async () => {
-        const delay = Math.max(0, nextProviderRequestAt - Date.now())
-        if (delay) await new Promise(resolve => setTimeout(resolve, delay))
-        nextProviderRequestAt = Date.now() + 1200
-        return request()
-    })
-    providerQueue = pending.then(() => {}, () => {})
-    return pending
-}
 
 export async function POST(request: NextRequest) {
     try {
@@ -32,7 +19,7 @@ export async function POST(request: NextRequest) {
         let pending = inFlight.get(key)
         if (!pending) {
             const provider = mapProviderFactory.createServiceProvider('directions')
-            pending = queueProviderRequest(() => provider.getDirections(origin, destination, mode)).then(result => {
+            pending = provider.getDirections(origin, destination, mode).then(result => {
                 if (result.path.length >= 2 && result.path.every(point => Number.isFinite(point.lat) && Number.isFinite(point.lng))) {
                     cacheDirection(key, result)
                 }
