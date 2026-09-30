@@ -5,6 +5,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import { getSavedDirection } from '@/lib/map/direction-service'
 import { mapProviderFactory } from '@/lib/map/providers'
 
 export function registerSearchTools(server: McpServer) {
@@ -68,7 +69,7 @@ export function registerSearchTools(server: McpServer) {
       }).describe('终点坐标'),
     },
     async ({ origin, destination, provider }) => {
-      const result = await mapProviderFactory.createServiceProvider('directions', provider).getDirections(origin, destination, 'walking')
+      const result = await getSavedDirection(origin, destination, 'walking', provider)
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
     }
   )

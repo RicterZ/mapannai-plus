@@ -1,5 +1,7 @@
 'use client'
 
+import { isRangeFallback } from '@/lib/map/route-cache'
+
 import { startAnimationLoop } from '@/lib/ui/animation-loop'
 
 import { useMemo, useEffect, useState, useSyncExternalStore } from 'react'
@@ -193,7 +195,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
         return connectionLines.map((line, index) => {
             const from = { lat: line.from.coordinates.latitude, lng: line.from.coordinates.longitude }
             const to = { lat: line.to.coordinates.latitude, lng: line.to.coordinates.longitude }
-            return { id: line.id, from, ctrl: getControlPoint(from, to), to, route: displayPaths[index] }
+            return { id: line.id, from, ctrl: getControlPoint(from, to), to, route: isRangeFallback(planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segments[index])]) && planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segments[index])] : displayPaths[index] }
         })
     }, [connectionLines, planned.enabled, planned.routes, routeProvider, routeSettings.mode, segments])
 
@@ -270,7 +272,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                     isDragPreview: false,
                     isWalkingRoute: false,
                     color: line.color,
-                    schematic: planned.enabled && !plannedPath,
+                    schematic: planned.enabled && (!plannedPath || isRangeFallback(planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segments[index])])),
                 }
             }
         })
@@ -279,7 +281,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
             type: 'FeatureCollection' as const,
             features
         }
-    }, [connectionLines, lineControlPoints, planned.enabled])
+    }, [connectionLines, lineControlPoints, planned.enabled, planned.routes, routeProvider, routeSettings.mode, segments])
 
     // 如果没有连接线，不渲染任何内容
     if (connectionLines.length === 0) {

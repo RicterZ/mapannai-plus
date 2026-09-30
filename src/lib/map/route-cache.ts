@@ -10,6 +10,8 @@ export interface RouteSegment {
 }
 export type RoutePath = RouteCoordinate[]
 export interface RouteMetrics { distance: number; duration: number }
+const fallbackPaths = new WeakSet<RoutePath>()
+export function isRangeFallback(path: RoutePath | null | undefined): boolean { return !!path && fallbackPaths.has(path) }
 const metricsCache = new Map<string, RouteMetrics>()
 const cachePrefix = 'mapannai_route_v1:'
 const inFlight = new Map<string, Promise<RoutePath>>()
@@ -44,7 +46,9 @@ export function readCachedRoute(key: string): RoutePath | null {
     try {
         const raw = localStorage.getItem(key)
         if (!raw) return null
-        const path = JSON.parse(raw)
+        const stored = JSON.parse(raw)
+        const path = Array.isArray(stored) ? stored : stored.path
+        if (stored.fallback === 'OVER_DIRECTION_RANGE' && Array.isArray(path)) fallbackPaths.add(path)
         return Array.isArray(path) && path.length >= 2 && path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng)) ? path : null
     } catch { return null }
 }
@@ -82,13 +86,14 @@ export async function getPlannedRoute(provider: string, mode: RouteMode, segment
             }
             const path = data.path as RoutePath
             if (!Array.isArray(path) || path.length < 2 || !path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))) throw new Error('路线数据无效')
+            if (data.fallback === 'OVER_DIRECTION_RANGE') fallbackPaths.add(path)
             memoryCache.set(key, path)
             if (Number.isFinite(data.distance) && Number.isFinite(data.duration) && data.distance >= 0 && data.duration >= 0) {
                 const metrics = { distance: data.distance, duration: data.duration }
                 metricsCache.set(key, metrics)
                 try { localStorage.setItem(`${key}:metrics`, JSON.stringify(metrics)) } catch { /* storage unavailable */ }
             }
-            try { localStorage.setItem(key, JSON.stringify(path)) } catch { /* storage full/private mode */ }
+            try { localStorage.setItem(key, JSON.stringify(data.fallback ? { path, fallback: data.fallback } : path)) } catch { /* storage full/private mode */ }
             return path
         }
         throw new Error('路线规划请求超过频率限制')

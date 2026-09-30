@@ -203,3 +203,5 @@ location /osm-tiles/ {
 ```env
 NEXT_PUBLIC_OSM_TILE_PROXY=false
 ```
+
+路径与高德 `OVER_DIRECTION_RANGE` 终止结果永久保存在 SQLite `direction_cache`，Web / MCP 共用；超范围仅显示起终点直虚线，不提供虚构路程 / 时长，不自动或手动重试。坐标、模式或 provider 变化后使用新缓存键。

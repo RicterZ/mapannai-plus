@@ -170,3 +170,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 ```
 
 部署脚本位于服务器，不在本仓库。等待构建与容器重建完成，再检查 `mapannai` 容器运行状态及容器内 `http://127.0.0.1:3000/` 的 HTTP 状态；不要在脚本仍运行时宣布部署成功。文档更新不需要重建生产服务。
+
+路径与高德 `OVER_DIRECTION_RANGE` 终止结果永久保存在 SQLite `direction_cache`，Web / MCP 共用；超范围仅显示起终点直虚线，不提供虚构路程 / 时长，不自动或手动重试。坐标、模式或 provider 变化后使用新缓存键。
