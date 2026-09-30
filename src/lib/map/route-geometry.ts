@@ -17,36 +17,60 @@ export function smoothRoutePath(path: RoutePath): RoutePath {
     }
     points.push(path[path.length - 1])
 
-    // Remove sub-metre jitter with bounded-error Douglas–Peucker simplification.
-    const keep = new Set([0, points.length - 1])
-    const stack: Array<[number, number]> = [[0, points.length - 1]]
+    const segmentError = (p: RouteCoordinate, a: RouteCoordinate, b: RouteCoordinate) => {
+        const dx = x(b) - x(a), dy = y(b) - y(a), length2 = dx * dx + dy * dy
+        const px = x(p) - x(a), py = y(p) - y(a)
+        const t = length2 ? Math.max(0, Math.min(1, (px * dx + py * dy) / length2)) : 0
+        return Math.hypot(px - t * dx, py - t * dy)
+    }
+    // Collapse only short excursions inside a narrow corridor. Bounded length
+    // and deviation prevent large road loops / U-turns from being shortcut.
+    const cleaned = [points[0]]
+    for (let start = 0; start < points.length - 1;) {
+        let chosen = start + 1, arc = 0
+        for (let end = start + 1; end < Math.min(points.length, start + 33); end++) {
+            arc += distance(points[end - 1], points[end])
+            if (arc > 80) break
+            const chord = distance(points[start], points[end])
+            if (end < start + 2 || arc < 3 || arc < Math.max(1, chord) * 1.4) continue
+            let maximum = 0
+            for (let i = start + 1; i < end; i++) {
+                maximum = Math.max(maximum, segmentError(points[i], points[start], points[end]))
+            }
+            if (maximum <= 10) chosen = end
+        }
+        cleaned.push(points[chosen])
+        start = chosen
+    }
+
+    // Remove small jitters with bounded-error Douglas–Peucker simplification.
+    const keep = new Set([0, cleaned.length - 1])
+    const stack: Array<[number, number]> = [[0, cleaned.length - 1]]
     while (stack.length) {
         const [start, end] = stack.pop()!
-        const a = points[start], b = points[end]
-        const dx = x(b) - x(a), dy = y(b) - y(a), length2 = dx * dx + dy * dy
-        let furthest = -1, maxError = 1
+        const a = cleaned[start], b = cleaned[end]
+        let furthest = -1, maxError = 2
         for (let i = start + 1; i < end; i++) {
-            const px = x(points[i]) - x(a), py = y(points[i]) - y(a)
-            const t = length2 ? Math.max(0, Math.min(1, (px * dx + py * dy) / length2)) : 0
-            const error = (px - t * dx) ** 2 + (py - t * dy) ** 2
+            const error = segmentError(cleaned[i], a, b)
             if (error > maxError) { maxError = error; furthest = i }
         }
         if (furthest >= 0) { keep.add(furthest); stack.push([start, furthest], [furthest, end]) }
     }
-    const simplified = points.filter((_, i) => keep.has(i))
+    const simplified = cleaned.filter((_, i) => keep.has(i))
     const result = [simplified[0]]
     const lerp = (a: RouteCoordinate, b: RouteCoordinate, t: number): RouteCoordinate => ({ lng: a.lng + (b.lng - a.lng) * t, lat: a.lat + (b.lat - a.lat) * t })
     for (let i = 1; i < simplified.length - 1; i++) {
         const previous = simplified[i - 1], point = simplified[i], next = simplified[i + 1]
         const incoming = distance(previous, point), outgoing = distance(point, next)
         const cosine = incoming && outgoing ? ((x(point) - x(previous)) * (x(next) - x(point)) + (y(point) - y(previous)) * (y(next) - y(point))) / (incoming * outgoing) : -1
-        // Preserve U-turns; round ordinary corners only within six metres.
-        if (cosine < -0.5 || !incoming || !outgoing) { result.push(point); continue }
-        const radius = Math.min(6, incoming * 0.25, outgoing * 0.25)
+        // Large reversals remain intentional. Broader tangent-aligned rounds
+        // remove the tiny straight stubs produced by the previous 25% trim.
+        if (cosine < -0.85 || !incoming || !outgoing) { result.push(point); continue }
+        const radius = Math.min(18, incoming * 0.45, outgoing * 0.45)
         const entry = lerp(point, previous, radius / incoming), exit = lerp(point, next, radius / outgoing)
         result.push(entry)
-        for (let step = 1; step <= 6; step++) {
-            const t = step / 6
+        for (let step = 1; step <= 10; step++) {
+            const t = step / 10
             result.push(lerp(lerp(entry, point, t), lerp(point, exit, t), t))
         }
     }
