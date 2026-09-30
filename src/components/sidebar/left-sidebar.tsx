@@ -32,7 +32,6 @@ import { CreateTripModal } from '@/components/modal/create-trip-modal'
 import { routeColor, dayColor, shortAddress } from '@/lib/map/route-presentation'
 import { useRouteProgress } from '@/lib/map/route-progress'
 import { Modal } from '@/components/ui/modal'
-import { readRouteMetrics, routeCacheKey } from '@/lib/map/route-cache'
 
 interface LeftSidebarProps {
     onFlyTo: (coordinates: { longitude: number; latitude: number }, zoom?: number) => void
@@ -787,18 +786,6 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         catch { toast.error('调整顺序失败，请重试') }
     }
     const toggleRoute = (index: number) => setCollapsedRoutes(value => { const next = new Set(value); next.has(index) ? next.delete(index) : next.add(index); return next })
-    const routeSummary = (group: Marker[]) => {
-        if (!routeSettings.enabled || group.length < 2) return null
-        const metrics = group.slice(0, -1).map((marker, index) => readRouteMetrics(routeCacheKey(routeProvider, routeSettings.mode, {
-            fromId: marker.id, toId: group[index + 1].id,
-            origin: { lat: marker.coordinates.latitude, lng: marker.coordinates.longitude },
-            destination: { lat: group[index + 1].coordinates.latitude, lng: group[index + 1].coordinates.longitude },
-        })))
-        if (metrics.some(value => !value)) return null
-        const distance = metrics.reduce((sum, value) => sum + value!.distance, 0)
-        const minutes = Math.max(1, Math.round(metrics.reduce((sum, value) => sum + value!.duration, 0) / 60))
-        return `${distance < 1000 ? `${Math.round(distance)} 米` : `${(distance / 1000).toFixed(1)} 公里`} · 约${minutes >= 60 ? `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分钟` : `${minutes} 分钟`}`
-    }
 
     // 移动端关闭时不渲染；桌面端始终保持渲染
 
@@ -1306,7 +1293,6 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                 {isPending && <button type="button" aria-label="取消空路线" onClick={() => setPendingEmptyChains(value => Math.max(0, value - 1))} className="min-h-[36px] px-2 text-gray-500">×</button>}
                                             </div>
                                         </div>
-                                        {routeSummary(chainGroup) && <p className="px-1 pb-2 text-xs text-gray-500">{routeSummary(chainGroup)}</p>}
                                         {!collapsedRoutes.has(slotIdx) && <>
                                         <SortableContext
                                             id={`chain-sort-${chainIdx}`}
@@ -1404,7 +1390,6 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                 </button>
                                 <button type="button" onClick={() => onFitMarkers(group.map(marker => marker.id))} className="min-h-[44px] px-3 text-xs text-gray-600 hover:text-blue-600" aria-label={`查看路线 ${chainIdx + 1}`}>查看路线</button>
                             </div>
-                            {routeSummary(group) && <p className="px-1 pb-2 text-xs text-gray-500">{routeSummary(group)}</p>}
                             {!collapsedRoutes.has(chainIdx) && <div className="flex flex-col">
                                 {group.map((marker, idx) => {
                                     const icon = MARKER_ICONS[marker.content.iconType || 'location'] || MARKER_ICONS.location
