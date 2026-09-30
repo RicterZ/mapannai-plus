@@ -166,12 +166,12 @@ export const MapPopup = ({
                                 </a>
                                 {editMode.isEnabled && <button
                                     onClick={() => onDeleteMarker(selectedMarkerId!)}
-                                    className="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors focus:outline-none flex items-center justify-center gap-1"
+                                    className="flex-1 px-2 py-1.5 text-xs font-medium whitespace-nowrap rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors focus:outline-none flex items-center justify-center gap-1"
                                 >
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                     </svg>
-                                    删除地点
+                                    删除
                                 </button>}
                             </div>
                             {markerTripDays.length > 0 && (

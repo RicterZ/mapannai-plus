@@ -13,6 +13,7 @@ import { useRouteSettings } from '@/lib/map/route-settings'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { MapMarker } from './map-marker'
 import { routeColor } from '@/lib/map/route-presentation'
+import { pickRouteDay } from '@/lib/map/route-picking'
 import { smoothRoutePath } from '@/lib/map/route-geometry'
 import type { MapSearchBounds } from '@/types/map-provider'
 
@@ -24,6 +25,7 @@ interface AMapInstance {
     setZoomAndCenter(zoom: number, center: number[], immediately?: boolean, duration?: number): void
     setCenter(center: number[]): void
     setZoom(zoom: number): void
+    lngLatToContainer(point: number[]): { getX(): number; getY(): number }
     getCenter(): AMapPoint
     getZoom(): number
     getBounds(): { getSouthWest(): AMapPoint; getNorthEast(): AMapPoint }
@@ -94,6 +96,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     latest.current = props
     const nodesRef = useRef<HTMLElement[]>([])
     const markerOverlaysRef = useRef(new Map<string, { overlay: any; node: HTMLElement }>())
+    const pickableRoutesRef = useRef<Array<{ dayId: string; path: number[][] }>>([])
     const routeOverlaysRef = useRef(new Map<string, { casing: any; line: any; hitArea: any; dot?: any; node?: HTMLElement }>())
     const popupOverlayRef = useRef<any>(null)
     const popupNodeRef = useRef<HTMLElement | null>(null)
@@ -203,7 +206,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
 
     const { tripDays, activeView, interactionState } = useMapStore()
     const [hoveredDayId, setHoveredDayId] = useState<string | null>(null)
-    const effectiveDayId = activeView.mode === 'day' ? activeView.dayId : hoveredDayId ?? interactionState.highlightedDayId
+    const effectiveDayId = activeView.mode === 'day' ? activeView.dayId : interactionState.highlightedDayId ?? hoveredDayId
     const zoomThreshold = useSyncExternalStore(
         callback => { window.addEventListener('zoomThresholdChange', callback); return () => window.removeEventListener('zoomThresholdChange', callback) },
         getZoomThreshold, getZoomThreshold,
@@ -230,10 +233,12 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
         if (props.viewState.zoom < zoomThreshold) {
             map.remove(Array.from(routeOverlaysRef.current.values()).flatMap(entry => [entry.casing, entry.line, entry.hitArea, ...(entry.dot ? [entry.dot] : [])]))
             routeOverlaysRef.current.clear()
+            pickableRoutesRef.current = []
             return
         }
         const byId = new Map(props.markers.map(marker => [marker.id, marker]))
         const relevant = tripDays.filter(day => activeView.mode === 'day' ? day.id === activeView.dayId : activeView.mode === 'trip' ? day.tripId === activeView.tripId : true)
+        pickableRoutesRef.current = []
         const overlays: any[] = []
         const liveKeys = new Set<string>()
         const animated: Array<{ dot: any; from: { lat: number; lng: number }; to: { lat: number; lng: number }; path: Array<{ lat: number; lng: number }> | null }> = []
@@ -247,6 +252,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                 const segment = { fromId: fromMarker.id, toId: toMarker.id, origin: { lat: fromMarker.coordinates.latitude, lng: fromMarker.coordinates.longitude }, destination: { lat: toMarker.coordinates.latitude, lng: toMarker.coordinates.longitude } }
                 const cachedPath = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segment)] : null
                 const path = cachedPath ? smoothRoutePath(cachedPath).map(point => gcj({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
+                pickableRoutesRef.current.push({ dayId: day.id, path })
                 const width = Math.max(3, 3 + (props.viewState.zoom - 10) * 0.2) + (highlighted ? 2 : 0)
                 const color = routeColor(chainIndex, day.id, day.colorIndex)
                 const key = `${day.id}:${chainIndex}:${index}`
@@ -259,7 +265,17 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                     entry = { casing: new AMap.Polyline(casingOptions), line: new AMap.Polyline(lineOptions), hitArea: new AMap.Polyline(hitOptions) }
                     entry.hitArea.on('mouseover', () => setHoveredDayId(day.id))
                     entry.hitArea.on('mouseout', () => setHoveredDayId(null))
-                    entry.hitArea.on('click', () => { const state = useMapStore.getState(); if (state.activeView.mode !== 'day') state.setHighlightedDay(day.id) })
+                    entry.hitArea.on('click', (event: any) => {
+                        const state = useMapStore.getState()
+                        if (state.activeView.mode === 'day' || !event.lnglat) return
+                        const pixel = map.lngLatToContainer([event.lnglat.getLng(), event.lnglat.getLat()])
+                        const candidates = pickableRoutesRef.current.map(route => ({ dayId: route.dayId, path: route.path.map(position => {
+                            const projected = map.lngLatToContainer(position)
+                            return { x: projected.getX(), y: projected.getY() }
+                        }) }))
+                        const picked = pickRouteDay({ x: pixel.getX(), y: pixel.getY() }, candidates, state.interactionState.highlightedDayId)
+                        if (picked) { setHoveredDayId(null); state.setHighlightedDay(picked) }
+                    })
                     routeOverlaysRef.current.set(key, entry)
                     overlays.push(entry.casing, entry.line, entry.hitArea)
                 } else {

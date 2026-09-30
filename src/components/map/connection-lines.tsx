@@ -13,6 +13,7 @@ import { usePlannedRoutes, RouteViewport } from '@/lib/map/use-planned-routes'
 import { useRouteSettings } from '@/lib/map/route-settings'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { routeColor } from '@/lib/map/route-presentation'
+import { pickRouteDay } from '@/lib/map/route-picking'
 import { smoothRoutePath } from '@/lib/map/route-geometry'
 
 const emptyFeatureCollection: GeoJSON.FeatureCollection = {
@@ -70,7 +71,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
 
     // hover 临时激活的 dayId（优先级高于 click 锁定的 highlightedDayId）
     const [hoveredDayId, setHoveredDayId] = useState<string | null>(null)
-    const effectiveDayId = activeView.mode === 'day' ? activeView.dayId : hoveredDayId ?? highlightedDayId
+    const effectiveDayId = activeView.mode === 'day' ? activeView.dayId : highlightedDayId ?? hoveredDayId
 
     // 监听 marker hover 事件（临时激活）
     useEffect(() => {
@@ -100,12 +101,15 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
         }
 
         const onClick = (e: any) => {
-            const dayId = e.features?.[0]?.properties?.dayId
-            if (!dayId) return
-            const { activeView, setHighlightedDay } = useMapStore.getState()
-            if (activeView.mode !== 'day') {
-                setHighlightedDay(dayId)
-            }
+            const state = useMapStore.getState()
+            if (state.activeView.mode === 'day') return
+            const features = mapInstance.queryRenderedFeatures(e.point, { layers: LINE_LAYERS })
+            const candidates = features.flatMap(feature => {
+                if (feature.geometry.type !== 'LineString' || !feature.properties?.dayId) return []
+                return [{ dayId: String(feature.properties.dayId), path: feature.geometry.coordinates.map(position => mapInstance.project([position[0], position[1]])) }]
+            })
+            const picked = pickRouteDay(e.point, candidates, state.interactionState.highlightedDayId)
+            if (picked) { setHoveredDayId(null); state.setHighlightedDay(picked) }
         }
 
         LINE_LAYERS.forEach(layer => {
