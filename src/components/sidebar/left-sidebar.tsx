@@ -1496,7 +1496,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 <div className="route-settings-bar border-t border-gray-100 px-4 py-2 flex-shrink-0">
                     <div className="flex items-center justify-between gap-2 whitespace-nowrap">
                         <span className="text-xs text-gray-600 whitespace-nowrap">路线规划</span>
-                        {routeSettings.enabled && <span role="status" aria-live="polite" className="min-w-0 flex-1 truncate text-right text-xs text-gray-500" title={progress.calculating ? `正在计算 ${progress.completed + progress.failed}/${progress.total}，虚线为示意连接` : progress.failed ? `${progress.failed} 段暂时无法规划，虚线为示意连接` : progress.total ? '路线已更新' : '当前没有需要规划的路段'}>
+                        {routeSettings.enabled && (progress.calculating || progress.failed > 0) && <span role="status" aria-live="polite" className="min-w-0 flex-1 truncate text-right text-xs text-gray-500" title={progress.calculating ? `正在计算 ${progress.completed + progress.failed}/${progress.total}，虚线为示意连接` : progress.failed ? `${progress.failed} 段暂时无法规划，虚线为示意连接` : ''}>
                             {progress.calculating ? `${progress.completed + progress.failed}/${progress.total}` : progress.failed ? <button type="button" onClick={progress.retry} className="route-retry-button text-blue-600 hover:underline" aria-label={`重试 ${progress.failed} 段失败路线`}>重试 {progress.failed} 段</button> : null}
                         </span>}
                         {routeSettings.enabled && <div className="ml-auto flex gap-1 rounded-lg bg-gray-100 p-1" role="group" aria-label="全局寻路模式">

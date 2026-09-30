@@ -48,7 +48,7 @@ export function readCachedRoute(key: string): RoutePath | null {
         if (!raw) return null
         const stored = JSON.parse(raw)
         const path = Array.isArray(stored) ? stored : stored.path
-        if (stored.fallback === 'OVER_DIRECTION_RANGE' && Array.isArray(path)) fallbackPaths.add(path)
+        if ((stored.fallback === 'OVER_DIRECTION_RANGE' || stored.fallback === 'UNSUPPORTED_REGION') && Array.isArray(path)) fallbackPaths.add(path)
         return Array.isArray(path) && path.length >= 2 && path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng)) ? path : null
     } catch { return null }
 }
@@ -86,7 +86,7 @@ export async function getPlannedRoute(provider: string, mode: RouteMode, segment
             }
             const path = data.path as RoutePath
             if (!Array.isArray(path) || path.length < 2 || !path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))) throw new Error('路线数据无效')
-            if (data.fallback === 'OVER_DIRECTION_RANGE') fallbackPaths.add(path)
+            if ((data.fallback === 'OVER_DIRECTION_RANGE' || data.fallback === 'UNSUPPORTED_REGION')) fallbackPaths.add(path)
             memoryCache.set(key, path)
             if (Number.isFinite(data.distance) && Number.isFinite(data.duration) && data.distance >= 0 && data.duration >= 0) {
                 const metrics = { distance: data.distance, duration: data.duration }

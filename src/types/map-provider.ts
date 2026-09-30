@@ -75,7 +75,7 @@ export interface MapRoute {
     path: RoutePoint[]
     distance: number | null
     duration: number | null
-    fallback?: 'OVER_DIRECTION_RANGE'
+    fallback?: 'OVER_DIRECTION_RANGE' | 'UNSUPPORTED_REGION'
     distanceText?: string
     durationText?: string
 }
