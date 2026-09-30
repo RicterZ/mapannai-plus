@@ -154,7 +154,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                             dayId: day.id,
                             fromId: fromMarker.id,
                             toId: toMarker.id,
-                            color: routeColor(ci),
+                            color: routeColor(ci, day.id),
                         })
                     }
                 }

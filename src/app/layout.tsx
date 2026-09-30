@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, DM_Serif_Display } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { AuthModal } from '@/components/auth/auth-modal'
+import { MobilePageGestures } from '@/components/ui/mobile-page-gestures'
 
 const inter = Inter({ subsets: ['latin'] })
 const dmSerifDisplay = DM_Serif_Display({
@@ -36,6 +37,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
     width: 'device-width',
     initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
     viewportFit: 'cover',
 }
 
@@ -50,6 +53,7 @@ export default function RootLayout({
                 {children}
                 <Toaster position="top-center" richColors closeButton />
                 <AuthModal />
+                <MobilePageGestures />
             </body>
         </html>
     )

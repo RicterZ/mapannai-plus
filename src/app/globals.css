@@ -14,6 +14,20 @@ body {
     height: 100%;
     height: 100vh;
     height: 100dvh; /* 动态视口高度，Safari 支持 */
+    touch-action: pan-x pan-y; /* 页面可滚动，但不由浏览器处理捏合缩放 */
+}
+
+/* 地图的手势交给 SDK；不要禁止它收到 touch/pointer 事件。 */
+.amap-container,
+.maplibregl-canvas-container,
+.maplibregl-canvas {
+    touch-action: none;
+}
+
+@media (pointer: coarse) {
+    input, textarea, select, [contenteditable="true"] {
+        font-size: max(16px, 1em); /* 避免 iOS 聚焦小字号输入框时放大页面 */
+    }
 }
 
 /* Safari 特定修复 */

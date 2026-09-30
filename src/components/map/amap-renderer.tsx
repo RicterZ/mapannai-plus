@@ -213,7 +213,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                 const path = cachedPath ? cachedPath.map(point => gcj({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
                 const width = Math.max(3, 3 + (props.viewState.zoom - 10) * 0.2) + (highlighted ? 2 : 0)
                 const casing = new AMap.Polyline({ path, strokeColor: '#ffffff', strokeWeight: width + 4, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.4 : 0.8, zIndex: highlighted ? 52 : 48 })
-                const color = routeColor(chainIndex)
+                const color = routeColor(chainIndex, day.id)
                 const line = new AMap.Polyline({ path, strokeColor: color, strokeStyle: planned.enabled && !cachedPath ? 'dashed' : 'solid', strokeDasharray: [8, 6], strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.25 : 0.8, zIndex: highlighted ? 53 : 49 })
                 line.on('mouseover', () => setHoveredDayId(day.id))
                 line.on('mouseout', () => setHoveredDayId(null))

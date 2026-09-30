@@ -1,7 +1,26 @@
 import type { Marker } from '@/types/marker'
 
 const colors = ['#2563eb', '#d97706', '#7c3aed', '#059669', '#db2777', '#0891b2']
-export const routeColor = (index: number): string => colors[index % colors.length]
+// Color depends only on the day ID, so changing dates, views or other days
+// never recolors this day's routes. Chains vary in lightness within that hue.
+export function routeColor(index: number, dayId?: string): string {
+    if (!dayId) return colors[index % colors.length]
+    let hash = 2166136261
+    for (let i = 0; i < dayId.length; i++) hash = Math.imul(hash ^ dayId.charCodeAt(i), 16777619)
+    hash = Math.imul(hash ^ (hash >>> 16), 0x85ebca6b)
+    hash = Math.imul(hash ^ (hash >>> 13), 0xc2b2ae35)
+    hash ^= hash >>> 16
+    const hue = (hash >>> 0) % 360
+    const lightness = [0.42, 0.31, 0.51, 0.36, 0.46, 0.27][index % 6]
+    const saturation = 0.72
+    const a = saturation * Math.min(lightness, 1 - lightness)
+    const channel = (n: number) => {
+        const k = (n + hue / 30) % 12
+        return Math.round(255 * (lightness - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))).toString(16).padStart(2, '0')
+    }
+    return `#${channel(0)}${channel(8)}${channel(4)}`
+}
+export const dayColor = (dayId: string): string => routeColor(0, dayId)
 
 export function shortAddress(address?: string): string {
     return (address || '').replace(/^(中国|中华人民共和国|CN)[\s,]*/, '').replace(/\s*邮政编码[:：]?\s*\d+|\s*\b\d{6}\b/g, '').trim()
