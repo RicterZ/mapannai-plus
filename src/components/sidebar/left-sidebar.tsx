@@ -1515,7 +1515,6 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                         </button>
                     </div>
                     {displayMode === 'day' && currentDayMarkers.length > 0 && <button type="button" onClick={() => onFitMarkers(currentDayMarkers.map(marker => marker.id))} className="min-h-[36px] px-2 text-xs text-gray-600 hover:text-blue-600">查看全天</button>}
-                    <button type="button" onClick={closeLeftSidebar} className="min-h-[36px] px-2 text-xs text-gray-600 lg:hidden">返回地图</button>
                 </div>
 
                 {/* 内容区域：淡入淡出切换 */}
