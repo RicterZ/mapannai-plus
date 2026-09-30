@@ -61,6 +61,8 @@ export const MapMarker = React.memo(function MapMarker({
 
     return (
         <div
+            role="button"
+            aria-pressed={isSelected}
             className={cn(
                 'map-marker relative flex items-center justify-center',
                 'w-[28px] h-[28px] border-2',
@@ -82,7 +84,7 @@ export const MapMarker = React.memo(function MapMarker({
                     : isSelected
                     ? shouldRenderAsDot 
                         ? 'bg-blue-600 scale-[0.36] z-10' // 圆点状态时，选中圆圈也缩小
-                        : 'bg-blue-600 scale-110 z-10' // 正常状态时，选中圆圈放大
+                        : 'bg-blue-600 scale-110 z-10 ring-2 ring-blue-600 ring-offset-2' // 正常状态时，选中圆圈放大
                     : markerColor
             )}
             onMouseEnter={handleMouseEnter}
@@ -141,4 +143,4 @@ export const MapMarker = React.memo(function MapMarker({
         prev.marker.content.title === next.marker.content.title &&
         prev.marker.content.isTemporary === next.marker.content.isTemporary &&
         prev.marker.content.syncError === next.marker.content.syncError
-}) 
+})

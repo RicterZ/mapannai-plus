@@ -56,7 +56,7 @@ interface MapStore {
         markdownContent: string
         iconType?: MarkerIconType
     }) => void
-    deleteMarker: (markerId: string) => void
+    deleteMarker: (markerId: string) => Promise<void>
     selectMarker: (markerId: string | null) => void
 
     // Popup actions
@@ -382,14 +382,16 @@ export const useMapStore = create<MapStore>()(
                 }
             },
 
-            deleteMarker: (markerId) => {
+            deleteMarker: async (markerId) => {
                 // 防止误删旅行/天数据
                 if (markerId.startsWith('trip_') || markerId.startsWith('day_')) {
                     console.error('禁止通过 deleteMarker 删除旅行数据:', markerId)
                     return
                 }
+                await get().deleteMarkerFromDataset(markerId)
                 set(state => ({
                     markers: state.markers.filter(marker => marker.id !== markerId),
+                    tripDays: state.tripDays.map(day => ({ ...day, markerIds: day.markerIds.filter(id => id !== markerId), chains: day.chains.map(chain => chain.filter(id => id !== markerId)).filter(chain => chain.length > 0) })),
                     interactionState: {
                         ...state.interactionState,
                         selectedMarkerId: state.interactionState.selectedMarkerId === markerId
@@ -399,10 +401,6 @@ export const useMapStore = create<MapStore>()(
                     },
                 }), false, 'deleteMarker')
 
-                // 异步从 Dataset 删除
-                get().deleteMarkerFromDataset(markerId).catch((error: any) => {
-                    console.error('从 Dataset 删除失败:', error)
-                })
             },
 
             selectMarker: (markerId) => {
@@ -838,6 +836,7 @@ export const useMapStore = create<MapStore>()(
             },
 
             addMarkerToDay: async (tripId, dayId, markerId) => {
+                const previous = get().tripDays.find(d => d.id === dayId)
                 // 1. 立即更新本地 state（optimistic）
                 set(state => ({
                     tripDays: state.tripDays.map(d =>
@@ -848,56 +847,53 @@ export const useMapStore = create<MapStore>()(
                 }), false, 'addMarkerToDay-optimistic')
 
                 // 2. 异步持久化到服务端（失败时回滚）
-                fetchWithAuth(`/api/trips/${tripId}/days/${dayId}/markers`, {
+                return fetchWithAuth(`/api/trips/${tripId}/days/${dayId}/markers`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ markerId }),
                 }).then(res => {
                     if (!res.ok) throw new Error('添加标记到天失败')
-                }).catch(() => {
+                }).catch(error => {
                     // 回滚
                     set(state => ({
                         tripDays: state.tripDays.map(d =>
-                            d.id === dayId
+                            d.id === dayId && !previous?.markerIds.includes(markerId)
                                 ? { ...d, markerIds: d.markerIds.filter(id => id !== markerId) }
                                 : d
                         ),
                     }), false, 'addMarkerToDay-rollback')
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(new CustomEvent('syncMarkerFailed'))
-                    }
+                    throw error
                 })
             },
 
             removeMarkerFromDay: async (tripId, dayId, markerId) => {
+                const previous = get().tripDays.find(d => d.id === dayId)
                 // 1. 立即更新本地 state（optimistic）
                 set(state => ({
                     tripDays: state.tripDays.map(d =>
                         d.id === dayId
-                            ? { ...d, markerIds: d.markerIds.filter(id => id !== markerId) }
+                            ? { ...d, markerIds: d.markerIds.filter(id => id !== markerId), chains: d.chains.map(chain => chain.filter(id => id !== markerId)).filter(chain => chain.length > 0) }
                             : d
                     ),
                 }), false, 'removeMarkerFromDay-optimistic')
 
                 // 2. 异步持久化到服务端（失败时回滚）
-                fetchWithAuth(`/api/trips/${tripId}/days/${dayId}/markers`, {
+                return fetchWithAuth(`/api/trips/${tripId}/days/${dayId}/markers`, {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ markerId }),
                 }).then(res => {
                     if (!res.ok) throw new Error('从天移除标记失败')
-                }).catch(() => {
+                }).catch(error => {
                     // 回滚
                     set(state => ({
                         tripDays: state.tripDays.map(d =>
-                            d.id === dayId && !d.markerIds.includes(markerId)
-                                ? { ...d, markerIds: [...d.markerIds, markerId] }
+                            d.id === dayId && previous
+                                ? previous
                                 : d
                         ),
                     }), false, 'removeMarkerFromDay-rollback')
-                    if (typeof window !== 'undefined') {
-                        window.dispatchEvent(new CustomEvent('syncMarkerFailed'))
-                    }
+                    throw error
                 })
             },
 
@@ -916,6 +912,7 @@ export const useMapStore = create<MapStore>()(
             },
 
             updateDayChains: async (tripId, dayId, chains) => {
+                const previous = get().tripDays.find(d => d.id === dayId)?.chains ?? []
                 // Optimistic update
                 set(state => ({
                     tripDays: state.tripDays.map(d =>
@@ -923,12 +920,17 @@ export const useMapStore = create<MapStore>()(
                     ),
                 }), false, 'updateDayChains-optimistic')
 
+                try {
                 const response = await fetchWithAuth(`/api/trips/${tripId}/days/${dayId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ chains }),
                 })
                 if (!response.ok) throw new Error('更新链路失败')
+                } catch (error) {
+                    set(state => ({ tripDays: state.tripDays.map(d => d.id === dayId && d.chains === chains ? { ...d, chains: previous } : d) }), false, 'updateDayChains-rollback')
+                    throw error
+                }
             },
         }),
         {

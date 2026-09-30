@@ -160,5 +160,16 @@ export function upsertMarker(
 
 /** Delete a marker by ID. No-op if it doesn't exist. */
 export function deleteMarker(id: string): void {
-    getDb().prepare(`DELETE FROM markers WHERE id = ?`).run(id)
+    const db = getDb()
+    db.transaction(() => {
+        db.prepare(`DELETE FROM markers WHERE id = ?`).run(id)
+        const days = db.prepare('SELECT id, marker_ids, chains FROM trip_days').all() as { id: string; marker_ids: string; chains: string }[]
+        const update = db.prepare('UPDATE trip_days SET marker_ids = ?, chains = ? WHERE id = ?')
+        for (const day of days) {
+            const markerIds: string[] = JSON.parse(day.marker_ids)
+            const chains: string[][] = JSON.parse(day.chains)
+            if (!markerIds.includes(id) && !chains.some(chain => chain.includes(id))) continue
+            update.run(JSON.stringify(markerIds.filter(markerId => markerId !== id)), JSON.stringify(chains.map(chain => chain.filter(markerId => markerId !== id)).filter(chain => chain.length > 0)), day.id)
+        }
+    })()
 }

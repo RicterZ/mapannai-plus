@@ -12,6 +12,7 @@ import { routeCacheKey, pointAlongPath, RouteSegment } from '@/lib/map/route-cac
 import { usePlannedRoutes, RouteViewport } from '@/lib/map/use-planned-routes'
 import { useRouteSettings } from '@/lib/map/route-settings'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
+import { routeColor } from '@/lib/map/route-presentation'
 
 const emptyFeatureCollection: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
@@ -32,6 +33,7 @@ interface ConnectionLine {
     dayId: string
     fromId: string
     toId: string
+    color: string
 }
 
 export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: ConnectionLinesProps) => {
@@ -152,6 +154,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                             dayId: day.id,
                             fromId: fromMarker.id,
                             toId: toMarker.id,
+                            color: routeColor(ci),
                         })
                     }
                 }
@@ -217,7 +220,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                 return [{
                     type: 'Feature' as const,
                     geometry: { type: 'Point' as const, coordinates: [lng, lat] },
-                    properties: { opacity: 1, radius: 7 }
+                    properties: { opacity: 1, radius: 7, color: connectionLines.find(line => line.id === lineId)?.color || routeColor(0) }
                 }]
             })
 
@@ -234,7 +237,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                 rafRef.current = null
             }
         }
-    }, [highlightedLineIds, lineControlPoints, map])
+    }, [highlightedLineIds, lineControlPoints, connectionLines, map])
 
     // 生成贝塞尔曲线连接线的 GeoJSON
     const connectionGeoJSON = useMemo(() => {
@@ -266,7 +269,9 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                     toId: line.to.id,
                     dayId: line.dayId,
                     isDragPreview: false,
-                    isWalkingRoute: false
+                    isWalkingRoute: false,
+                    color: line.color,
+                    schematic: planned.enabled && !plannedPath,
                 }
             }
         })
@@ -275,7 +280,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
             type: 'FeatureCollection' as const,
             features
         }
-    }, [connectionLines, lineControlPoints])
+    }, [connectionLines, lineControlPoints, planned.enabled])
 
     // 如果没有连接线，不渲染任何内容
     if (connectionLines.length === 0) {
@@ -317,7 +322,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                     id="connection-lines-layer"
                     type="line"
                     paint={{
-                        'line-color': 'rgb(99, 102, 241)', // indigo-500
+                        'line-color': ['get', 'color'],
                         'line-width': [
                             'interpolate', ['linear'], ['zoom'],
                             10, 3,
@@ -332,7 +337,10 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         ],
                     }}
                     layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+                    filter={['==', ['get', 'schematic'], false]}
                 />
+
+                <Layer id="schematic-connection-lines-layer" type="line" paint={{ 'line-color': ['get', 'color'], 'line-width': 4, 'line-dasharray': [2, 2], 'line-opacity': 0.65 }} layout={{ 'line-join': 'round', 'line-cap': 'round' }} filter={['==', ['get', 'schematic'], true]} />
 
                 {/* 高亮白色描边 */}
                 <Layer
@@ -359,7 +367,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                     id="highlighted-connection-lines-layer"
                     type="line"
                     paint={{
-                        'line-color': 'rgba(59, 130, 246, 1)', // blue-500
+                        'line-color': ['get', 'color'],
                         'line-width': [
                             'interpolate', ['linear'], ['zoom'],
                             10, 4,
@@ -369,9 +377,9 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         'line-opacity': 1,
                     }}
                     layout={{ 'line-join': 'round', 'line-cap': 'round' }}
-                    filter={highlightedLineIds.length > 0 ? [
+                    filter={highlightedLineIds.length > 0 ? ['all', ['==', ['get', 'schematic'], false], [
                         'in', ['get', 'id'], ['literal', highlightedLineIds]
-                    ] : ['literal', false]}
+                    ]] : ['literal', false]}
                 />
             </Source>
 
@@ -382,7 +390,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                     type="circle"
                     paint={{
                         'circle-radius': ['get', 'radius'],
-                        'circle-color': 'rgba(59, 130, 246, 1)',
+                        'circle-color': ['get', 'color'],
                         'circle-opacity': ['get', 'opacity'],
                         'circle-blur': 0.2,
                         'circle-stroke-width': 1.5,

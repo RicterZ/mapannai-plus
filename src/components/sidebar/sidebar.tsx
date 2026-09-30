@@ -30,6 +30,7 @@ export const Sidebar = ({ onClose }: SidebarProps) => {
         activeView,
         tripDays,
         addMarkerToDay,
+        editMode,
     } = useMapStore()
 
     // 自定义关闭函数，在移动端关闭时跳转到正中间
@@ -300,7 +301,7 @@ export const Sidebar = ({ onClose }: SidebarProps) => {
                             </a>
                         )}
 
-                        {selectedMarker && (
+                        {selectedMarker && editMode.isEnabled && (
                             <button
                                 onClick={() => openEditMarkerModal(selectedMarker.id)}
                                 className="p-2 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all duration-200 focus:outline-none min-h-[40px] min-w-[40px] flex items-center justify-center"

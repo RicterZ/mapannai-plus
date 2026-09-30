@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
 import {
     DndContext,
@@ -30,9 +29,15 @@ import { MARKER_ICONS, Marker } from '@/types/marker'
 import { cn } from '@/utils/cn'
 import { useRouteSettings, setRouteSettings } from '@/lib/map/route-settings'
 import { CreateTripModal } from '@/components/modal/create-trip-modal'
+import { routeColor, shortAddress } from '@/lib/map/route-presentation'
+import { useRouteProgress } from '@/lib/map/route-progress'
+import { Modal } from '@/components/ui/modal'
+import { readRouteMetrics, routeCacheKey } from '@/lib/map/route-cache'
 
 interface LeftSidebarProps {
     onFlyTo: (coordinates: { longitude: number; latitude: number }, zoom?: number) => void
+    onFitMarkers: (ids: string[]) => void
+    routeProvider: string
     addMarkerEnabled: boolean
     onToggleAddMarker: () => void
 }
@@ -88,9 +93,12 @@ interface ChainItemProps {
     hasArrowAfter: boolean
     onRemove: () => void
     onFlyTo?: () => void
+    selected?: boolean
+    onMove: (offset: number) => void
+    last: boolean
 }
 
-function ChainItem({ id, marker, index, hasArrowAfter, onRemove, onFlyTo }: ChainItemProps) {
+function ChainItem({ id, marker, index, hasArrowAfter, onRemove, onFlyTo, selected, onMove, last }: ChainItemProps) {
     const {
         attributes,
         listeners,
@@ -109,11 +117,12 @@ function ChainItem({ id, marker, index, hasArrowAfter, onRemove, onFlyTo }: Chai
 
     return (
         <div ref={setNodeRef} style={style} className={cn(isSortableDragging && 'opacity-40')}>
-            <div className="border border-gray-200 rounded-xl bg-white overflow-hidden flex items-center gap-2 select-none">
+            <div data-marker-id={marker.id} className={cn('border rounded-xl bg-white overflow-hidden select-none', selected ? 'border-blue-500 ring-1 ring-blue-200 bg-blue-50/50' : 'border-gray-200')}>
+              <div className="flex items-center gap-1.5">
                 <button
                     {...attributes}
                     {...listeners}
-                    className="pl-2 py-2.5 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
+                    className="w-8 min-h-[44px] flex items-center justify-center text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
                     aria-label="拖拽排序"
                 >
                     <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
@@ -130,21 +139,27 @@ function ChainItem({ id, marker, index, hasArrowAfter, onRemove, onFlyTo }: Chai
                         onClick={onFlyTo}
                         title="跳转到此位置"
                     >
-                    <div className="text-sm font-medium text-gray-800 truncate">{marker.content.title || '未命名标记'}</div>
+                    <div className="text-sm font-medium text-gray-800 line-clamp-2 break-words" title={marker.content.title}>{marker.content.title || '未命名标记'}</div>
                     {marker.content.address && (
-                        <div className="text-xs text-gray-400 truncate mt-0.5">{marker.content.address}</div>
+                        <div className="text-xs text-gray-500 truncate mt-0.5" title={marker.content.address}>{shortAddress(marker.content.address)}</div>
                     )}
                     </button>
                 </div>
                 <button
                     onClick={onRemove}
-                    className="px-3 py-2.5 text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 border-l border-gray-100"
+                    className="w-9 min-h-[44px] flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
                     title="从该路线移除"
+                    aria-label={`从路线移除${marker.content.title || '地点'}`}
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
+              </div>
+              <div className="flex justify-end gap-1 border-t border-gray-100 px-2">
+                <button type="button" disabled={index === 0} onClick={() => onMove(-1)} className="min-h-[32px] px-2 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30">上移</button>
+                <button type="button" disabled={last} onClick={() => onMove(1)} className="min-h-[32px] px-2 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30">下移</button>
+              </div>
             </div>
             {hasArrowAfter && (
                 <div className="flex justify-center py-0.5">
@@ -164,9 +179,11 @@ interface PaletteItemProps {
     routeNumbers: number[]
     onFlyTo?: () => void
     onRemove?: () => void
+    onAdd: () => void
+    selected?: boolean
 }
 
-function PaletteItem({ marker, routeNumbers, onFlyTo, onRemove }: PaletteItemProps) {
+function PaletteItem({ marker, routeNumbers, onFlyTo, onRemove, onAdd, selected }: PaletteItemProps) {
     const paletteId = `palette::${marker.id}`
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: paletteId })
 
@@ -175,14 +192,17 @@ function PaletteItem({ marker, routeNumbers, onFlyTo, onRemove }: PaletteItemPro
     return (
         <div
             ref={setNodeRef}
+            data-marker-id={marker.id}
             className={cn(
-                'border border-gray-200 rounded-xl bg-white overflow-hidden flex items-center gap-2 select-none',
+                'border rounded-xl bg-white overflow-hidden select-none',
+                selected ? 'border-blue-500 ring-1 ring-blue-200' : 'border-gray-200',
                 isDragging && 'opacity-40 border-blue-300'
             )}
         >
+          <div className="flex items-center gap-2">
             {/* 拖拽把手：listeners 仅挂在此处，与 onFlyTo 按钮物理隔离，避免 ghost click */}
-            <div
-                className="pl-2 py-2.5 cursor-grab active:cursor-grabbing touch-none flex-shrink-0 flex items-center gap-1.5 text-gray-300"
+            <button type="button" aria-label={`拖动${marker.content.title || '地点'}加入路线`}
+                className="pl-2 min-h-[44px] cursor-grab active:cursor-grabbing touch-none flex-shrink-0 flex items-center gap-1.5 text-gray-400"
                 {...attributes}
                 {...listeners}
             >
@@ -192,33 +212,28 @@ function PaletteItem({ marker, routeNumbers, onFlyTo, onRemove }: PaletteItemPro
                 <div className={cn('w-6 h-6 rounded-full flex items-center justify-center', getMarkerColor(marker.content.iconType || 'location'))}>
                     <span className="text-xs text-white">{icon.emoji}</span>
                 </div>
-            </div>
+            </button>
             {/* 标题按钮：独立于拖拽区域，不会收到 ghost click */}
             <button
                 className="flex-1 min-w-0 text-left py-2.5"
                 onClick={onFlyTo}
                 title="跳转到此位置"
             >
-                <div className="text-sm font-medium text-gray-800 truncate">{marker.content.title || '未命名标记'}</div>
+                <div className="text-sm font-medium text-gray-800 line-clamp-2 break-words">{marker.content.title || '未命名标记'}</div>
+                <div className="mt-1 flex flex-wrap gap-1">{routeNumbers.map(number => <span key={number} style={{ color: routeColor(number - 1), backgroundColor: `${routeColor(number - 1)}10` }} className="rounded px-1.5 py-0.5 text-xs">路线 {number}</span>)}</div>
             </button>
-            {routeNumbers.length > 0 && (
-                <div className="flex flex-wrap justify-end gap-1 max-w-[45%] py-1">
-                    {routeNumbers.map(number => (
-                        <span key={number} className="whitespace-nowrap rounded bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-600">
-                            路线{number}
-                        </span>
-                    ))}
-                </div>
-            )}
             <button
                 onClick={onRemove}
                 className="px-2.5 py-2.5 text-gray-300 hover:text-red-400 transition-colors flex-shrink-0 border-l border-gray-100"
                 title="从当天移除"
+                aria-label={`从当天移除${marker.content.title || '地点'}`}
             >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
+          </div>
+          <button type="button" onClick={onAdd} className="w-full border-t border-gray-100 py-2 text-xs font-medium text-blue-600 hover:bg-blue-50">＋ 加入路线</button>
         </div>
     )
 }
@@ -252,8 +267,11 @@ function ChainDropContainer({ chainIdx, children, isEmpty }: {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: LeftSidebarProps) => {
+export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEnabled, onToggleAddMarker }: LeftSidebarProps) => {
     const routeSettings = useRouteSettings()
+    const progress = useRouteProgress()
+    const sidebarRef = useRef<HTMLDivElement>(null)
+    const scrollPositions = useRef(new Map<string, number>())
     const {
         markers, trips, tripDays, activeView, interactionState,
         leftSidebar, closeLeftSidebar, openLeftSidebar,
@@ -271,11 +289,15 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
     const [pendingDeletion, setPendingDeletion] = useState<{ kind: 'day' | 'trip'; id: string } | null>(null)
     const [deleting, setDeleting] = useState(false)
     useEffect(() => {
-        if (!addMarkerEnabled) setPendingDeletion(null)
+        if (!addMarkerEnabled) { setPendingDeletion(null); setEditingTripName(false); setEditingTripDate(false); setShowEmojiPicker(false) }
     }, [addMarkerEnabled])
     // Edit mode: number of pending (empty) chain slots user has clicked "create"
     const [pendingEmptyChains, setPendingEmptyChains] = useState(0)
     const [activeDragId, setActiveDragId] = useState<string | null>(null)
+    const [showAllDayMarkers, setShowAllDayMarkers] = useState(false)
+    const [collapsedRoutes, setCollapsedRoutes] = useState<Set<number>>(new Set())
+    const [routePicker, setRoutePicker] = useState<{ markerId?: string; chainIndex?: number } | null>(null)
+    const [savingRoute, setSavingRoute] = useState(false)
 
     const [editingTripName, setEditingTripName] = useState(false)
     const [tripNameDraft, setTripNameDraft] = useState('')
@@ -422,6 +444,38 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
             .map(id => markers.find(m => m.id === id))
             .filter(Boolean) as typeof markers
     }, [currentDay, markers])
+    useEffect(() => {
+        setCollapsedRoutes(new Set())
+        setShowAllDayMarkers(false)
+        setRoutePicker(null)
+    }, [displayDayId, addMarkerEnabled])
+    useEffect(() => {
+        const id = interactionState.selectedMarkerId
+        if (!id || !currentDay) return
+        setCollapsedRoutes(value => {
+            const next = new Set(value)
+            currentDay.chains.forEach((chain, index) => { if (chain.includes(id)) next.delete(index) })
+            return next.size === value.size ? value : next
+        })
+    }, [interactionState.selectedMarkerId, currentDay])
+    useEffect(() => {
+        if (!leftSidebar.isOpen || !interactionState.selectedMarkerId) return
+        const element = Array.from(sidebarRef.current?.querySelectorAll<HTMLElement>('[data-marker-id]') || []).find(el => el.dataset.markerId === interactionState.selectedMarkerId)
+        if (!element) return
+        const parent = element.closest<HTMLElement>('.custom-scrollbar')
+        if (!parent) return
+        const bounds = element.getBoundingClientRect(), viewport = parent.getBoundingClientRect()
+        if (bounds.top < viewport.top || bounds.bottom > viewport.bottom) parent.scrollTop += bounds.top - viewport.top - 16
+    }, [interactionState.selectedMarkerId, leftSidebar.isOpen, displayDayId, addMarkerEnabled, collapsedRoutes])
+    useEffect(() => {
+        const container = sidebarRef.current?.querySelector<HTMLElement>('.custom-scrollbar')
+        if (!container) return
+        const key = `${displayMode}:${displayTripId}:${displayDayId}:${addMarkerEnabled}`
+        container.scrollTop = scrollPositions.current.get(key) || 0
+        const save = () => scrollPositions.current.set(key, container.scrollTop)
+        container.addEventListener('scroll', save)
+        return () => container.removeEventListener('scroll', save)
+    }, [displayMode, displayTripId, displayDayId, addMarkerEnabled])
 
     // Split currentDayMarkers into chain groups + isolated nodes
     // 单节点链视为孤立节点（不构成连线）
@@ -432,7 +486,7 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
 
         const validGroups = chains
             .map(chain => chain.map(id => markerMap.get(id)).filter(Boolean) as Marker[])
-            .filter(g => g.length >= 2)  // 单节点链降级为孤立节点
+            .filter(g => g.length >= 1)
 
         const inValidChainSet = new Set(validGroups.flat().map(m => m.id))
         const isolatedMarkers = currentDayMarkers.filter(m => !inValidChainSet.has(m.id))
@@ -463,7 +517,7 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
         const hasEmpty = chains.some(c => c.length === 0)
         if (!hasEmpty) return
         const cleaned = chains.filter(c => c.length >= 1)
-        updateDayChains(activeView.tripId, activeView.dayId, cleaned)
+        void updateDayChains(activeView.tripId, activeView.dayId, cleaned).catch(() => toast.error('整理路线失败，请重试'))
     }, [activeView.dayId, activeView.tripId, currentDay, updateDayChains])
 
     // Unassigned markers: those not appearing in any TripDay's markerIds
@@ -572,7 +626,7 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                 return
             }
 
-            updateDayChains(activeView.tripId, activeView.dayId, newChains)
+            void updateDayChains(activeView.tripId, activeView.dayId, newChains).catch(() => toast.error('路线保存失败，请重试'))
             return
         }
 
@@ -639,7 +693,7 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
             return
         }
 
-        updateDayChains(activeView.tripId, activeView.dayId, newChains)
+        void updateDayChains(activeView.tripId, activeView.dayId, newChains).catch(() => toast.error('路线保存失败，请重试'))
     }, [currentDay, activeView, isolatedMarkers, addMarkerEnabled, updateDayChains])
 
     // ── Handlers ────────────────────────────────────────────────────────────
@@ -676,22 +730,71 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
 
     const handleRemoveMarkerFromDay = async (markerId: string) => {
         if (!activeView.tripId || !activeView.dayId) return
+        const day = currentDay
+        if (!day) return
+        const previousChains = day.chains.map(chain => [...chain])
         try {
             await removeMarkerFromDay(activeView.tripId, activeView.dayId, markerId)
-            toast.success('已从当天移除')
+            toast.success('已从当天移除，地点仍保留在地图', { action: { label: '撤销', onClick: async () => {
+                try { await useMapStore.getState().addMarkerToDay(day.tripId, day.id, markerId); await updateDayChains(day.tripId, day.id, previousChains) }
+                catch { toast.error('撤销失败，请重试') }
+            } } })
         } catch {
             toast.error('操作失败')
         }
     }
 
     // 从某条链中移除指定节点（保留单节点链，只清理空链）
-    const handleRemoveFromChain = useCallback((markerId: string, chainIdx: number) => {
+    const handleRemoveFromChain = useCallback(async (markerId: string, chainIdx: number) => {
         if (!currentDay || !activeView.tripId || !activeView.dayId) return
         const newChains = (currentDay.chains ?? [])
             .map((c, i) => i === chainIdx ? c.filter(id => id !== markerId) : c)
             .filter(c => c.length >= 1)
-        updateDayChains(activeView.tripId, activeView.dayId, newChains)
+        try {
+            await updateDayChains(currentDay.tripId, currentDay.id, newChains)
+            toast.success('已从路线移除，地点仍在当天行程', { action: { label: '撤销', onClick: () => { void updateDayChains(currentDay.tripId, currentDay.id, currentDay.chains).catch(() => toast.error('撤销失败')) } } })
+        } catch { toast.error('移除失败，请重试') }
     }, [currentDay, activeView, updateDayChains])
+    const handleAddToRoute = async (markerId: string, chainIndex?: number) => {
+        if (!currentDay || savingRoute) return
+        setSavingRoute(true)
+        const before = currentDay.chains.map(chain => [...chain])
+        const chains = before.map(chain => [...chain])
+        const index = chainIndex ?? chains.length
+        if (index >= chains.length) chains.push([markerId])
+        else if (!chains[index].includes(markerId)) chains[index].push(markerId)
+        else { setSavingRoute(false); return }
+        try {
+            await updateDayChains(currentDay.tripId, currentDay.id, chains)
+            setRoutePicker(null)
+            setCollapsedRoutes(value => { const next = new Set(value); next.delete(index); return next })
+            if (index === before.length) setPendingEmptyChains(value => Math.max(0, value - 1))
+            toast.success(`已加入路线 ${index + 1}`, { action: { label: '撤销', onClick: () => { void updateDayChains(currentDay.tripId, currentDay.id, before).catch(() => toast.error('撤销失败')) } } })
+        } catch { toast.error('加入路线失败，请重试') }
+        finally { setSavingRoute(false) }
+    }
+    const handleMoveInRoute = async (chainIndex: number, markerId: string, offset: number) => {
+        if (!currentDay) return
+        const chains = currentDay.chains.map(chain => [...chain])
+        const index = chains[chainIndex]?.indexOf(markerId) ?? -1
+        if (index < 0 || index + offset < 0 || index + offset >= chains[chainIndex].length) return
+        chains[chainIndex] = arrayMove(chains[chainIndex], index, index + offset)
+        try { await updateDayChains(currentDay.tripId, currentDay.id, chains) }
+        catch { toast.error('调整顺序失败，请重试') }
+    }
+    const toggleRoute = (index: number) => setCollapsedRoutes(value => { const next = new Set(value); next.has(index) ? next.delete(index) : next.add(index); return next })
+    const routeSummary = (group: Marker[]) => {
+        if (!routeSettings.enabled || group.length < 2) return null
+        const metrics = group.slice(0, -1).map((marker, index) => readRouteMetrics(routeCacheKey(routeProvider, routeSettings.mode, {
+            fromId: marker.id, toId: group[index + 1].id,
+            origin: { lat: marker.coordinates.latitude, lng: marker.coordinates.longitude },
+            destination: { lat: group[index + 1].coordinates.latitude, lng: group[index + 1].coordinates.longitude },
+        })))
+        if (metrics.some(value => !value)) return null
+        const distance = metrics.reduce((sum, value) => sum + value!.distance, 0)
+        const minutes = Math.max(1, Math.round(metrics.reduce((sum, value) => sum + value!.duration, 0) / 60))
+        return `${distance < 1000 ? `${Math.round(distance)} 米` : `${(distance / 1000).toFixed(1)} 公里`} · 约${minutes >= 60 ? `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分钟` : `${minutes} 分钟`}`
+    }
 
     // 移动端关闭时不渲染；桌面端始终保持渲染
 
@@ -746,11 +849,11 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                     <div
                         className={cn(
                             'w-11 h-11 rounded-xl flex items-center justify-center text-2xl',
-                            displayMode !== 'overview'
+                                displayMode !== 'overview' && addMarkerEnabled
                                 ? 'bg-blue-100 cursor-pointer hover:bg-blue-200 transition-colors'
                                 : 'bg-blue-100',
                         )}
-                        onClick={() => displayMode !== 'overview' && setShowEmojiPicker(v => !v)}
+                        onClick={() => displayMode !== 'overview' && addMarkerEnabled && setShowEmojiPicker(v => !v)}
                         title={displayMode !== 'overview' ? '更换图标' : undefined}
                     >
                         {displayMode === 'overview' ? '🗺️' : displayMode === 'trip' ? (currentTrip?.emoji ?? '✈️') : (currentDay?.emoji ?? '📅')}
@@ -805,16 +908,16 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                                 displayMode === 'overview'
                                     ? 'text-xl font-normal text-gray-900 tracking-wide'
                                     : 'text-sm font-semibold text-gray-900',
-                                displayMode === 'trip' && 'cursor-pointer hover:text-blue-600 transition-colors'
+                                displayMode === 'trip' && addMarkerEnabled && 'cursor-pointer hover:text-blue-600 transition-colors'
                             )}
                             style={displayMode === 'overview' ? { fontFamily: 'var(--font-dm-serif)' } : undefined}
                             onClick={() => {
-                                if (displayMode === 'trip' && currentTrip) {
+                                if (displayMode === 'trip' && currentTrip && addMarkerEnabled) {
                                     setTripNameDraft(currentTrip.name)
                                     setEditingTripName(true)
                                 }
                             }}
-                            title={displayMode === 'trip' ? '点击修改名称' : undefined}
+                            title={displayMode === 'trip' && addMarkerEnabled ? '点击修改名称' : undefined}
                         >
                             {displayMode === 'overview' && 'MapAnNai'}
                             {displayMode === 'overview' && (
@@ -831,9 +934,9 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                         <div className="relative">
                             <button
                                 type="button"
-                                className="text-xs text-gray-500 hover:text-blue-600 cursor-pointer"
-                                title="点击修改开始日期"
-                                disabled={savingTripDate}
+                                className={cn('text-xs text-gray-500', addMarkerEnabled && 'hover:text-blue-600 cursor-pointer')}
+                                title={addMarkerEnabled ? '修改开始日期，天数保持不变' : undefined}
+                                disabled={savingTripDate || !addMarkerEnabled}
                                 onClick={() => {
                                     setEditingTripDate(true)
                                     requestAnimationFrame(() => {
@@ -843,10 +946,13 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                                     })
                                 }}
                             >
+                                {addMarkerEnabled && <span aria-hidden="true" className="mr-1">▦</span>}
                                 {currentTrip.startDate.slice(5).replace('-', '/')} ~ {currentTrip.endDate.slice(5).replace('-', '/')}
                                 {' · '}{currentTripDays.length}天
                             </button>
                             {editingTripDate && (
+                                <>
+                                <p className="absolute left-0 top-full z-20 mt-10 w-52 rounded-lg bg-white p-2 text-xs text-gray-600 shadow-lg">全部日期将随开始日期调整，天数保持不变。</p>
                                 <input
                                     ref={tripDateInputRef}
                                     type="date"
@@ -869,6 +975,7 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                                         }
                                     }}
                                 />
+                                </>
                             )}
                         </div>
                     )}
@@ -886,19 +993,20 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                     return <button key={offset} type="button" aria-label={label} title={label}
                         disabled={!target || blockClicks}
                         onClick={() => { if (target) { setShowEmojiPicker(false); setBlockClicksSync(true); setActiveView('day', target.tripId, target.id) } }}
-                        className="p-1.5 rounded-md text-blue-600 hover:bg-white/80 disabled:opacity-30 disabled:pointer-events-none">
+                        className="min-h-[44px] min-w-[36px] flex items-center justify-center rounded-md text-blue-600 hover:bg-white/80 disabled:opacity-30 disabled:pointer-events-none">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={offset < 0 ? 'M15 19l-7-7 7-7' : 'M9 5l7 7-7 7'} /></svg>
                     </button>
                 })}
                 <button
                     onClick={closeLeftSidebar}
-                    className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-white/80 transition-colors"
-                    aria-label="收起侧栏"
-                    title="收起侧栏"
+                    className="min-h-[44px] min-w-[36px] flex items-center justify-center rounded-md text-gray-500 hover:text-gray-700 hover:bg-white/80 transition-colors"
+                    aria-label="返回地图（收起侧栏）"
+                    title="返回地图"
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
+                    <span className="sr-only">返回地图</span>
                 </button>
             </div>
         </div>
@@ -916,6 +1024,7 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                     <svg className="w-6 h-6 text-gray-300 group-hover:text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
                     </svg>
+                    <span className="text-sm font-medium text-gray-600">新建旅行</span>
                     <span className="text-[10px] text-gray-300 group-hover:text-gray-400 transition-colors tracking-wide">旅の目的地は、まだ見ぬ地平線の向こうに</span>
                 </button>
 
@@ -1147,7 +1256,7 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                         <div className="text-center py-8 text-gray-400">
                             <div className="text-3xl mb-2">📍</div>
                             <p className="text-sm">当天暂无地点</p>
-                            <p className="text-xs mt-1">点击地图标记上的「加入今天」来添加</p>
+                            <p className="text-xs mt-1">{addMarkerEnabled ? '搜索地点，或点击地图标记上的「加入今天」' : '开启「编辑行程」，把地图地点加入今天'}</p>
                         </div>
                     </div>
                 </div>
@@ -1168,9 +1277,11 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                     collisionDetection={closestCenter}
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
+                    onDragCancel={() => setActiveDragId(null)}
                 >
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
                         <div className="p-3 flex flex-col gap-3">
+                            <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs leading-relaxed text-blue-700">拖动地点调整路线，也可以用「添加地点」和「上移／下移」。修改会自动保存。</p>
                             {/* ── 上半区：路线卡片 ── */}
                             {Array.from({ length: totalChains }).map((_, slotIdx) => {
                                 const isPending = slotIdx >= chainedGroupsEdit.length
@@ -1179,13 +1290,20 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                                 const chainItemIds = getChainItemIds(chainIdx)
 
                                 return (
-                                    <div key={`chain-slot-${slotIdx}`} className="rounded-xl border border-blue-100 bg-blue-50/30 p-2">
-                                        <div className="flex items-center gap-1.5 px-1 pb-1.5">
-                                            <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                                            </svg>
-                                            <span className="text-[10px] text-blue-400 font-medium">路线 {slotIdx + 1}</span>
+                                    <div key={`chain-slot-${slotIdx}`} className="rounded-xl border p-2" style={{ borderColor: `${routeColor(slotIdx)}30`, backgroundColor: `${routeColor(slotIdx)}05` }}>
+                                        <div className="flex items-center justify-between gap-1 pb-2">
+                                            <button type="button" onClick={() => toggleRoute(slotIdx)} aria-expanded={!collapsedRoutes.has(slotIdx)} className="min-h-[36px] flex items-center gap-2 px-1 text-xs font-semibold" style={{ color: routeColor(slotIdx) }}>
+                                                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: routeColor(slotIdx) }} />
+                                                路线 {slotIdx + 1}<span className="font-normal text-gray-500">· {chainGroup.length} 地点</span><span>{collapsedRoutes.has(slotIdx) ? '▸' : '▾'}</span>
+                                            </button>
+                                            <div className="flex gap-1">
+                                                {chainGroup.length > 0 && <button type="button" onClick={() => onFitMarkers(chainGroup.map(marker => marker.id))} className="min-h-[36px] px-2 text-xs text-gray-600 hover:text-blue-600" aria-label={`查看路线 ${slotIdx + 1}`}>查看</button>}
+                                                <button type="button" onClick={() => setRoutePicker({ chainIndex: chainIdx })} className="min-h-[36px] px-2 text-xs font-medium text-blue-600">＋ 地点</button>
+                                                {isPending && <button type="button" aria-label="取消空路线" onClick={() => setPendingEmptyChains(value => Math.max(0, value - 1))} className="min-h-[36px] px-2 text-gray-500">×</button>}
+                                            </div>
                                         </div>
+                                        {routeSummary(chainGroup) && <p className="px-1 pb-2 text-xs text-gray-500">{routeSummary(chainGroup)}</p>}
+                                        {!collapsedRoutes.has(slotIdx) && <>
                                         <SortableContext
                                             id={`chain-sort-${chainIdx}`}
                                             items={isPending ? [] : chainItemIds}
@@ -1201,10 +1319,14 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                                                         hasArrowAfter={idx < chainGroup.length - 1}
                                                         onRemove={() => handleRemoveFromChain(marker.id, chainIdx)}
                                                         onFlyTo={() => handleMarkerClick(marker.id)}
+                                                        selected={interactionState.selectedMarkerId === marker.id}
+                                                        onMove={offset => { void handleMoveInRoute(chainIdx, marker.id, offset) }}
+                                                        last={idx === chainGroup.length - 1}
                                                     />
                                                 ))}
                                             </ChainDropContainer>
                                         </SortableContext>
+                                        </>}
                                     </div>
                                 )
                             })}
@@ -1217,20 +1339,24 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                 </svg>
-                                创建行程链
+                                新建路线
                             </button>
 
                             {/* ── 分割线 ── */}
                             <div className="flex items-center gap-2">
                                 <div className="flex-1 border-t border-gray-200" />
-                                <span className="text-[10px] text-gray-400 flex-shrink-0">当天节点</span>
+                                <span className="text-xs text-gray-500 flex-shrink-0">当天地点</span>
                                 <div className="flex-1 border-t border-gray-200" />
+                            </div>
+                            <div className="flex rounded-lg bg-gray-100 p-1" role="group" aria-label="地点筛选">
+                                {[false, true].map(all => <button key={String(all)} type="button" aria-pressed={showAllDayMarkers === all} onClick={() => setShowAllDayMarkers(all)} className={cn('min-h-[36px] flex-1 rounded-md px-2 text-xs', showAllDayMarkers === all ? 'bg-white font-medium text-blue-600 shadow-sm' : 'text-gray-600')}>{all ? `全部地点 · ${currentDayMarkers.length}` : `未加入路线 · ${currentDayMarkers.filter(marker => !currentDay?.chains.some(chain => chain.includes(marker.id))).length}`}</button>)}
                             </div>
 
                             {/* ── 下半区：当天节点（按类型排序，单列）── */}
                             <div className="flex flex-col gap-2">
                                 {currentDayMarkers
                                     .slice()
+                                    .filter(marker => showAllDayMarkers || !currentDay?.chains.some(chain => chain.includes(marker.id)))
                                     .sort((a, b) => (a.content.iconType || 'location').localeCompare(b.content.iconType || 'location'))
                                     .map(marker => (
                                         <PaletteItem
@@ -1239,8 +1365,11 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                                             routeNumbers={(currentDay?.chains ?? []).flatMap((chain, index) => chain.includes(marker.id) ? [index + 1] : [])}
                                             onFlyTo={() => handleMarkerClick(marker.id)}
                                             onRemove={() => handleRemoveMarkerFromDay(marker.id)}
+                                            onAdd={() => setRoutePicker({ markerId: marker.id })}
+                                            selected={interactionState.selectedMarkerId === marker.id}
                                         />
                                     ))}
+                                {!showAllDayMarkers && currentDayMarkers.every(marker => currentDay?.chains.some(chain => chain.includes(marker.id))) && <p className="py-4 text-center text-xs text-gray-500">所有地点都已加入路线。切换「全部地点」可加入其他路线。</p>}
                             </div>
                         </div>
 
@@ -1263,31 +1392,33 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                 <div className="p-3 flex flex-col gap-3">
                     {/* 路线分组 */}
                     {chainedGroups.map((group, chainIdx) => (
-                        <div key={`chain-${chainIdx}`} className="rounded-xl border border-blue-100 bg-blue-50/30 p-2">
-                            <div className="flex items-center gap-1.5 px-1 pb-1.5">
-                                <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                                </svg>
-                                <span className="text-[10px] text-blue-400 font-medium">路线 {chainIdx + 1}</span>
+                        <div key={`chain-${chainIdx}`} className="rounded-xl border p-2" style={{ borderColor: `${routeColor(chainIdx)}30`, backgroundColor: `${routeColor(chainIdx)}05` }}>
+                            <div className="flex items-center justify-between gap-1 pb-2">
+                                <button type="button" onClick={() => toggleRoute(chainIdx)} aria-expanded={!collapsedRoutes.has(chainIdx)} className="min-h-[36px] flex items-center gap-2 px-1 text-xs font-semibold" style={{ color: routeColor(chainIdx) }}>
+                                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: routeColor(chainIdx) }} />路线 {chainIdx + 1}<span className="font-normal text-gray-500">· {group.length} 地点</span><span>{collapsedRoutes.has(chainIdx) ? '▸' : '▾'}</span>
+                                </button>
+                                <button type="button" onClick={() => onFitMarkers(group.map(marker => marker.id))} className="min-h-[36px] px-2 text-xs text-gray-600 hover:text-blue-600" aria-label={`查看路线 ${chainIdx + 1}`}>查看路线</button>
                             </div>
-                            <div className="flex flex-col">
+                            {routeSummary(group) && <p className="px-1 pb-2 text-xs text-gray-500">{routeSummary(group)}</p>}
+                            {!collapsedRoutes.has(chainIdx) && <div className="flex flex-col">
                                 {group.map((marker, idx) => {
                                     const icon = MARKER_ICONS[marker.content.iconType || 'location'] || MARKER_ICONS.location
                                     return (
                                         <div key={marker.id}>
-                                            <div className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+                                            <div data-marker-id={marker.id} className={cn('border rounded-xl bg-white overflow-hidden', interactionState.selectedMarkerId === marker.id ? 'border-blue-500 ring-1 ring-blue-200 bg-blue-50/50' : 'border-gray-200')}>
                                                 <button
                                                     className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-blue-50 transition-colors text-left"
                                                     onClick={() => handleMarkerClick(marker.id)}
+                                                    aria-pressed={interactionState.selectedMarkerId === marker.id}
                                                 >
                                                     <span className="text-xs font-bold text-gray-400 w-4 flex-shrink-0">{idx + 1}</span>
                                                     <div className={cn('w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0', getMarkerColor(marker.content.iconType || 'location'))}>
                                                         <span className="text-xs text-white">{icon.emoji}</span>
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="text-sm font-medium text-gray-800 truncate">{marker.content.title || '未命名标记'}</div>
+                                                        <div className="text-sm font-medium text-gray-800 line-clamp-2 break-words" title={marker.content.title}>{marker.content.title || '未命名标记'}</div>
                                                         {marker.content.address && (
-                                                            <div className="text-xs text-gray-400 truncate mt-0.5">{marker.content.address}</div>
+                                                            <div className="text-xs text-gray-500 truncate mt-0.5" title={marker.content.address}>{shortAddress(marker.content.address)}</div>
                                                         )}
                                                     </div>
                                                 </button>
@@ -1302,7 +1433,7 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                                         </div>
                                     )
                                 })}
-                            </div>
+                            </div>}
                         </div>
                     ))}
 
@@ -1320,7 +1451,7 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                                 {isolatedMarkers.map((marker, idx) => {
                                     const icon = MARKER_ICONS[marker.content.iconType || 'location'] || MARKER_ICONS.location
                                     return (
-                                        <div key={marker.id} className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+                                        <div key={marker.id} data-marker-id={marker.id} className={cn('border rounded-xl bg-white overflow-hidden', interactionState.selectedMarkerId === marker.id ? 'border-blue-500 ring-1 ring-blue-200' : 'border-gray-200')}>
                                             <button
                                                 className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-blue-50 transition-colors text-left"
                                                 onClick={() => handleMarkerClick(marker.id)}
@@ -1330,9 +1461,9 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                                                     <span className="text-xs text-white">{icon.emoji}</span>
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-medium text-gray-800 truncate">{marker.content.title || '未命名标记'}</div>
+                                                    <div className="text-sm font-medium text-gray-800 line-clamp-2 break-words">{marker.content.title || '未命名标记'}</div>
                                                     {marker.content.address && (
-                                                        <div className="text-xs text-gray-400 truncate mt-0.5">{marker.content.address}</div>
+                                                        <div className="text-xs text-gray-500 truncate mt-0.5" title={marker.content.address}>{shortAddress(marker.content.address)}</div>
                                                     )}
                                                 </div>
                                             </button>
@@ -1357,6 +1488,7 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                 )} onClick={closeLeftSidebar} />
 
             <div
+                ref={sidebarRef}
                 className={cn(
                     'left-sidebar fixed left-0 top-0 bottom-0 z-[60]',
                     'w-full bg-white shadow-2xl',
@@ -1376,6 +1508,14 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                 }}
             >
                 {renderHeader()}
+                <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-gray-100 px-4 py-2">
+                    <div className="flex items-center gap-2">
+                        <button type="button" aria-pressed={addMarkerEnabled} onClick={onToggleAddMarker} className={cn('min-h-[36px] rounded-lg px-3 text-xs font-medium transition-colors', addMarkerEnabled ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-blue-50 text-blue-700 hover:bg-blue-100')}>{addMarkerEnabled ? '完成编辑' : '编辑行程'}</button>
+                        {addMarkerEnabled && <span className="text-xs text-blue-600">编辑中</span>}
+                    </div>
+                    {displayMode === 'day' && currentDayMarkers.length > 0 && <button type="button" onClick={() => onFitMarkers(currentDayMarkers.map(marker => marker.id))} className="min-h-[36px] px-2 text-xs text-gray-600 hover:text-blue-600">查看全天</button>}
+                    <button type="button" onClick={closeLeftSidebar} className="min-h-[36px] px-2 text-xs text-gray-600 lg:hidden">返回地图</button>
+                </div>
 
                 {/* 内容区域：淡入淡出切换 */}
                 <div
@@ -1403,49 +1543,50 @@ export const LeftSidebar = ({ onFlyTo, addMarkerEnabled, onToggleAddMarker }: Le
                             <span className={cn('absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow transition-transform', routeSettings.enabled ? 'translate-x-6' : 'translate-x-1')} />
                         </button>
                     </div>
-                </div>
-
-                {/* 底部：添加标记开关 */}
-                <div className="border-t border-gray-100 px-4 py-3 flex items-center justify-between flex-shrink-0">
-                    <span className="text-xs text-gray-500">编辑模式</span>
-                    <div
-                        className={cn(
-                            'relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer flex-shrink-0',
-                            addMarkerEnabled ? 'bg-blue-500' : 'bg-gray-300'
-                        )}
-                        onClick={() => onToggleAddMarker()}
-                    >
-                        <div className={cn(
-                            'absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200',
-                            addMarkerEnabled ? 'translate-x-6' : 'translate-x-1'
-                        )} />
-                    </div>
+                    {routeSettings.enabled && <div className="mt-2 flex items-start justify-between gap-2 text-xs" role="status" aria-live="polite">
+                        <div className="text-gray-500">
+                            <p>{progress.calculating ? `正在计算 · ${progress.completed + progress.failed}/${progress.total}` : progress.failed ? `${progress.failed} 段暂时无法规划` : progress.total ? '路线已更新' : '当前没有需要规划的路段'}</p>
+                            {(progress.calculating || progress.failed > 0) && <p className="mt-1">虚线为示意连接，尚未取得实际路线。</p>}
+                        </div>
+                        {progress.failed > 0 && !progress.calculating && <button type="button" onClick={progress.retry} className="min-h-[32px] rounded px-2 font-medium text-blue-600 hover:bg-blue-50">重试</button>}
+                    </div>}
                 </div>
             </div>
 
             <CreateTripModal isOpen={showCreateTrip} onClose={() => setShowCreateTrip(false)} />
-            {pendingDeletion && createPortal((() => {
+            {routePicker && currentDay && <Modal title={routePicker.markerId ? '加入哪条路线？' : '添加地点到路线'} onClose={() => setRoutePicker(null)} busy={savingRoute}>
+                <p className="mb-3 text-xs text-gray-500">{routePicker.markerId ? markers.find(marker => marker.id === routePicker.markerId)?.content.title : '从当天地点中选择，加入后排在路线末尾。'}</p>
+                <div className="space-y-2">
+                    {routePicker.markerId ? <>
+                        {currentDay.chains.map((chain, index) => <button key={index} disabled={savingRoute || chain.includes(routePicker.markerId!)} onClick={() => { void handleAddToRoute(routePicker.markerId!, index) }} className="flex min-h-[44px] w-full items-center justify-between rounded-lg border px-3 text-sm hover:bg-gray-50 disabled:opacity-40" style={{ color: routeColor(index) }}>路线 {index + 1}<span className="text-xs text-gray-500">{chain.includes(routePicker.markerId!) ? '已加入' : `${chain.length} 个地点`}</span></button>)}
+                        <button disabled={savingRoute} onClick={() => { void handleAddToRoute(routePicker.markerId!) }} className="min-h-[44px] w-full rounded-lg border border-dashed border-blue-300 text-sm text-blue-600">＋ 新建路线并加入</button>
+                    </> : <>
+                        {currentDayMarkers.filter(marker => !currentDay.chains[routePicker.chainIndex!]?.includes(marker.id)).map(marker => <button key={marker.id} disabled={savingRoute} onClick={() => { void handleAddToRoute(marker.id, routePicker.chainIndex) }} className="min-h-[44px] w-full rounded-lg border px-3 py-2 text-left text-sm hover:bg-blue-50 disabled:opacity-40">{marker.content.title || '未命名地点'}</button>)}
+                        {currentDayMarkers.every(marker => currentDay.chains[routePicker.chainIndex!]?.includes(marker.id)) && <p className="py-4 text-center text-sm text-gray-500">当天地点都已在这条路线中。</p>}
+                    </>}
+                </div>
+                <button disabled={savingRoute} onClick={() => setRoutePicker(null)} className="mt-4 min-h-[40px] w-full rounded-lg bg-gray-100 text-sm text-gray-600">{savingRoute ? '正在保存…' : '取消'}</button>
+            </Modal>}
+            {pendingDeletion && (() => {
                 const isTrip = pendingDeletion.kind === 'trip'
                 const trip = trips.find(t => t.id === (isTrip ? pendingDeletion.id : tripDays.find(d => d.id === pendingDeletion.id)?.tripId))
                 const days = tripDays.filter(d => d.tripId === trip?.id).sort((a, b) => a.date.localeCompare(b.date))
                 const dayIndex = days.findIndex(d => d.id === pendingDeletion.id)
                 const day = days[dayIndex]
                 if (!trip || (!isTrip && !day)) return null
-                return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4" onMouseDown={event => { if (!deleting && event.target === event.currentTarget) setPendingDeletion(null) }} onKeyDown={event => { if (event.key === 'Escape' && !deleting) setPendingDeletion(null) }}>
-                    <div role="dialog" aria-modal="true" aria-labelledby="delete-confirm-title" className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
-                        <h3 id="delete-confirm-title" className="text-base font-semibold text-gray-900">{isTrip ? `删除「${trip.name}」？` : `删除第${dayIndex + 1}天？`}</h3>
+                return <Modal title={isTrip ? `删除「${trip.name}」？` : `删除第${dayIndex + 1}天？`} onClose={() => setPendingDeletion(null)} busy={deleting}>
                         <p className="mt-2 text-sm text-gray-600">
                             {isTrip
                                 ? `这次旅行和其中 ${days.length} 天的行程安排将被删除。地图标记仍会保留。`
                                 : `${formatDate(day.date)}${day.title ? ` · ${day.title}` : ''} 的行程安排将被删除。后续日期会前移一天，地图标记仍会保留。`}
                         </p>
+                        {!isTrip && days[dayIndex + 1] && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">例如，原 {formatDate(days[dayIndex + 1].date)} 将调整为 {formatDate(day.date)}。</p>}
                         <div className="mt-5 flex justify-end gap-2">
                             <button type="button" autoFocus onClick={() => setPendingDeletion(null)} disabled={deleting} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600">取消</button>
                             <button type="button" onClick={handleConfirmDeletion} disabled={deleting} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50">{deleting ? '删除中…' : '确认删除'}</button>
                         </div>
-                    </div>
-                </div>
-            })(), document.body)}
+                </Modal>
+            })()}
         </>
     )
 }

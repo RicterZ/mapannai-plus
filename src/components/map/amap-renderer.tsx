@@ -12,6 +12,7 @@ import { usePlannedRoutes, RouteViewport } from '@/lib/map/use-planned-routes'
 import { useRouteSettings } from '@/lib/map/route-settings'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { MapMarker } from './map-marker'
+import { routeColor } from '@/lib/map/route-presentation'
 
 interface AMapPoint { lng?: number; lat?: number; getLng?: () => number; getLat?: () => number }
 interface AMapInstance {
@@ -200,7 +201,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
         const relevant = tripDays.filter(day => activeView.mode === 'day' ? day.id === activeView.dayId : activeView.mode === 'trip' ? day.tripId === activeView.tripId : true)
         const overlays: any[] = []
         const animated: Array<{ dot: any; from: { lat: number; lng: number }; to: { lat: number; lng: number }; path: Array<{ lat: number; lng: number }> | null }> = []
-        for (const day of relevant) for (const chain of day.chains || []) {
+        for (const day of relevant) for (const [chainIndex, chain] of Array.from((day.chains || []).entries())) {
             for (let index = 0; index < chain.length - 1; index++) {
                 const fromMarker = byId.get(chain[index]), toMarker = byId.get(chain[index + 1])
                 if (!fromMarker || !toMarker) continue
@@ -212,14 +213,15 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                 const path = cachedPath ? cachedPath.map(point => gcj({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
                 const width = Math.max(3, 3 + (props.viewState.zoom - 10) * 0.2) + (highlighted ? 2 : 0)
                 const casing = new AMap.Polyline({ path, strokeColor: '#ffffff', strokeWeight: width + 4, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.4 : 0.8, zIndex: highlighted ? 52 : 48 })
-                const line = new AMap.Polyline({ path, strokeColor: highlighted ? '#3b82f6' : '#6366f1', strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.25 : 0.8, zIndex: highlighted ? 53 : 49 })
+                const color = routeColor(chainIndex)
+                const line = new AMap.Polyline({ path, strokeColor: color, strokeStyle: planned.enabled && !cachedPath ? 'dashed' : 'solid', strokeDasharray: [8, 6], strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.25 : 0.8, zIndex: highlighted ? 53 : 49 })
                 line.on('mouseover', () => setHoveredDayId(day.id))
                 line.on('mouseout', () => setHoveredDayId(null))
                 line.on('click', () => { if (activeView.mode !== 'day') useMapStore.getState().setHighlightedDay(day.id) })
                 overlays.push(casing, line)
                 if (highlighted) {
                     const node = document.createElement('div')
-                    node.style.cssText = 'width:14px;height:14px;border:2px solid white;border-radius:50%;background:#3b82f6;box-sizing:border-box;pointer-events:none'
+                    node.style.cssText = `width:14px;height:14px;border:2px solid white;border-radius:50%;background:${color};box-sizing:border-box;pointer-events:none`
                     const dot = new AMap.Marker({ position: [from.lng, from.lat], content: node, offset: new AMap.Pixel(-7, -7), zIndex: 54, clickable: false })
                     overlays.push(dot)
                     animated.push({ dot, from, to, path: cachedPath ? path.map(([lng, lat]) => ({ lng, lat })) : null })

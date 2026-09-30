@@ -9,6 +9,8 @@ export interface RouteSegment {
     destination: RouteCoordinate
 }
 export type RoutePath = RouteCoordinate[]
+export interface RouteMetrics { distance: number; duration: number }
+const metricsCache = new Map<string, RouteMetrics>()
 const cachePrefix = 'mapannai_route_v1:'
 const inFlight = new Map<string, Promise<RoutePath>>()
 const memoryCache = new Map<string, RoutePath>()
@@ -46,6 +48,16 @@ export function readCachedRoute(key: string): RoutePath | null {
         return Array.isArray(path) && path.length >= 2 && path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng)) ? path : null
     } catch { return null }
 }
+export function readRouteMetrics(key: string): RouteMetrics | null {
+    const memory = metricsCache.get(key)
+    if (memory) return memory
+    try {
+        const raw = localStorage.getItem(`${key}:metrics`)
+        if (!raw) return null
+        const metrics = JSON.parse(raw)
+        return Number.isFinite(metrics.distance) && metrics.distance >= 0 && Number.isFinite(metrics.duration) && metrics.duration >= 0 ? metrics : null
+    } catch { return null }
+}
 export async function getPlannedRoute(provider: string, mode: RouteMode, segment: RouteSegment): Promise<RoutePath> {
     const key = routeCacheKey(provider, mode, segment)
     const cached = readCachedRoute(key)
@@ -71,6 +83,11 @@ export async function getPlannedRoute(provider: string, mode: RouteMode, segment
             const path = data.path as RoutePath
             if (!Array.isArray(path) || path.length < 2 || !path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))) throw new Error('路线数据无效')
             memoryCache.set(key, path)
+            if (Number.isFinite(data.distance) && Number.isFinite(data.duration) && data.distance >= 0 && data.duration >= 0) {
+                const metrics = { distance: data.distance, duration: data.duration }
+                metricsCache.set(key, metrics)
+                try { localStorage.setItem(`${key}:metrics`, JSON.stringify(metrics)) } catch { /* storage unavailable */ }
+            }
             try { localStorage.setItem(key, JSON.stringify(path)) } catch { /* storage full/private mode */ }
             return path
         }

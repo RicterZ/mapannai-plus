@@ -32,7 +32,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
         const day = getDayById(params.dayId)
         if (day && day.tripId === params.id) {
-            upsertTripDay({ ...day, markerIds: day.markerIds.filter(id => id !== markerId) })
+            upsertTripDay({ ...day, markerIds: day.markerIds.filter(id => id !== markerId), chains: day.chains.map(chain => chain.filter(id => id !== markerId)).filter(chain => chain.length > 0) })
         }
 
         return NextResponse.json({ success: true })

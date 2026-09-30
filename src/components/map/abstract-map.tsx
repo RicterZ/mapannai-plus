@@ -22,6 +22,8 @@ import { LeftSidebar } from '@/components/sidebar/left-sidebar'
 import { Sidebar } from '@/components/sidebar/sidebar'
 import { ViewModeBanner } from '@/components/map/view-mode-banner'
 import { cn } from '@/utils/cn'
+import { routeCamera } from '@/lib/map/route-presentation'
+import { Modal } from '@/components/ui/modal'
 import { MarkerIconType } from '@/types/marker'
 import Map, { Marker as MapboxMarker, MapRef, ViewState, MapProvider as ReactMapProvider } from 'react-map-gl/maplibre'
 
@@ -35,6 +37,8 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     const [mapInitialized, setMapInitialized] = useState(false)
     const [loadingRetryCount, setLoadingRetryCount] = useState(0)
     const [dataLoaded, setDataLoaded] = useState(false)
+    const [pendingMarkerDelete, setPendingMarkerDelete] = useState<string | null>(null)
+    const [deletingMarker, setDeletingMarker] = useState(false)
 
     const basemap = renderer
     const isAmap = basemap === 'amap'
@@ -118,16 +122,15 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     })
 
     const toggleAddMarker = () => {
-        setAddMarkerEnabled(v => {
-            const next = !v
-            localStorage.setItem('addMarkerEnabled', String(next))
-            // 切换到编辑模式（next=true）时关闭右侧 sidebar
-            if (next) {
-                useMapStore.getState().closeSidebar()
-            }
-            return next
-        })
+        const next = !addMarkerEnabled
+        localStorage.setItem('addMarkerEnabled', String(next))
+        if (next) useMapStore.getState().closeSidebar()
+        setAddMarkerEnabled(next)
     }
+    useEffect(() => {
+        useMapStore.getState().setEditMode(addMarkerEnabled)
+        if (!addMarkerEnabled) setPendingMarkerDelete(null)
+    }, [addMarkerEnabled])
 
     // 通用的位置保存函数
     const saveViewState = useCallback((viewState: { longitude: number; latitude: number; zoom: number; bearing?: number; pitch?: number }) => {
@@ -291,6 +294,17 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             flyMap({ center: [coordinates.longitude, coordinates.latitude], offset: [0, -80], zoom, duration: flyDuration(coordinates) })
         }
     }, [flyDuration, flyMap])
+    const handleFitMarkers = useCallback((ids: string[]) => {
+        const state = useMapStore.getState()
+        const width = window.innerWidth - (state.leftSidebar.isOpen && window.innerWidth >= 1024 ? 360 : 0)
+        const camera = routeCamera(state.markers.filter(marker => ids.includes(marker.id)), width, window.innerHeight)
+        if (!camera) return
+        state.closePopup()
+        if (window.innerWidth < 1024) state.closeLeftSidebar()
+        const offset = width !== window.innerWidth ? 180 : 0
+        const longitude = camera.longitude - (isAmap ? offset * 360 / (256 * 2 ** camera.zoom) : 0)
+        flyMap({ center: [longitude, camera.latitude], zoom: camera.zoom, duration: 1000, offset: [offset, 0] })
+    }, [flyMap, isAmap])
 
     const lastFocusedDayRef = useRef<string | null>(null)
     useEffect(() => {
@@ -454,14 +468,6 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                 const timer = setTimeout(() => {
                     clearError()
                 }, 3000)
-                return () => clearTimeout(timer)
-            } else {
-                // 地图未初始化时，可能是严重错误
-                setError(storeError)
-                const timer = setTimeout(() => {
-                    clearError()
-                    setError(null)
-                }, 5000)
                 return () => clearTimeout(timer)
             }
         }
@@ -668,14 +674,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     }, [selectMarker, openSidebar])
 
     const handleDeleteMarker = useCallback((markerId: string) => {
-        try {
-            const { deleteMarker } = useMapStore.getState()
-            deleteMarker(markerId)
-            closePopup()
-            toast.success('标记已删除')
-        } catch (err) {
-            console.error('Delete marker error:', err)
-        }
+        if (useMapStore.getState().editMode.isEnabled) setPendingMarkerDelete(markerId)
     }, [closePopup])
 
     const handleSaveNewMarker = useCallback(async (data: {
@@ -821,7 +820,20 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             <ViewModeBanner />
 
             {/* 左侧边栏 */}
-            <LeftSidebar onFlyTo={handleFlyTo} addMarkerEnabled={addMarkerEnabled} onToggleAddMarker={toggleAddMarker} />
+            <LeftSidebar onFlyTo={handleFlyTo} onFitMarkers={handleFitMarkers} routeProvider={routeProvider} addMarkerEnabled={addMarkerEnabled} onToggleAddMarker={toggleAddMarker} />
+
+            {pendingMarkerDelete && <Modal title="删除这个地点？" onClose={() => setPendingMarkerDelete(null)} busy={deletingMarker}>
+                <p className="text-sm text-gray-600">「{markers.find(marker => marker.id === pendingMarkerDelete)?.content.title || '未命名地点'}」将从地图及所有行程中删除。</p>
+                <div className="mt-5 flex justify-end gap-2">
+                    <button disabled={deletingMarker} onClick={() => setPendingMarkerDelete(null)} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50">取消</button>
+                    <button disabled={deletingMarker} onClick={async () => {
+                        setDeletingMarker(true)
+                        try { await useMapStore.getState().deleteMarker(pendingMarkerDelete); setPendingMarkerDelete(null); closePopup(); toast.success('地点已删除') }
+                        catch { toast.error('删除失败，请重试') }
+                        finally { setDeletingMarker(false) }
+                    }} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50">{deletingMarker ? '删除中…' : '删除地点'}</button>
+                </div>
+            </Modal>}
 
             {/* 右侧详情栏 */}
             <Sidebar />

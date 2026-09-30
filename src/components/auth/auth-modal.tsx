@@ -67,6 +67,7 @@ export function AuthModal() {
         setIsVerifying(false)
         return
       }
+      if (!res.ok) throw new Error('服务暂时不可用')
 
       // token 验证通过（200 或其他非 401 状态均视为通过）
       setToken(token)
@@ -92,7 +93,7 @@ export function AuthModal() {
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onKeyDown={handleKeyDown}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
+      <div role="dialog" aria-modal="true" aria-label="访问验证" className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
         {/* 标题 */}
         <div className="mb-5 text-center">
           <div className="text-3xl mb-2">🗺️</div>
