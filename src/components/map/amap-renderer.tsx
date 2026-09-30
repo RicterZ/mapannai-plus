@@ -13,6 +13,7 @@ import { useRouteSettings } from '@/lib/map/route-settings'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { MapMarker } from './map-marker'
 import { routeColor } from '@/lib/map/route-presentation'
+import { smoothRoutePath } from '@/lib/map/route-geometry'
 import type { MapSearchBounds } from '@/types/map-provider'
 
 interface AMapPoint { lng?: number; lat?: number; getLng?: () => number; getLat?: () => number }
@@ -245,14 +246,14 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                 const highlighted = day.id === effectiveDayId
                 const segment = { fromId: fromMarker.id, toId: toMarker.id, origin: { lat: fromMarker.coordinates.latitude, lng: fromMarker.coordinates.longitude }, destination: { lat: toMarker.coordinates.latitude, lng: toMarker.coordinates.longitude } }
                 const cachedPath = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segment)] : null
-                const path = cachedPath ? cachedPath.map(point => gcj({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
+                const path = cachedPath ? smoothRoutePath(cachedPath).map(point => gcj({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
                 const width = Math.max(3, 3 + (props.viewState.zoom - 10) * 0.2) + (highlighted ? 2 : 0)
                 const color = routeColor(chainIndex, day.id, day.colorIndex)
                 const key = `${day.id}:${chainIndex}:${index}`
                 liveKeys.add(key)
                 let entry = routeOverlaysRef.current.get(key)
-                const casingOptions = { path, strokeColor: '#ffffff', strokeWeight: width + 2, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.4 : 0.8, zIndex: highlighted ? 52 : 48 }
-                const lineOptions = { path, strokeColor: color, strokeStyle: planned.enabled && !cachedPath ? 'dashed' : 'solid', strokeDasharray: [8, 6], strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.25 : 0.8, zIndex: highlighted ? 53 : 49 }
+                const casingOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: '#ffffff', strokeWeight: width + 2, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.4 : 0.8, zIndex: highlighted ? 52 : 48 }
+                const lineOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: color, strokeStyle: planned.enabled && !cachedPath ? 'dashed' : 'solid', strokeDasharray: [8, 6], strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.25 : 0.8, zIndex: highlighted ? 53 : 49 }
                 const hitOptions = { path, strokeColor: color, strokeWeight: 28, strokeOpacity: 0, zIndex: highlighted ? 56 : 55, bubble: false }
                 if (!entry) {
                     entry = { casing: new AMap.Polyline(casingOptions), line: new AMap.Polyline(lineOptions), hitArea: new AMap.Polyline(hitOptions) }

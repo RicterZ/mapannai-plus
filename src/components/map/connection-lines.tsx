@@ -13,6 +13,7 @@ import { usePlannedRoutes, RouteViewport } from '@/lib/map/use-planned-routes'
 import { useRouteSettings } from '@/lib/map/route-settings'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { routeColor } from '@/lib/map/route-presentation'
+import { smoothRoutePath } from '@/lib/map/route-geometry'
 
 const emptyFeatureCollection: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
@@ -185,7 +186,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
         const from = { lat: line.from.coordinates.latitude, lng: line.from.coordinates.longitude }
         const to = { lat: line.to.coordinates.latitude, lng: line.to.coordinates.longitude }
         const route = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segments[index])] : null
-        return { id: line.id, from, ctrl: getControlPoint(from, to), to, route }
+        return { id: line.id, from, ctrl: getControlPoint(from, to), to, route: route ? smoothRoutePath(route) : null }
     }), [connectionLines, planned.enabled, planned.routes, routeProvider, routeSettings.mode, segments])
 
     // 小圆球动画
