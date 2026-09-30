@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { Marker, MarkerIconType } from '@/types/marker'
 import { uploadFileToS3 } from '@/lib/upload/direct-upload'
+import { compressedImageUrl } from '@/lib/upload/image-url'
 import { IconSelector } from '@/components/ui/icon-selector'
 import { RichEditor } from '@/components/ui/rich-editor'
 
@@ -160,7 +161,7 @@ export const EditMarkerModal = ({ marker, isOpen, onClose, onSave }: EditMarkerM
                         </label>
                     ) : (
                         <div className="relative group w-full h-24">
-                            <img src={headerImage} alt="封面" className="w-full h-full object-cover rounded-lg" />
+                            <img src={compressedImageUrl(headerImage)} alt="封面" className="w-full h-full object-cover rounded-lg" />
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all rounded-lg flex items-center justify-center gap-2">
                                 <label
                                     htmlFor="edit-header-image"

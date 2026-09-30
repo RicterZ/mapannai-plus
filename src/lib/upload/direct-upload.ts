@@ -2,6 +2,7 @@
  * 客户端直传 COS 工具函数
  */
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
+import { compressedImageUrl } from './image-url'
 
 export interface S3UploadResult {
     success: boolean
@@ -52,7 +53,7 @@ export async function uploadFileToS3(file: File): Promise<S3UploadResult> {
         // 3. 返回成功结果
         return {
             success: true,
-            url: presignedData.publicUrl,
+            url: compressedImageUrl(presignedData.publicUrl),
         }
     } catch (error) {
         console.error('COS direct upload error:', error)
@@ -90,4 +91,4 @@ export async function uploadImageByUrlToS3(imageUrl: string): Promise<S3UploadRe
             error: error instanceof Error ? error.message : 'URL upload failed',
         }
     }
-} 
+}

@@ -5,6 +5,7 @@ import { useMapStore } from '@/store/map-store'
 import { cn } from '@/utils/cn'
 import { toast } from 'sonner'
 import { wgs84ToGcj02 } from '@/lib/coord-transform'
+import { compressedImageUrl, compressedContentImages } from '@/lib/upload/image-url'
 
 interface SidebarProps {
     onClose?: () => void
@@ -52,7 +53,7 @@ export const Sidebar = ({ onClose }: SidebarProps) => {
     const handleAddToChain = useCallback((sourceMarkerId: string) => {
         setIsAddingToChain(true)
         setTargetMarkerId(sourceMarkerId)
-        
+
         // 显示提示信息
         const event = new CustomEvent('showMessage', {
             detail: {
@@ -177,7 +178,7 @@ export const Sidebar = ({ onClose }: SidebarProps) => {
         return (
             <div
                 className="prose prose-sm max-w-none rich-content"
-                dangerouslySetInnerHTML={{ __html: content }}
+                dangerouslySetInnerHTML={{ __html: compressedContentImages(content) }}
             />
         )
     }
@@ -342,7 +343,7 @@ export const Sidebar = ({ onClose }: SidebarProps) => {
                             {selectedMarker.content.headerImage && (
                                 <div className="w-full">
                                     <img
-                                        src={selectedMarker.content.headerImage}
+                                        src={compressedImageUrl(selectedMarker.content.headerImage)}
                                         alt={selectedMarker.content.title || '标记首图'}
                                         className="w-full h-48 object-cover"
                                     />
@@ -368,4 +369,4 @@ export const Sidebar = ({ onClose }: SidebarProps) => {
             </div>
         </>
     )
-} 
+}

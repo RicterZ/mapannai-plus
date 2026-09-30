@@ -9,6 +9,7 @@ import { cn } from '@/utils/cn'
 import { toMapCoordinates } from '@/lib/map/basemap'
 import type { BasemapProviderType } from '@/types/map-provider'
 import { wgs84ToGcj02 } from '@/lib/coord-transform'
+import { compressedImageUrl } from '@/lib/upload/image-url'
 
 interface MapPopupProps {
     basemap?: BasemapProviderType
@@ -120,7 +121,7 @@ export const MapPopup = ({
                         {selectedMarker.content.headerImage && (
                             <div className="w-full h-28 bg-gray-100">
                                 <img
-                                    src={selectedMarker.content.headerImage}
+                                    src={compressedImageUrl(selectedMarker.content.headerImage)}
                                     alt={selectedMarker.content.title || '标记图片'}
                                     className="w-full h-full object-cover"
                                     onError={(e) => { e.currentTarget.style.display = 'none' }}
