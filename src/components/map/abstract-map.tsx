@@ -321,7 +321,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         state.closePopup()
         state.closeSidebar()
         const marker = upcomingTripFirstMarker(trips, tripDays, markers)
-        if (marker) flyMap({ center: [marker.coordinates.longitude, marker.coordinates.latitude], zoom: 15, duration: 1000 })
+        if (marker) flyMap({ center: [marker.coordinates.longitude, marker.coordinates.latitude], zoom: config.app.defaultZoom, duration: 1000 })
     }, [mapInitialized, dataLoaded, tripsLoaded, trips, tripDays, markers, flyMap])
 
     const lastFocusedDayRef = useRef<string | null>(null)
