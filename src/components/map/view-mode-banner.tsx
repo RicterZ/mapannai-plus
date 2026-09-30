@@ -24,18 +24,26 @@ function getDayNumber(tripId: string, dayId: string, tripDays: ReturnType<typeof
 export const ViewModeBanner = () => {
     const { activeView, trips, tripDays, setActiveView } = useMapStore()
     const [dayDropdownOpen, setDayDropdownOpen] = useState(false)
+    const bannerRef = useRef<HTMLDivElement>(null)
     const dropdownRef = useRef<HTMLDivElement>(null)
     const menuRef = useRef<HTMLDivElement>(null)
     const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 })
     useLayoutEffect(() => {
         if (!dayDropdownOpen) return
         const position = () => {
-            const bounds = dropdownRef.current?.getBoundingClientRect()
-            if (bounds) setMenuPosition({ left: Math.max(8, Math.min(bounds.right - 208, window.innerWidth - 216)), top: bounds.bottom + 8 })
+            const bounds = bannerRef.current?.getBoundingClientRect()
+            const width = menuRef.current?.getBoundingClientRect().width || 208
+            if (bounds) setMenuPosition({
+                left: Math.max(8, Math.min(bounds.left + (bounds.width - width) / 2, window.innerWidth - width - 8)),
+                top: bounds.bottom + 8,
+            })
         }
         position()
         window.addEventListener('resize', position)
-        return () => window.removeEventListener('resize', position)
+        const observer = new ResizeObserver(position)
+        if (bannerRef.current) observer.observe(bannerRef.current)
+        if (menuRef.current) observer.observe(menuRef.current)
+        return () => { window.removeEventListener('resize', position); observer.disconnect() }
     }, [dayDropdownOpen])
 
     // 点击外部关闭下拉
@@ -80,6 +88,7 @@ export const ViewModeBanner = () => {
 
     return (
         <div
+            ref={bannerRef}
             className={cn(
                 'view-mode-banner fixed left-1/2 -translate-x-1/2 -translate-y-1/2 z-40',
                 'bg-white/95 backdrop-blur border border-gray-200 shadow-lg rounded-full',
