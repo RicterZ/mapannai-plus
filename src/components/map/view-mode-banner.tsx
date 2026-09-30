@@ -63,7 +63,7 @@ export const ViewModeBanner = () => {
             className={cn(
                 'fixed left-1/2 -translate-x-1/2 -translate-y-1/2 z-40',
                 'bg-white/95 backdrop-blur border border-gray-200 shadow-lg rounded-full',
-                'flex items-center gap-1 px-3 py-1.5 text-sm max-w-[90vw]',
+                'flex flex-nowrap items-center gap-1 px-3 py-1.5 text-sm whitespace-nowrap w-max max-w-[calc(100vw-96px)] sm:max-w-[90vw]',
                 'animate-scale-in'
             )}
             style={{ top: 'calc(env(safe-area-inset-top) + 36px)' }}
@@ -72,7 +72,7 @@ export const ViewModeBanner = () => {
             <button
                 onClick={handleTripClick}
                 className={cn(
-                    'font-medium transition-colors truncate max-w-[120px]',
+                    'min-w-0 font-medium transition-colors truncate max-w-[120px]',
                     activeView.mode === 'trip' ? 'text-blue-600' : 'text-gray-600 hover:text-blue-500'
                 )}
                 title={trip?.name}
@@ -124,10 +124,10 @@ export const ViewModeBanner = () => {
 
             {/* Progress (trip mode) — 点击弹出天选择 */}
             {activeView.mode === 'trip' && totalDays > 0 && (
-                <div ref={dropdownRef} className="relative">
+                <div ref={dropdownRef} className="relative flex-shrink-0">
                     <button
                         onClick={() => setDayDropdownOpen(v => !v)}
-                        className="text-xs text-gray-400 ml-1 flex-shrink-0 flex items-center gap-0.5 hover:text-gray-600 transition-colors"
+                        className="text-xs text-gray-400 ml-1 flex-shrink-0 flex items-center gap-0.5 whitespace-nowrap hover:text-gray-600 transition-colors"
                     >
                         总览 · 共{totalDays}天
                         <svg className={cn('w-3 h-3 transition-transform', dayDropdownOpen && 'rotate-180')} fill="none" stroke="currentColor" viewBox="0 0 24 24">

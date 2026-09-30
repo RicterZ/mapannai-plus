@@ -69,7 +69,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
 
     // hover 临时激活的 dayId（优先级高于 click 锁定的 highlightedDayId）
     const [hoveredDayId, setHoveredDayId] = useState<string | null>(null)
-    const effectiveDayId = hoveredDayId ?? highlightedDayId
+    const effectiveDayId = activeView.mode === 'day' ? activeView.dayId : hoveredDayId ?? highlightedDayId
 
     // 监听 marker hover 事件（临时激活）
     useEffect(() => {

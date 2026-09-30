@@ -173,7 +173,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
 
     const { tripDays, activeView, interactionState } = useMapStore()
     const [hoveredDayId, setHoveredDayId] = useState<string | null>(null)
-    const effectiveDayId = hoveredDayId ?? interactionState.highlightedDayId
+    const effectiveDayId = activeView.mode === 'day' ? activeView.dayId : hoveredDayId ?? interactionState.highlightedDayId
     const zoomThreshold = useSyncExternalStore(
         callback => { window.addEventListener('zoomThresholdChange', callback); return () => window.removeEventListener('zoomThresholdChange', callback) },
         getZoomThreshold, getZoomThreshold,

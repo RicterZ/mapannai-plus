@@ -408,6 +408,9 @@ export const useMapStore = create<MapStore>()(
                     interactionState: {
                         ...state.interactionState,
                         selectedMarkerId: markerId,
+                        highlightedDayId: state.activeView.mode === 'day'
+                            ? state.activeView.dayId
+                            : markerId ? state.tripDays.find(day => (state.activeView.mode !== 'trip' || day.tripId === state.activeView.tripId) && day.markerIds.includes(markerId))?.id ?? null : state.interactionState.highlightedDayId,
                         displayedMarkerId: markerId !== null ? markerId : state.interactionState.displayedMarkerId,
                         // 不再自动打开边栏，由调用方决定
                     },
