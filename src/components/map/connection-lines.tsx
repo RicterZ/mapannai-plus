@@ -188,14 +188,14 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
 
     // Each segment uses its planned path once cached; pending/failed segments retain the curve.
     const lineControlPoints = useMemo(() => {
-        const displayPaths = layoutRoutePaths(connectionLines.map((line, index) => ({
-            dayId: line.dayId,
-            path: planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segments[index])] ?? null : null,
-        })))
+        const displayPaths = layoutRoutePaths(connectionLines.map((line, index) => {
+            const path = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segments[index])] ?? null : null
+            return { dayId: line.dayId, path: isRangeFallback(path) ? null : path }
+        }))
         return connectionLines.map((line, index) => {
             const from = { lat: line.from.coordinates.latitude, lng: line.from.coordinates.longitude }
             const to = { lat: line.to.coordinates.latitude, lng: line.to.coordinates.longitude }
-            return { id: line.id, from, ctrl: getControlPoint(from, to), to, route: isRangeFallback(planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segments[index])]) && planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segments[index])] : displayPaths[index] }
+            return { id: line.id, from, ctrl: getControlPoint(from, to), to, route: displayPaths[index] }
         })
     }, [connectionLines, planned.enabled, planned.routes, routeProvider, routeSettings.mode, segments])
 

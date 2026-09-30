@@ -205,6 +205,6 @@ To skip the proxy and fetch tiles directly from OSM:
 NEXT_PUBLIC_OSM_TILE_PROXY=false
 ```
 
-Routes and terminal AMap OVER_DIRECTION_RANGE and unsupported-region results persist in SQLite direction_cache, shared by Web and MCP. Range failures display a straight dashed association with no travel metrics and are not retried; changing endpoints, mode or provider uses a new cache key.
+Routes and terminal AMap OVER_DIRECTION_RANGE and unsupported-region results persist in SQLite direction_cache, shared by Web and MCP. Range failures display a dashed Bézier association with no travel metrics and are not retried; changing endpoints, mode or provider uses a new cache key.
 
 Route progress disappears after calculation completes; terminal coverage failures do not produce retry prompts.

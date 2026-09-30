@@ -236,10 +236,10 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     }, [props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId])
     const planned = usePlannedRoutes(routeSegments, routeProvider, routeViewport)
     const displayPaths = React.useMemo(() => {
-        const paths = layoutRoutePaths(routeSegments.map(segment => ({
-            dayId: segment.dayId,
-            path: planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segment)] ?? null : null,
-        })))
+        const paths = layoutRoutePaths(routeSegments.map(segment => {
+            const path = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segment)] ?? null : null
+            return { dayId: segment.dayId, path: isRangeFallback(path) ? null : path }
+        }))
         return new Map(routeSegments.map((segment, index) => [segment.displayKey, paths[index]]))
     }, [routeSegments, planned.enabled, planned.routes, routeProvider, routeSettings.mode])
     useEffect(() => {
@@ -266,7 +266,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                 const highlighted = day.id === effectiveDayId
                 const segment = { fromId: fromMarker.id, toId: toMarker.id, origin: { lat: fromMarker.coordinates.latitude, lng: fromMarker.coordinates.longitude }, destination: { lat: toMarker.coordinates.latitude, lng: toMarker.coordinates.longitude } }
                 const cachedPath = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segment)] : null
-                const path = isRangeFallback(cachedPath) ? [gcj(fromMarker.coordinates), gcj(toMarker.coordinates)] : cachedPath ? displayPaths.get(`${day.id}:${chainIndex}:${index}`)!.map(point => gcj({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
+                const path = cachedPath && !isRangeFallback(cachedPath) ? displayPaths.get(`${day.id}:${chainIndex}:${index}`)!.map(point => gcj({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
                 pickableRoutesRef.current.push({ dayId: day.id, path })
                 const width = Math.max(3, 3 + (props.viewState.zoom - 10) * 0.2) + (highlighted ? 2 : 0)
                 const color = routeColor(chainIndex, day.id, day.colorIndex)
@@ -310,7 +310,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                         overlays.push(entry.dot)
                     }
                     entry.node!.style.cssText = `width:10px;height:10px;border:2px solid white;border-radius:50%;background:${color};box-sizing:border-box;pointer-events:none`
-                    animated.push({ dot: entry.dot, from, to, path: cachedPath ? path.map(([lng, lat]) => ({ lng, lat })) : null })
+                    animated.push({ dot: entry.dot, from, to, path: cachedPath && !isRangeFallback(cachedPath) ? path.map(([lng, lat]) => ({ lng, lat })) : null })
                 } else if (entry.dot) {
                     map.remove([entry.dot]); entry.node?.remove(); entry.dot = undefined; entry.node = undefined
                 }
