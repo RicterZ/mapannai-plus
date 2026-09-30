@@ -73,9 +73,14 @@ export function getDayById(dayId: string): TripDay | null {
 }
 
 export function upsertTripDay(day: TripDay): void {
+    const existing = getDayById(day.id)
+    const used = new Set(getTripDays(day.tripId).map(day => day.colorIndex))
+    let colorIndex = 0
+    while (used.has(colorIndex)) colorIndex++
+    day.colorIndex = existing?.colorIndex ?? colorIndex
     getDb().prepare(`
-        INSERT INTO trip_days (id, trip_id, date, title, emoji, marker_ids, chains)
-        VALUES (@id, @tripId, @date, @title, @emoji, @markerIds, @chains)
+        INSERT INTO trip_days (id, trip_id, date, title, emoji, marker_ids, chains, color_index)
+        VALUES (@id, @tripId, @date, @title, @emoji, @markerIds, @chains, @colorIndex)
         ON CONFLICT(id) DO UPDATE SET
             date       = excluded.date,
             title      = excluded.title,
@@ -88,6 +93,7 @@ export function upsertTripDay(day: TripDay): void {
         date: day.date,
         title: day.title ?? null,
         emoji: day.emoji ?? null,
+        colorIndex: day.colorIndex,
         markerIds: JSON.stringify(day.markerIds),
         chains: JSON.stringify(day.chains ?? []),
     })
@@ -145,6 +151,7 @@ function rowToDay(row: any): TripDay {
         date: row.date,
         title: row.title ?? undefined,
         emoji: row.emoji ?? undefined,
+        colorIndex: row.color_index,
         markerIds: JSON.parse(row.marker_ids || '[]'),
         chains: JSON.parse(row.chains || '[]'),
     }

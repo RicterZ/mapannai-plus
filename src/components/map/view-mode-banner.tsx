@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useMapStore } from '@/store/map-store'
 import { cn } from '@/utils/cn'
 
@@ -24,17 +25,36 @@ export const ViewModeBanner = () => {
     const { activeView, trips, tripDays, setActiveView } = useMapStore()
     const [dayDropdownOpen, setDayDropdownOpen] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
+    const menuRef = useRef<HTMLDivElement>(null)
+    const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 })
+    useLayoutEffect(() => {
+        if (!dayDropdownOpen) return
+        const position = () => {
+            const bounds = dropdownRef.current?.getBoundingClientRect()
+            if (bounds) setMenuPosition({ left: Math.max(8, Math.min(bounds.right - 208, window.innerWidth - 216)), top: bounds.bottom + 8 })
+        }
+        position()
+        window.addEventListener('resize', position)
+        return () => window.removeEventListener('resize', position)
+    }, [dayDropdownOpen])
 
     // 点击外部关闭下拉
     useEffect(() => {
         if (!dayDropdownOpen) return
         const handleClick = (e: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+            if (!dropdownRef.current?.contains(e.target as Node) && !menuRef.current?.contains(e.target as Node)) {
                 setDayDropdownOpen(false)
             }
         }
         document.addEventListener('mousedown', handleClick)
-        return () => document.removeEventListener('mousedown', handleClick)
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setDayDropdownOpen(false)
+                dropdownRef.current?.querySelector('button')?.focus()
+            }
+        }
+        document.addEventListener('keydown', onKey)
+        return () => { document.removeEventListener('mousedown', handleClick); document.removeEventListener('keydown', onKey) }
     }, [dayDropdownOpen])
 
     if (activeView.mode === 'overview') return null
@@ -64,7 +84,7 @@ export const ViewModeBanner = () => {
                 'fixed left-1/2 -translate-x-1/2 -translate-y-1/2 z-40',
                 'bg-white/95 backdrop-blur border border-gray-200 shadow-lg rounded-full',
                 'flex flex-nowrap items-center gap-1 px-3 py-1.5 text-sm whitespace-nowrap w-max max-w-[calc(100vw-96px)] sm:max-w-[90vw]',
-                'animate-scale-in'
+                'animate-fade-in'
             )}
             style={{ top: 'calc(env(safe-area-inset-top) + 36px)' }}
         >
@@ -100,7 +120,7 @@ export const ViewModeBanner = () => {
                         </button>
 
                         {dayDropdownOpen && (
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden min-w-[160px] z-50">
+                            createPortal(<div ref={menuRef} style={menuPosition} className="fixed bg-white border border-gray-200 rounded-xl shadow-xl w-[208px] max-h-[60dvh] overflow-y-auto whitespace-normal z-[80] flex flex-col">
                                 {sortedDays.map((d, idx) => (
                                     <button
                                         key={d.id}
@@ -116,7 +136,7 @@ export const ViewModeBanner = () => {
                                         <div className="text-xs text-gray-400 mt-0.5">{formatDate(d.date)}</div>
                                     </button>
                                 ))}
-                            </div>
+                            </div>, document.body)
                         )}
                     </div>
                 </>
@@ -136,7 +156,7 @@ export const ViewModeBanner = () => {
                     </button>
 
                     {dayDropdownOpen && (
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden min-w-[160px] z-50">
+                        createPortal(<div ref={menuRef} style={menuPosition} className="fixed bg-white border border-gray-200 rounded-xl shadow-xl w-[208px] max-h-[60dvh] overflow-y-auto whitespace-normal z-[80] flex flex-col">
                             {sortedDays.map((d, idx) => (
                                 <button
                                     key={d.id}
@@ -147,7 +167,7 @@ export const ViewModeBanner = () => {
                                     <div className="text-xs text-gray-400 mt-0.5">{formatDate(d.date)}</div>
                                 </button>
                             ))}
-                        </div>
+                        </div>, document.body)
                     )}
                 </div>
             )}

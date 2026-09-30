@@ -16,6 +16,7 @@ export interface TripDay {
   date: string         // ISO date "2024-03-01" — bound to real calendar date
   title?: string       // optional custom title; if empty display "第N天 · 3月1日"
   emoji?: string       // 自定义每日图标
+  colorIndex?: number  // Persisted palette slot, independent of date and ordering
   markerIds: string[]  // ordered list of marker IDs for this day (membership)
   chains: string[][]   // ordered chains of marker IDs for this day (connection lines)
                        // e.g. [[A,B,C],[D,E]] — F in markerIds but not in chains = isolated

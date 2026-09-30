@@ -85,7 +85,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
         const mapInstance = map?.getMap()
         if (!mapInstance) return
 
-        const LINE_LAYERS = ['connection-lines-layer', 'connection-lines-casing']
+        const LINE_LAYERS = ['connection-lines-hit-area']
 
         const onMouseEnter = (e: any) => {
             const dayId = e.features?.[0]?.properties?.dayId
@@ -154,7 +154,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                             dayId: day.id,
                             fromId: fromMarker.id,
                             toId: toMarker.id,
-                            color: routeColor(ci, day.id),
+                            color: routeColor(ci, day.id, day.colorIndex),
                         })
                     }
                 }
@@ -193,7 +193,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
         const mapInstance = map?.getMap()
 
         // Stop animation when no highlighted lines or map not ready
-        if (!mapInstance || highlightedLineIds.length === 0) {
+        if (!mapInstance || highlightedLineIds.length === 0 || zoom < zoomThreshold || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
             if (rafRef.current !== null) {
                 cancelAnimationFrame(rafRef.current)
                 rafRef.current = null
@@ -204,15 +204,15 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
             return
         }
 
-        tRef.current = 0
+        const highlighted = new Set(highlightedLineIds)
+        const colors = new Map(connectionLines.map(line => [line.id, line.color]))
+        const lines = lineControlPoints.filter(line => highlighted.has(line.id))
 
-        const animate = () => {
-            // Advance progress ~0.008/frame → ~2s per loop at 60fps
-            tRef.current = (tRef.current + 0.008) % 1
+        const animate = (now: number) => {
+            tRef.current = (now / 2100) % 1
+            if (document.hidden) { rafRef.current = requestAnimationFrame(animate); return }
 
-            const features: GeoJSON.Feature[] = highlightedLineIds.flatMap(lineId => {
-                const lc = lineControlPoints.find(l => l.id === lineId)
-                if (!lc) return []
+            const features: GeoJSON.Feature[] = lines.flatMap(lc => {
                 const { lng, lat } = lc.route ? pointAlongPath(lc.route, tRef.current) : (() => {
                     const [lng, lat] = bezierPoint(lc.from, lc.ctrl, lc.to, tRef.current)
                     return { lng, lat }
@@ -220,7 +220,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                 return [{
                     type: 'Feature' as const,
                     geometry: { type: 'Point' as const, coordinates: [lng, lat] },
-                    properties: { opacity: 1, radius: 7, color: connectionLines.find(line => line.id === lineId)?.color || routeColor(0) }
+                    properties: { opacity: Math.min(1, tRef.current * 10, (1 - tRef.current) * 10), radius: 5, color: colors.get(lc.id) || routeColor(0) }
                 }]
             })
 
@@ -237,7 +237,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                 rafRef.current = null
             }
         }
-    }, [highlightedLineIds, lineControlPoints, connectionLines, map])
+    }, [highlightedLineIds, lineControlPoints, connectionLines, map, zoom, zoomThreshold])
 
     // 生成贝塞尔曲线连接线的 GeoJSON
     const connectionGeoJSON = useMemo(() => {
@@ -295,6 +295,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
     return (
         <>
             <Source id="connection-lines" type="geojson" data={connectionGeoJSON}>
+                <Layer id="connection-lines-hit-area" type="line" paint={{ 'line-width': 28, 'line-opacity': 0 }} layout={{ 'line-join': 'round', 'line-cap': 'round' }} />
                 {/* 白色描边层（casing）— 在所有线层最下面，制造轮廓对比 */}
                 <Layer
                     id="connection-lines-casing"

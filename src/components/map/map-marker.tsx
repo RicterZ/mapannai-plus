@@ -67,7 +67,7 @@ export const MapMarker = React.memo(function MapMarker({
                 'map-marker relative flex items-center justify-center',
                 'w-[28px] h-[28px] border-2',
                 'rounded-full border-white',
-                'transition-all duration-300 ease-out',
+                'transition-[transform,opacity,box-shadow,background-color] duration-200 ease-out motion-reduce:transition-none',
                 'origin-center', // 确保变换以中心为原点
                 // 根据缩放级别调整大小
                 shouldRenderAsDot ? 'scale-[0.36]' : 'scale-100', // 0.36 = 10/28，保持中心缩放
@@ -113,12 +113,12 @@ export const MapMarker = React.memo(function MapMarker({
 
             {/* Selection indicator */}
             {isSelected && !shouldRenderAsDot && (
-                <div className="absolute -inset-1 bg-blue-400 rounded-full animate-pulse opacity-30" />
+                <div className="absolute -inset-1 bg-blue-400 rounded-full opacity-30" />
             )}
 
             {/* Hover effect indicator */}
             {isHovered && !shouldRenderAsDot && !isSelected && (
-                <div className="absolute -inset-2 bg-white rounded-full opacity-20 animate-pulse" />
+                <div className="absolute -inset-2 bg-white rounded-full opacity-20" />
             )}
 
             {/* 临时标记状态指示器 */}

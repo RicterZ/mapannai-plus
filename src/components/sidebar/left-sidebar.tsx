@@ -185,6 +185,7 @@ interface PaletteItemProps {
 }
 
 function PaletteItem({ marker, routeNumbers, onFlyTo, onRemove, onAdd, selected, dayId }: PaletteItemProps) {
+    const colorIndex = useMapStore(state => state.tripDays.find(day => day.id === dayId)?.colorIndex)
     const paletteId = `palette::${marker.id}`
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: paletteId })
 
@@ -221,7 +222,7 @@ function PaletteItem({ marker, routeNumbers, onFlyTo, onRemove, onAdd, selected,
                 title="跳转到此位置"
             >
                 <div className="text-sm font-medium text-gray-800 line-clamp-2 break-words">{marker.content.title || '未命名标记'}</div>
-                <div className="mt-1 flex flex-wrap gap-1">{routeNumbers.map(number => <span key={number} style={{ color: routeColor(number - 1, dayId), backgroundColor: `${routeColor(number - 1, dayId)}10` }} className="rounded px-1.5 py-0.5 text-xs">路线 {number}</span>)}</div>
+                <div className="mt-1 flex flex-wrap gap-1">{routeNumbers.map(number => <span key={number} style={{ color: routeColor(number - 1, dayId, colorIndex), backgroundColor: `${routeColor(number - 1, dayId, colorIndex)}10` }} className="rounded px-1.5 py-0.5 text-xs">路线 {number}</span>)}</div>
             </button>
             <button
                 onClick={onRemove}
@@ -332,24 +333,26 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         prevTripRef.current = activeView.tripId
         prevDayRef.current = activeView.dayId
 
-        // 1. 当前内容淡出（150ms）
+        // Short crossfade; navigation must not leave controls locked after it ends.
         setSlideState('exit')
         setBlockClicksSync(true)
         setPendingDeletion(null)
 
         // 2. 内容切换 + 新内容淡入
+        let frame = 0
+        let unlock: ReturnType<typeof setTimeout> | undefined
         const t = setTimeout(() => {
             setDisplayMode(activeView.mode)
             setDisplayTripId(activeView.tripId)
             setDisplayDayId(activeView.dayId)
             setSlideState('enter')
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => setSlideState('idle'))
+            frame = requestAnimationFrame(() => {
+                frame = requestAnimationFrame(() => setSlideState('idle'))
             })
-            setTimeout(() => setBlockClicksSync(false), 600)
-        }, 150)
+            unlock = setTimeout(() => setBlockClicksSync(false), 120)
+        }, 80)
 
-        return () => { clearTimeout(t) }
+        return () => { clearTimeout(t); clearTimeout(unlock); cancelAnimationFrame(frame) }
     }, [activeView.mode, activeView.tripId, activeView.dayId])
 
     // 从 URL hash 恢复 activeView，或在冷启动时自动跳转到今天的行程日（执行一次）
@@ -1194,7 +1197,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <div className="font-medium text-sm text-gray-900">
-                                        <span aria-hidden="true" className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: dayColor(day.id) }} />
+                                        <span aria-hidden="true" className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: dayColor(day.id, day.colorIndex) }} />
                                         {day.title || `第${idx + 1}天`}
                                         <span className="ml-1.5 text-xs text-gray-400 font-normal">{formatDate(day.date)}</span>
                                     </div>
@@ -1291,14 +1294,14 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                 const chainItemIds = getChainItemIds(chainIdx)
 
                                 return (
-                                    <div key={`chain-slot-${slotIdx}`} className="rounded-xl border p-2" style={{ borderColor: `${routeColor(slotIdx, currentDay?.id)}30`, backgroundColor: `${routeColor(slotIdx, currentDay?.id)}05` }}>
+                                    <div key={`chain-slot-${slotIdx}`} className="rounded-xl border p-2" style={{ borderColor: `${routeColor(slotIdx, currentDay?.id, currentDay?.colorIndex)}30`, backgroundColor: `${routeColor(slotIdx, currentDay?.id, currentDay?.colorIndex)}05` }}>
                                         <div className="flex items-center justify-between gap-1 pb-2">
-                                            <button type="button" onClick={() => toggleRoute(slotIdx)} aria-expanded={!collapsedRoutes.has(slotIdx)} className="min-h-[36px] flex items-center gap-2 px-1 text-xs font-semibold" style={{ color: routeColor(slotIdx, currentDay?.id) }}>
-                                                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: routeColor(slotIdx, currentDay?.id) }} />
+                                            <button type="button" onClick={() => toggleRoute(slotIdx)} aria-expanded={!collapsedRoutes.has(slotIdx)} className="min-h-[44px] flex-1 flex items-center gap-2 px-2 text-xs font-semibold" style={{ color: routeColor(slotIdx, currentDay?.id, currentDay?.colorIndex) }}>
+                                                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: routeColor(slotIdx, currentDay?.id, currentDay?.colorIndex) }} />
                                                 路线 {slotIdx + 1}<span className="font-normal text-gray-500">· {chainGroup.length} 地点</span><span>{collapsedRoutes.has(slotIdx) ? '▸' : '▾'}</span>
                                             </button>
                                             <div className="flex gap-1">
-                                                {chainGroup.length > 0 && <button type="button" onClick={() => onFitMarkers(chainGroup.map(marker => marker.id))} className="min-h-[36px] px-2 text-xs text-gray-600 hover:text-blue-600" aria-label={`查看路线 ${slotIdx + 1}`}>查看</button>}
+                                                {chainGroup.length > 0 && <button type="button" onClick={() => onFitMarkers(chainGroup.map(marker => marker.id))} className="min-h-[44px] px-3 text-xs text-gray-600 hover:text-blue-600" aria-label={`查看路线 ${slotIdx + 1}`}>查看</button>}
                                                 <button type="button" onClick={() => setRoutePicker({ chainIndex: chainIdx })} className="min-h-[36px] px-2 text-xs font-medium text-blue-600">＋ 地点</button>
                                                 {isPending && <button type="button" aria-label="取消空路线" onClick={() => setPendingEmptyChains(value => Math.max(0, value - 1))} className="min-h-[36px] px-2 text-gray-500">×</button>}
                                             </div>
@@ -1394,12 +1397,12 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 <div className="p-3 flex flex-col gap-3">
                     {/* 路线分组 */}
                     {chainedGroups.map((group, chainIdx) => (
-                        <div key={`chain-${chainIdx}`} className="rounded-xl border p-2" style={{ borderColor: `${routeColor(chainIdx, currentDay?.id)}30`, backgroundColor: `${routeColor(chainIdx, currentDay?.id)}05` }}>
+                        <div key={`chain-${chainIdx}`} className="rounded-xl border p-2" style={{ borderColor: `${routeColor(chainIdx, currentDay?.id, currentDay?.colorIndex)}30`, backgroundColor: `${routeColor(chainIdx, currentDay?.id, currentDay?.colorIndex)}05` }}>
                             <div className="flex items-center justify-between gap-1 pb-2">
-                                <button type="button" onClick={() => toggleRoute(chainIdx)} aria-expanded={!collapsedRoutes.has(chainIdx)} className="min-h-[36px] flex items-center gap-2 px-1 text-xs font-semibold" style={{ color: routeColor(chainIdx, currentDay?.id) }}>
-                                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: routeColor(chainIdx, currentDay?.id) }} />路线 {chainIdx + 1}<span className="font-normal text-gray-500">· {group.length} 地点</span><span>{collapsedRoutes.has(chainIdx) ? '▸' : '▾'}</span>
+                                <button type="button" onClick={() => toggleRoute(chainIdx)} aria-expanded={!collapsedRoutes.has(chainIdx)} className="min-h-[44px] flex-1 flex items-center gap-2 px-2 text-xs font-semibold" style={{ color: routeColor(chainIdx, currentDay?.id, currentDay?.colorIndex) }}>
+                                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: routeColor(chainIdx, currentDay?.id, currentDay?.colorIndex) }} />路线 {chainIdx + 1}<span className="font-normal text-gray-500">· {group.length} 地点</span><span>{collapsedRoutes.has(chainIdx) ? '▸' : '▾'}</span>
                                 </button>
-                                <button type="button" onClick={() => onFitMarkers(group.map(marker => marker.id))} className="min-h-[36px] px-2 text-xs text-gray-600 hover:text-blue-600" aria-label={`查看路线 ${chainIdx + 1}`}>查看路线</button>
+                                <button type="button" onClick={() => onFitMarkers(group.map(marker => marker.id))} className="min-h-[44px] px-3 text-xs text-gray-600 hover:text-blue-600" aria-label={`查看路线 ${chainIdx + 1}`}>查看路线</button>
                             </div>
                             {routeSummary(group) && <p className="px-1 pb-2 text-xs text-gray-500">{routeSummary(group)}</p>}
                             {!collapsedRoutes.has(chainIdx) && <div className="flex flex-col">
@@ -1557,7 +1560,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 <p className="mb-3 text-xs text-gray-500">{routePicker.markerId ? markers.find(marker => marker.id === routePicker.markerId)?.content.title : '从当天地点中选择，加入后排在路线末尾。'}</p>
                 <div className="space-y-2">
                     {routePicker.markerId ? <>
-                        {currentDay.chains.map((chain, index) => <button key={index} disabled={savingRoute || chain.includes(routePicker.markerId!)} onClick={() => { void handleAddToRoute(routePicker.markerId!, index) }} className="flex min-h-[44px] w-full items-center justify-between rounded-lg border px-3 text-sm hover:bg-gray-50 disabled:opacity-40" style={{ color: routeColor(index, currentDay.id) }}>路线 {index + 1}<span className="text-xs text-gray-500">{chain.includes(routePicker.markerId!) ? '已加入' : `${chain.length} 个地点`}</span></button>)}
+                        {currentDay.chains.map((chain, index) => <button key={index} disabled={savingRoute || chain.includes(routePicker.markerId!)} onClick={() => { void handleAddToRoute(routePicker.markerId!, index) }} className="flex min-h-[44px] w-full items-center justify-between rounded-lg border px-3 text-sm hover:bg-gray-50 disabled:opacity-40" style={{ color: routeColor(index, currentDay.id, currentDay.colorIndex) }}>路线 {index + 1}<span className="text-xs text-gray-500">{chain.includes(routePicker.markerId!) ? '已加入' : `${chain.length} 个地点`}</span></button>)}
                         <button disabled={savingRoute} onClick={() => { void handleAddToRoute(routePicker.markerId!) }} className="min-h-[44px] w-full rounded-lg border border-dashed border-blue-300 text-sm text-blue-600">＋ 新建路线并加入</button>
                     </> : <>
                         {currentDayMarkers.filter(marker => !currentDay.chains[routePicker.chainIndex!]?.includes(marker.id)).map(marker => <button key={marker.id} disabled={savingRoute} onClick={() => { void handleAddToRoute(marker.id, routePicker.chainIndex) }} className="min-h-[44px] w-full rounded-lg border px-3 py-2 text-left text-sm hover:bg-blue-50 disabled:opacity-40">{marker.content.title || '未命名地点'}</button>)}

@@ -274,7 +274,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         }
     }, [flyMap])
 
-    // 根据两点距离计算 flyTo 时长：>=200km → 3500ms，<=10km → 2000ms，线性插值
+    // Keep camera navigation responsive, including long-distance jumps.
     const flyDuration = useCallback((to: { longitude: number; latitude: number }): number => {
         const R = 6371 // 地球半径 km
         const lat1 = viewState.latitude * Math.PI / 180
@@ -284,7 +284,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2
         const km = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
         const t = Math.min(1, Math.max(0, (km - 10) / (200 - 10)))
-        return Math.round(2000 + t * 1500)
+        return window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : Math.round(600 + t * 400)
     }, [viewState.latitude, viewState.longitude])
 
     // 地图flyTo功能
@@ -537,6 +537,9 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
 
     const handleMapClick = useCallback(async (event: any, placeInfo?: { name: string; address: string; placeId: string }, clickPosition?: { x: number; y: number }, isMarkerClick?: boolean) => {
         if (suppressMapClickRef.current) return
+        // Route touches belong to the route, even outside its visible stroke.
+        const map = mapRef.current?.getMap()
+        if (event.point && map?.getLayer('connection-lines-hit-area') && map.queryRenderedFeatures(event.point, { layers: ['connection-lines-hit-area'] }).length) return
         // 直接从store获取最新状态，避免闭包中的旧状态
         const currentState = useMapStore.getState()
         const currentSidebarOpen = currentState.interactionState.isSidebarOpen
@@ -874,8 +877,8 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                     onMove={(evt) => {
                         const canonicalView = { ...evt.viewState, ...fromDisplay(evt.viewState) }
                         setViewState(canonicalView)
-                        saveViewState(canonicalView)
                     }}
+                    onMoveEnd={(evt) => saveViewState({ ...evt.viewState, ...fromDisplay(evt.viewState) })}
                     onLoad={handleMapLoad}
                     onClick={handleMapClick}
                     mapboxAccessToken=""
@@ -1072,6 +1075,7 @@ interface MapLibreComponentProps {
     ref: React.Ref<MapRef>
     viewState: ViewState
     onMove: (evt: any) => void
+    onMoveEnd: (evt: any) => void
     onLoad: () => void
     onClick: (event: any) => void
     mapboxAccessToken: string

@@ -71,4 +71,17 @@ function initSchema(db: Database.Database) {
     if (!cols.some(c => c.name === 'chains')) {
         db.exec(`ALTER TABLE trip_days ADD COLUMN chains TEXT NOT NULL DEFAULT '[]'`)
     }
+    if (!cols.some(c => c.name === 'color_index')) {
+        db.transaction(() => {
+            db.exec('ALTER TABLE trip_days ADD COLUMN color_index INTEGER NOT NULL DEFAULT 0')
+            const days = db.prepare('SELECT id, trip_id FROM trip_days ORDER BY trip_id, date, id').all() as { id: string; trip_id: string }[]
+            const counts = new Map<string, number>()
+            const update = db.prepare('UPDATE trip_days SET color_index = ? WHERE id = ?')
+            for (const day of days) {
+                const index = counts.get(day.trip_id) || 0
+                update.run(index, day.id)
+                counts.set(day.trip_id, index + 1)
+            }
+        })()
+    }
 }

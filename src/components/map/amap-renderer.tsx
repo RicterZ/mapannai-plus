@@ -19,7 +19,7 @@ interface AMapInstance {
     on(event: string, handler: (event: any) => void): void
     off(event: string, handler: (event: any) => void): void
     destroy(): void
-    setZoomAndCenter(zoom: number, center: number[], immediately?: boolean): void
+    setZoomAndCenter(zoom: number, center: number[], immediately?: boolean, duration?: number): void
     setCenter(center: number[]): void
     setZoom(zoom: number): void
     getCenter(): AMapPoint
@@ -88,19 +88,22 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     const latest = useRef(props)
     latest.current = props
     const nodesRef = useRef<HTMLElement[]>([])
+    const markerOverlaysRef = useRef(new Map<string, { overlay: any; node: HTMLElement }>())
+    const routeOverlaysRef = useRef(new Map<string, { casing: any; line: any; hitArea: any; dot?: any; node?: HTMLElement }>())
     const popupOverlayRef = useRef<any>(null)
     const popupNodeRef = useRef<HTMLElement | null>(null)
     const locationOverlayRef = useRef<any>(null)
     const locationNodeRef = useRef<HTMLElement | null>(null)
 
     useImperativeHandle(ref, () => ({
-        flyTo({ center, zoom }) {
+        flyTo({ center, zoom, duration }) {
             const map = mapRef.current
             if (!map) return
             const point = wgs84ToGcj02(center[0], center[1])
             const target = [point.longitude, point.latitude]
             // The popup overlay is offset from its marker; center the marker itself.
-            map.setZoomAndCenter(zoom ?? map.getZoom(), target)
+            const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            map.setZoomAndCenter(zoom ?? map.getZoom(), target, reduced, reduced ? 0 : duration ?? 700)
         },
     }), [])
 
@@ -156,20 +159,36 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     useEffect(() => {
         const map = mapRef.current, AMap = namespaceRef.current
         if (!ready || !map || !AMap) return
-        const overlays: any[] = []
-        nodesRef.current = []
+        const removed: any[] = [], added: any[] = []
+        const ids = new Set(props.markers.map(marker => marker.id))
+        for (const [id, entry] of Array.from(markerOverlaysRef.current)) {
+            if (!ids.has(id)) { removed.push(entry.overlay); entry.node.remove(); markerOverlaysRef.current.delete(id) }
+        }
         for (const marker of props.markers) {
+            const existing = markerOverlaysRef.current.get(marker.id)
+            if (existing) {
+                existing.overlay.setPosition(gcj(marker.coordinates))
+                existing.overlay.setzIndex(marker.id === props.selectedMarkerId ? 120 : 100)
+                continue
+            }
             const node = document.createElement('div')
             node.className = 'map-marker'
             node.style.cssText = 'width:28px;height:28px;cursor:pointer'
             const overlay = new AMap.Marker({ position: gcj(marker.coordinates), content: node, offset: new AMap.Pixel(-14, -14), zIndex: marker.id === props.selectedMarkerId ? 120 : 100 })
-            map.add([overlay])
-            overlays.push(overlay)
-            nodesRef.current.push(node)
+            added.push(overlay)
+            markerOverlaysRef.current.set(marker.id, { overlay, node })
         }
+        if (removed.length) map.remove(removed)
+        if (added.length) map.add(added)
+        nodesRef.current = props.markers.map(marker => markerOverlaysRef.current.get(marker.id)!.node)
         setMarkerNodes([...nodesRef.current])
-        return () => { map.remove(overlays); nodesRef.current.forEach(node => node.remove()); nodesRef.current = [] }
     }, [ready, props.markers, props.selectedMarkerId])
+
+    useEffect(() => () => {
+        markerOverlaysRef.current.forEach(entry => entry.node.remove())
+        markerOverlaysRef.current.clear()
+        routeOverlaysRef.current.clear()
+    }, [])
 
     const { tripDays, activeView, interactionState } = useMapStore()
     const [hoveredDayId, setHoveredDayId] = useState<string | null>(null)
@@ -196,10 +215,16 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     const planned = usePlannedRoutes(routeSegments, routeProvider, routeViewport)
     useEffect(() => {
         const map = mapRef.current, AMap = namespaceRef.current
-        if (!ready || !map || !AMap || props.viewState.zoom < zoomThreshold) return
+        if (!ready || !map || !AMap) return
+        if (props.viewState.zoom < zoomThreshold) {
+            map.remove(Array.from(routeOverlaysRef.current.values()).flatMap(entry => [entry.casing, entry.line, entry.hitArea, ...(entry.dot ? [entry.dot] : [])]))
+            routeOverlaysRef.current.clear()
+            return
+        }
         const byId = new Map(props.markers.map(marker => [marker.id, marker]))
         const relevant = tripDays.filter(day => activeView.mode === 'day' ? day.id === activeView.dayId : activeView.mode === 'trip' ? day.tripId === activeView.tripId : true)
         const overlays: any[] = []
+        const liveKeys = new Set<string>()
         const animated: Array<{ dot: any; from: { lat: number; lng: number }; to: { lat: number; lng: number }; path: Array<{ lat: number; lng: number }> | null }> = []
         for (const day of relevant) for (const [chainIndex, chain] of Array.from((day.chains || []).entries())) {
             for (let index = 0; index < chain.length - 1; index++) {
@@ -212,35 +237,59 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                 const cachedPath = planned.enabled ? planned.routes[routeCacheKey(routeProvider, routeSettings.mode, segment)] : null
                 const path = cachedPath ? cachedPath.map(point => gcj({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
                 const width = Math.max(3, 3 + (props.viewState.zoom - 10) * 0.2) + (highlighted ? 2 : 0)
-                const casing = new AMap.Polyline({ path, strokeColor: '#ffffff', strokeWeight: width + 4, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.4 : 0.8, zIndex: highlighted ? 52 : 48 })
-                const color = routeColor(chainIndex, day.id)
-                const line = new AMap.Polyline({ path, strokeColor: color, strokeStyle: planned.enabled && !cachedPath ? 'dashed' : 'solid', strokeDasharray: [8, 6], strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.25 : 0.8, zIndex: highlighted ? 53 : 49 })
-                line.on('mouseover', () => setHoveredDayId(day.id))
-                line.on('mouseout', () => setHoveredDayId(null))
-                line.on('click', () => { if (activeView.mode !== 'day') useMapStore.getState().setHighlightedDay(day.id) })
-                overlays.push(casing, line)
+                const color = routeColor(chainIndex, day.id, day.colorIndex)
+                const key = `${day.id}:${chainIndex}:${index}`
+                liveKeys.add(key)
+                let entry = routeOverlaysRef.current.get(key)
+                const casingOptions = { path, strokeColor: '#ffffff', strokeWeight: width + 4, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.4 : 0.8, zIndex: highlighted ? 52 : 48 }
+                const lineOptions = { path, strokeColor: color, strokeStyle: planned.enabled && !cachedPath ? 'dashed' : 'solid', strokeDasharray: [8, 6], strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.25 : 0.8, zIndex: highlighted ? 53 : 49 }
+                const hitOptions = { path, strokeColor: color, strokeWeight: 28, strokeOpacity: 0.01, zIndex: highlighted ? 56 : 55, bubble: false }
+                if (!entry) {
+                    entry = { casing: new AMap.Polyline(casingOptions), line: new AMap.Polyline(lineOptions), hitArea: new AMap.Polyline(hitOptions) }
+                    entry.hitArea.on('mouseover', () => setHoveredDayId(day.id))
+                    entry.hitArea.on('mouseout', () => setHoveredDayId(null))
+                    entry.hitArea.on('click', () => { const state = useMapStore.getState(); if (state.activeView.mode !== 'day') state.setHighlightedDay(day.id) })
+                    routeOverlaysRef.current.set(key, entry)
+                    overlays.push(entry.casing, entry.line, entry.hitArea)
+                } else {
+                    entry.casing.setOptions(casingOptions)
+                    entry.line.setOptions(lineOptions)
+                    entry.hitArea.setOptions(hitOptions)
+                }
                 if (highlighted) {
-                    const node = document.createElement('div')
-                    node.style.cssText = `width:14px;height:14px;border:2px solid white;border-radius:50%;background:${color};box-sizing:border-box;pointer-events:none`
-                    const dot = new AMap.Marker({ position: [from.lng, from.lat], content: node, offset: new AMap.Pixel(-7, -7), zIndex: 54, clickable: false })
-                    overlays.push(dot)
-                    animated.push({ dot, from, to, path: cachedPath ? path.map(([lng, lat]) => ({ lng, lat })) : null })
+                    if (!entry.dot) {
+                        entry.node = document.createElement('div')
+                        entry.dot = new AMap.Marker({ position: [from.lng, from.lat], content: entry.node, offset: new AMap.Pixel(-5, -5), zIndex: 54, clickable: false })
+                        overlays.push(entry.dot)
+                    }
+                    entry.node!.style.cssText = `width:10px;height:10px;border:2px solid white;border-radius:50%;background:${color};box-sizing:border-box;pointer-events:none`
+                    animated.push({ dot: entry.dot, from, to, path: cachedPath ? path.map(([lng, lat]) => ({ lng, lat })) : null })
+                } else if (entry.dot) {
+                    map.remove([entry.dot]); entry.node?.remove(); entry.dot = undefined; entry.node = undefined
                 }
             }
         }
-        map.add(overlays)
+        for (const [key, entry] of Array.from(routeOverlaysRef.current)) {
+            if (!liveKeys.has(key)) {
+                map.remove([entry.casing, entry.line, entry.hitArea, ...(entry.dot ? [entry.dot] : [])])
+                entry.node?.remove()
+                routeOverlaysRef.current.delete(key)
+            }
+        }
+        if (overlays.length) map.add(overlays)
         let frame = 0
-        const started = performance.now()
         const animate = (now: number) => {
-            const progress = ((now - started) / 2100) % 1
+            const progress = (now / 2100) % 1
+            if (document.hidden) { frame = requestAnimationFrame(animate); return }
             for (const { dot, from, to, path } of animated) {
                 const position = path ? pointAlongPath(path, progress) : bezierPoint(from, getControlPoint(from, to), to, progress)
                 dot.setPosition(Array.isArray(position) ? position : [position.lng, position.lat])
+                dot.getContent().style.opacity = String(Math.min(1, progress * 10, (1 - progress) * 10))
             }
             frame = requestAnimationFrame(animate)
         }
-        if (animated.length) frame = requestAnimationFrame(animate)
-        return () => { cancelAnimationFrame(frame); map.remove(overlays) }
+        if (animated.length && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) frame = requestAnimationFrame(animate)
+        return () => { cancelAnimationFrame(frame) }
     }, [ready, props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId, effectiveDayId, props.viewState.zoom, zoomThreshold, planned.enabled, planned.routes, routeProvider, routeSettings.mode])
 
     useEffect(() => {

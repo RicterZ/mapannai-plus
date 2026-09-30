@@ -97,22 +97,32 @@ export async function getPlannedRoute(provider: string, mode: RouteMode, segment
     return promise
 }
 
+const pathMetrics = new WeakMap<RoutePath, { cumulative: number[]; total: number }>()
+
 export function pointAlongPath(path: RoutePath, progress: number): RouteCoordinate {
     if (path.length < 2) return path[0] || { lat: 0, lng: 0 }
-    const lengths = path.slice(1).map((point, index) => {
-        const previous = path[index]
-        const avgLat = (point.lat + previous.lat) * Math.PI / 360
-        return Math.hypot((point.lat - previous.lat) * 111000, (point.lng - previous.lng) * 111000 * Math.cos(avgLat))
-    })
-    const total = lengths.reduce((sum, length) => sum + length, 0)
-    if (!total) return path[0]
-    let remaining = (progress % 1) * total
-    for (let index = 0; index < lengths.length; index++) {
-        if (remaining <= lengths[index] || index === lengths.length - 1) {
-            const fraction = lengths[index] ? remaining / lengths[index] : 0
-            return { lat: path[index].lat + (path[index + 1].lat - path[index].lat) * fraction, lng: path[index].lng + (path[index + 1].lng - path[index].lng) * fraction }
+    let metrics = pathMetrics.get(path)
+    if (!metrics) {
+        const cumulative = [0]
+        for (let index = 1; index < path.length; index++) {
+            const point = path[index], previous = path[index - 1]
+            const avgLat = (point.lat + previous.lat) * Math.PI / 360
+            cumulative.push(cumulative[index - 1] + Math.hypot((point.lat - previous.lat) * 111000, (point.lng - previous.lng) * 111000 * Math.cos(avgLat)))
         }
-        remaining -= lengths[index]
+        metrics = { cumulative, total: cumulative[cumulative.length - 1] }
+        pathMetrics.set(path, metrics)
     }
-    return path[path.length - 1]
+    const { total, cumulative } = metrics
+    if (!total) return path[0]
+    const distance = Math.max(0, Math.min(1, progress)) * total
+    let low = 1, high = cumulative.length - 1
+    while (low < high) {
+        const middle = (low + high) >>> 1
+        if (cumulative[middle] < distance) low = middle + 1
+        else high = middle
+    }
+    const index = low - 1
+    const length = cumulative[low] - cumulative[index]
+    const fraction = length ? (distance - cumulative[index]) / length : 0
+    return { lat: path[index].lat + (path[low].lat - path[index].lat) * fraction, lng: path[index].lng + (path[low].lng - path[index].lng) * fraction }
 }
