@@ -1256,7 +1256,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                         <div className="text-center py-8 text-gray-400">
                             <div className="text-3xl mb-2">📍</div>
                             <p className="text-sm">当天暂无地点</p>
-                            <p className="text-xs mt-1">{addMarkerEnabled ? '搜索地点，或点击地图标记上的「加入今天」' : '开启「编辑行程」，把地图地点加入今天'}</p>
+                            <p className="text-xs mt-1">{addMarkerEnabled ? '搜索地点，或点击地图标记上的「加入今天」' : '开启「编辑模式」，把地图地点加入今天'}</p>
                         </div>
                     </div>
                 </div>
@@ -1281,7 +1281,6 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 >
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
                         <div className="p-3 flex flex-col gap-3">
-                            <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs leading-relaxed text-blue-700">拖动地点调整路线，也可以用「添加地点」和「上移／下移」。修改会自动保存。</p>
                             {/* ── 上半区：路线卡片 ── */}
                             {Array.from({ length: totalChains }).map((_, slotIdx) => {
                                 const isPending = slotIdx >= chainedGroupsEdit.length
@@ -1510,8 +1509,10 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 {renderHeader()}
                 <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-gray-100 px-4 py-2">
                     <div className="flex items-center gap-2">
-                        <button type="button" aria-pressed={addMarkerEnabled} onClick={onToggleAddMarker} className={cn('min-h-[36px] rounded-lg px-3 text-xs font-medium transition-colors', addMarkerEnabled ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-blue-50 text-blue-700 hover:bg-blue-100')}>{addMarkerEnabled ? '完成编辑' : '编辑行程'}</button>
-                        {addMarkerEnabled && <span className="text-xs text-blue-600">编辑中</span>}
+                        <span className="whitespace-nowrap text-xs text-gray-600">编辑模式</span>
+                        <button type="button" role="switch" aria-checked={addMarkerEnabled} aria-label="编辑模式" onClick={onToggleAddMarker} className={cn('relative h-6 w-11 flex-shrink-0 rounded-full transition-colors', addMarkerEnabled ? 'bg-blue-500' : 'bg-gray-300')}>
+                            <span className={cn('absolute left-0 top-1 h-4 w-4 rounded-full bg-white shadow transition-transform', addMarkerEnabled ? 'translate-x-6' : 'translate-x-1')} />
+                        </button>
                     </div>
                     {displayMode === 'day' && currentDayMarkers.length > 0 && <button type="button" onClick={() => onFitMarkers(currentDayMarkers.map(marker => marker.id))} className="min-h-[36px] px-2 text-xs text-gray-600 hover:text-blue-600">查看全天</button>}
                     <button type="button" onClick={closeLeftSidebar} className="min-h-[36px] px-2 text-xs text-gray-600 lg:hidden">返回地图</button>
@@ -1534,8 +1535,11 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
 
                 {/* 全局路线规划设置 */}
                 <div className="border-t border-gray-100 px-4 py-3 flex-shrink-0">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-2 whitespace-nowrap">
                         <span className="text-xs text-gray-600 whitespace-nowrap">路线规划</span>
+                        {routeSettings.enabled && <span role="status" aria-live="polite" className="min-w-0 flex-1 truncate text-right text-xs text-gray-500" title={progress.calculating ? `正在计算 ${progress.completed + progress.failed}/${progress.total}，虚线为示意连接` : progress.failed ? `${progress.failed} 段暂时无法规划，虚线为示意连接` : progress.total ? '路线已更新' : '当前没有需要规划的路段'}>
+                            {progress.calculating ? `${progress.completed + progress.failed}/${progress.total}` : progress.failed ? <button type="button" onClick={progress.retry} className="text-blue-600 hover:underline" aria-label={`重试 ${progress.failed} 段失败路线`}>重试 {progress.failed} 段</button> : null}
+                        </span>}
                         {routeSettings.enabled && <div className="ml-auto flex gap-1 rounded-lg bg-gray-100 p-1" role="group" aria-label="全局寻路模式">
                             {(['walking', 'driving'] as const).map(mode => <button key={mode} type="button" onClick={() => setRouteSettings({ enabled: true, mode })} aria-pressed={routeSettings.mode === mode} className={cn('rounded-md px-2 py-1 text-xs transition-colors', routeSettings.mode === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>{mode === 'walking' ? '步行' : '驾车'}</button>)}
                         </div>}
@@ -1543,13 +1547,6 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                             <span className={cn('absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow transition-transform', routeSettings.enabled ? 'translate-x-6' : 'translate-x-1')} />
                         </button>
                     </div>
-                    {routeSettings.enabled && <div className="mt-2 flex items-start justify-between gap-2 text-xs" role="status" aria-live="polite">
-                        <div className="text-gray-500">
-                            <p>{progress.calculating ? `正在计算 · ${progress.completed + progress.failed}/${progress.total}` : progress.failed ? `${progress.failed} 段暂时无法规划` : progress.total ? '路线已更新' : '当前没有需要规划的路段'}</p>
-                            {(progress.calculating || progress.failed > 0) && <p className="mt-1">虚线为示意连接，尚未取得实际路线。</p>}
-                        </div>
-                        {progress.failed > 0 && !progress.calculating && <button type="button" onClick={progress.retry} className="min-h-[32px] rounded px-2 font-medium text-blue-600 hover:bg-blue-50">重试</button>}
-                    </div>}
                 </div>
             </div>
 
