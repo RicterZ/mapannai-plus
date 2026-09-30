@@ -63,6 +63,8 @@ AMAP_API_KEY=你的高德Web服务Key
 
 修改服务端变量后需重启或重新部署；`NEXT_PUBLIC_*` 变量须在构建前设置。数据库坐标统一保存为 WGS-84，接入高德时在边界转换坐标。
 
+寻路结果同时缓存在浏览器和 SQLite 的 `direction_cache` 表中。不同设备请求相同 provider、模式及起终点坐标时可复用服务端结果；更换模式、provider 或移动标记会使用新的缓存键。部署时需持久化 `SQLITE_PATH` 所在目录，Docker Compose 默认将 `/app/data` 挂载为 `mapannai_data` 卷。
+
 ### 2. 本地开发
 
 ```bash

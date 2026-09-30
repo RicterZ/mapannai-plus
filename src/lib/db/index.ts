@@ -41,6 +41,12 @@ function initSchema(db: Database.Database) {
 
         CREATE INDEX IF NOT EXISTS idx_trip_days_trip_id ON trip_days(trip_id);
 
+        CREATE TABLE IF NOT EXISTS direction_cache (
+            cache_key   TEXT PRIMARY KEY,
+            route_json  TEXT NOT NULL,
+            created_at  TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS markers (
             id               TEXT PRIMARY KEY,
             longitude        REAL NOT NULL,

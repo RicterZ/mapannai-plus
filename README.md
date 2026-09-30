@@ -64,6 +64,8 @@ Get `AMAP_JS_KEY` (Web JS API key) and its security code from the AMap console a
 
 Restart or redeploy after changing server variables. Set `NEXT_PUBLIC_*` variables before building. Map coordinates are stored as WGS-84 and converted at the AMap boundary.
 
+Directions are cached both in the browser and in SQLite's `direction_cache` table. Devices share cached routes when provider, mode, and endpoint coordinates match. Changing the mode, provider, or marker coordinates produces a new cache key. Persist the directory containing `SQLITE_PATH`; Docker Compose mounts `/app/data` in the `mapannai_data` volume by default.
+
 ### 2. Local Development
 
 ```bash
