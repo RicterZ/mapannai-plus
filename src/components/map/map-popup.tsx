@@ -109,7 +109,7 @@ export const MapPopup = ({
             <div
                 ref={popupRef}
                 className={cn(
-                    'bg-white rounded-xl shadow-2xl',
+                    'app-popup bg-white rounded-xl shadow-2xl',
                     'w-[240px] overflow-hidden'
                 )}
                 onClick={(e) => e.stopPropagation()}

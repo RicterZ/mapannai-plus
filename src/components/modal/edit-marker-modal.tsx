@@ -1,5 +1,7 @@
 'use client'
 
+import { useDialogFocus } from '@/lib/ui/use-dialog-focus'
+
 import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { Marker, MarkerIconType } from '@/types/marker'
@@ -42,6 +44,8 @@ export const EditMarkerModal = ({ marker, isOpen, onClose, onSave }: EditMarkerM
             initializedRef.current = null
         }
     }, [marker?.id, isOpen])
+
+    const dialogRef = useDialogFocus(isOpen && !!marker, onClose, isUploading)
 
     if (!isOpen || !marker) return null
 
@@ -88,10 +92,10 @@ export const EditMarkerModal = ({ marker, isOpen, onClose, onSave }: EditMarkerM
     }
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center lg:p-4">
+        <div className="fixed inset-0 modal-viewport modal-fullscreen bg-black/40 z-[100] flex items-center justify-center lg:p-4">
             <div className="absolute inset-0" onClick={handleCancel} />
 
-            <div className="relative w-full h-full lg:w-[760px] lg:h-[640px] bg-white flex flex-col animate-slide-in-bottom lg:animate-fade-in lg:rounded-xl lg:shadow-2xl overflow-hidden">
+            <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="编辑地点" tabIndex={-1} className="dialog-card outline-none relative w-full h-full lg:w-[760px] lg:h-[640px] max-h-full bg-white flex flex-col animate-slide-in-bottom lg:animate-fade-in lg:rounded-xl lg:shadow-2xl overflow-hidden">
 
                 {/* ── Header ──────────────────────────────────────────────── */}
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-blue-50 flex-shrink-0 edit-marker-header">
@@ -114,6 +118,7 @@ export const EditMarkerModal = ({ marker, isOpen, onClose, onSave }: EditMarkerM
                             保存
                         </button>
                         <button
+                            aria-label="关闭"
                             onClick={handleCancel}
                             className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                         >

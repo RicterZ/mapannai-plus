@@ -1,5 +1,7 @@
 'use client'
 
+import { startAnimationLoop } from '@/lib/ui/animation-loop'
+
 import React, { useEffect, useImperativeHandle, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { useMapStore } from '@/store/map-store'
@@ -320,19 +322,18 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
             }
         }
         if (overlays.length) map.add(overlays)
-        let frame = 0
         const animate = (now: number) => {
             const progress = (now / 2100) % 1
-            if (document.hidden) { frame = requestAnimationFrame(animate); return }
             for (const { dot, from, to, path } of animated) {
                 const position = path ? pointAlongPath(path, progress) : bezierPoint(from, getControlPoint(from, to), to, progress)
                 dot.setPosition(Array.isArray(position) ? position : [position.lng, position.lat])
                 dot.getContent().style.opacity = String(Math.min(1, progress * 10, (1 - progress) * 10))
             }
-            frame = requestAnimationFrame(animate)
         }
-        if (animated.length && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) frame = requestAnimationFrame(animate)
-        return () => { cancelAnimationFrame(frame) }
+        if (!animated.length) return
+        return startAnimationLoop(animate, () => {
+            for (const { dot } of animated) dot.getContent().style.opacity = '0'
+        })
     }, [ready, props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId, effectiveDayId, props.viewState.zoom, zoomThreshold, planned.enabled, planned.routes, displayPaths, routeProvider, routeSettings.mode])
 
     useEffect(() => {

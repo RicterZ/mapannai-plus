@@ -307,52 +307,22 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
     const tripDateInputRef = useRef<HTMLInputElement>(null)
     const [showEmojiPicker, setShowEmojiPicker] = useState(false)
 
-    // 视图切换动画：向左滑出，从右滑入
-    const [slideState, setSlideState] = useState<'idle' | 'exit' | 'enter'>('idle')
-    const [blockClicks, setBlockClicks] = useState(false)  // 防幽灵 click
-    const blockClicksRef = useRef(false)  // ref 供捕获监听器同步读取（state 有闭包延迟）
+    // Commit navigation immediately; animate the incoming content without locking controls.
+    const [blockClicks, setBlockClicks] = useState(false)
+    const blockClicksRef = useRef(false)
+    const clickUnlockRef = useRef<ReturnType<typeof setTimeout>>()
     const setBlockClicksSync = useCallback((val: boolean) => {
         blockClicksRef.current = val
         setBlockClicks(val)
     }, [])
-    const [displayMode, setDisplayMode] = useState(activeView.mode)
-    const [displayTripId, setDisplayTripId] = useState(activeView.tripId)
-    const [displayDayId, setDisplayDayId] = useState(activeView.dayId)
-    const prevModeRef = useRef(activeView.mode)
-    const prevTripRef = useRef(activeView.tripId)
-    const prevDayRef = useRef(activeView.dayId)
-
+    const displayMode = activeView.mode
+    const displayTripId = activeView.tripId
+    const displayDayId = activeView.dayId
+    useEffect(() => { setPendingDeletion(null) }, [activeView.mode, activeView.tripId, activeView.dayId])
+    useEffect(() => () => clearTimeout(clickUnlockRef.current), [])
     useEffect(() => {
-        const modeChanged = prevModeRef.current !== activeView.mode
-        const tripChanged = prevTripRef.current !== activeView.tripId
-        const dayChanged = prevDayRef.current !== activeView.dayId
-        if (!modeChanged && !tripChanged && !dayChanged) return
-
-        prevModeRef.current = activeView.mode
-        prevTripRef.current = activeView.tripId
-        prevDayRef.current = activeView.dayId
-
-        // Short crossfade; navigation must not leave controls locked after it ends.
-        setSlideState('exit')
-        setBlockClicksSync(true)
-        setPendingDeletion(null)
-
-        // 2. 内容切换 + 新内容淡入
-        let frame = 0
-        let unlock: ReturnType<typeof setTimeout> | undefined
-        const t = setTimeout(() => {
-            setDisplayMode(activeView.mode)
-            setDisplayTripId(activeView.tripId)
-            setDisplayDayId(activeView.dayId)
-            setSlideState('enter')
-            frame = requestAnimationFrame(() => {
-                frame = requestAnimationFrame(() => setSlideState('idle'))
-            })
-            unlock = setTimeout(() => setBlockClicksSync(false), 120)
-        }, 80)
-
-        return () => { clearTimeout(t); clearTimeout(unlock); cancelAnimationFrame(frame) }
-    }, [activeView.mode, activeView.tripId, activeView.dayId])
+        if (sidebarRef.current) sidebarRef.current.inert = !leftSidebar.isOpen
+    }, [leftSidebar.isOpen])
 
     // 从 URL hash 恢复 activeView，或在冷启动时自动跳转到今天的行程日（执行一次）
     // sessionStorage 标记区分冷启动（新 tab / 硬刷新）和 SPA 内部导航：
@@ -549,7 +519,8 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
 
         // 拖拽结束后短暂屏蔽点击，防止 touchend 合成的 ghost click 触发按钮
         setBlockClicksSync(true)
-        setTimeout(() => setBlockClicksSync(false), 300)
+        clearTimeout(clickUnlockRef.current)
+        clickUnlockRef.current = setTimeout(() => setBlockClicksSync(false), 300)
 
         if (!over || active.id === over.id) return
         if (!currentDay || !activeView.tripId || !activeView.dayId) return
@@ -811,11 +782,11 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
 
     const renderHeader = () => (
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-blue-50 flex-shrink-0 min-h-[68px]">
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
                 {/* Back button */}
                 {displayMode === 'trip' && (
                     <button
-                        onClick={() => { setBlockClicksSync(true); setActiveView('overview', null, null) }}
+                        onClick={() => { setActiveView('overview', null, null) }}
                         className="mr-1 p-1 rounded-lg text-gray-500 hover:bg-white/80 hover:text-blue-600 transition-colors"
                         title="返回全览"
                     >
@@ -826,7 +797,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 )}
                 {displayMode === 'day' && (
                     <button
-                        onClick={() => { setBlockClicksSync(true); setActiveView('trip', activeView.tripId, null) }}
+                        onClick={() => { setActiveView('trip', activeView.tripId, null) }}
                         className="mr-1 p-1 rounded-lg text-gray-500 hover:bg-white/80 hover:text-blue-600 transition-colors"
                         title="返回旅行"
                     >
@@ -836,7 +807,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     </button>
                 )}
 
-                <div className="relative">
+                <div className="relative flex-shrink-0">
                     <div
                         className={cn(
                             'w-11 h-11 rounded-xl flex items-center justify-center text-2xl',
@@ -873,7 +844,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                         </div>
                     )}
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                     {displayMode === 'trip' && currentTrip && editingTripName ? (
                         <input
                             autoFocus
@@ -895,7 +866,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     ) : (
                         <h2
                             className={cn(
-                                'leading-tight',
+                                'leading-tight truncate',
                                 displayMode === 'overview'
                                     ? 'text-xl font-normal text-gray-900 tracking-wide'
                                     : 'text-sm font-semibold text-gray-900',
@@ -971,19 +942,19 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                         </div>
                     )}
                     {displayMode === 'day' && currentDay && (
-                        <p className="text-xs text-gray-500">{formatDate(currentDay.date)}</p>
+                        <p className="truncate text-xs text-gray-500">{formatDate(currentDay.date)}</p>
                     )}
                 </div>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex flex-shrink-0 items-center gap-1">
                 {displayMode === 'day' && ([-1, 1] as const).map(offset => {
                     const index = currentTripDays.findIndex(day => day.id === displayDayId)
                     const target = index >= 0 ? currentTripDays[index + offset] : undefined
                     const label = offset < 0 ? '上一天' : '下一天'
                     return <button key={offset} type="button" aria-label={label} title={label}
                         disabled={!target || blockClicks}
-                        onClick={() => { if (target) { setShowEmojiPicker(false); setBlockClicksSync(true); setActiveView('day', target.tripId, target.id) } }}
+                        onClick={() => { if (target) { setShowEmojiPicker(false); setActiveView('day', target.tripId, target.id) } }}
                         className="min-h-[44px] min-w-[36px] flex items-center justify-center rounded-md text-blue-600 hover:bg-white/80 disabled:opacity-30 disabled:pointer-events-none">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={offset < 0 ? 'M15 19l-7-7 7-7' : 'M9 5l7 7-7 7'} /></svg>
                     </button>
@@ -1050,7 +1021,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                     return (
                                         <div key={trip.id} className="border border-gray-200 rounded-xl bg-white overflow-hidden mb-2">
                                             <button
-                                                onClick={() => { setBlockClicksSync(true); setActiveView('trip', trip.id, null) }}
+                                                onClick={() => { setActiveView('trip', trip.id, null) }}
                                                 className="w-full flex items-center gap-3 px-3 py-3 hover:bg-blue-50 transition-colors text-left"
                                             >
                                                 <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center text-lg flex-shrink-0">{trip.emoji ?? '✈️'}</div>
@@ -1176,7 +1147,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                             <React.Fragment key={day.id}>
                             <div className="flex items-stretch rounded-xl border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 transition-colors">
                             <button
-                                onClick={() => { setBlockClicksSync(true); setActiveView('day', activeView.tripId, day.id) }}
+                                onClick={() => { setActiveView('day', activeView.tripId, day.id) }}
                                 className="flex-1 min-w-0 flex items-center gap-3 px-3 py-3 text-left"
                             >
                                 <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center text-sm font-bold text-blue-600 flex-shrink-0">
@@ -1471,8 +1442,8 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
     return (
         <>
             <div className={cn(
-                    'fixed inset-0 bg-black bg-opacity-25 z-40 lg:hidden',
-                    leftSidebar.isOpen ? 'block' : 'hidden',
+                    'fixed inset-0 bg-black bg-opacity-25 z-40 lg:hidden panel-backdrop',
+                    leftSidebar.isOpen ? 'panel-open' : 'panel-closed',
                     // 右侧详情开着时屏蔽左侧遮罩的点击，防止关闭详情的 ghost click 穿透
                     interactionState.isSidebarOpen && 'pointer-events-none'
                 )} onClick={closeLeftSidebar} />
@@ -1484,8 +1455,8 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     'w-full bg-white shadow-2xl',
                     'flex flex-col',
                     'lg:w-[360px]',
-                    'transition-transform duration-200',
-                    !leftSidebar.isOpen ? '-translate-x-full invisible' : 'translate-x-0',
+                    'app-panel',
+                    !leftSidebar.isOpen ? '-translate-x-full panel-closed' : 'translate-x-0 panel-open',
                 )}
                 style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
                 onClickCapture={(e) => {
@@ -1508,13 +1479,11 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     {displayMode === 'day' && currentDayMarkers.length > 0 && <button type="button" onClick={() => onFitMarkers(currentDayMarkers.map(marker => marker.id))} className="min-h-[36px] px-2 text-xs text-gray-600 hover:text-blue-600">查看全天</button>}
                 </div>
 
-                {/* 内容区域：淡入淡出切换 */}
+                {/* 内容立即切换，只对新内容播放入场动画 */}
                 <div
+                    key={`${displayMode}:${displayTripId}:${displayDayId}`}
                     className={cn(
-                        'flex-1 flex flex-col overflow-hidden',
-                        'transition-opacity duration-200 ease-in-out',
-                        (slideState === 'exit' || slideState === 'enter') && 'opacity-0 pointer-events-none',
-                        slideState === 'idle' && 'opacity-100',
+                        'flex-1 min-h-0 flex flex-col overflow-hidden animate-view-enter',
                         blockClicks && 'pointer-events-none',
                     )}
                 >

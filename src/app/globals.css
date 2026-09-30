@@ -475,3 +475,72 @@ body {
 .amap-container .amap-copyright {
     display: none !important;
 }
+
+/* Shared app motion: animate compositor properties; keep closing panels painted. */
+:root {
+    --app-motion-duration: 240ms;
+    --app-motion-easing: cubic-bezier(0.22, 1, 0.36, 1);
+}
+html, body { overscroll-behavior: none; }
+.app-panel {
+    transition: transform var(--app-motion-duration) var(--app-motion-easing),
+        visibility 0s;
+}
+.panel-backdrop {
+    transition: opacity var(--app-motion-duration) ease-out, visibility 0s;
+}
+.panel-open { visibility: visible; }
+.panel-closed {
+    visibility: hidden;
+    pointer-events: none;
+    transition-delay: 0s, var(--app-motion-duration);
+}
+.panel-backdrop.panel-closed { opacity: 0; }
+@keyframes viewEnter {
+    from { opacity: 0.65; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-view-enter { animation: viewEnter 160ms var(--app-motion-easing); }
+.animate-scale-in, .animate-slide-in-bottom {
+    animation-timing-function: var(--app-motion-easing);
+    animation-duration: var(--app-motion-duration);
+}
+.modal-viewport {
+    top: var(--dialog-viewport-top, 0px);
+    bottom: auto;
+    height: var(--dialog-viewport-height, 100dvh);
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+}
+.left-sidebar .overflow-y-auto,
+.right-sidebar .overflow-y-auto,
+.dialog-card,
+.dialog-card .overflow-y-auto {
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+}
+button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
+@media (pointer: coarse) {
+    :is(.left-sidebar, .right-sidebar, .dialog-card, .app-popup) button:not([role="switch"]) {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    button:not(:disabled):active { filter: brightness(0.94); }
+}
+@media (prefers-reduced-motion: reduce) {
+    :root { --app-motion-duration: 0ms; }
+    .panel-closed { transition-delay: 0s; }
+}
+@media (max-width: 1023px) {
+    .modal-fullscreen { padding: 0; }
+    .modal-fullscreen .dialog-card { padding-bottom: env(safe-area-inset-bottom); }
+}
+@media (pointer: coarse) {
+    :is(.left-sidebar, .right-sidebar) button[role="switch"]::before {
+        content: '';
+        position: absolute;
+        inset: -10px 0;
+    }
+}

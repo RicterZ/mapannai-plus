@@ -1,5 +1,7 @@
 'use client'
 
+import { useDialogFocus } from '@/lib/ui/use-dialog-focus'
+
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useMapStore } from '@/store/map-store'
@@ -17,6 +19,8 @@ export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalP
     const [startDate, setStartDate] = useState('')
     const [duration, setDuration] = useState<string>('3')
     const [isSubmitting, setIsSubmitting] = useState(false)
+
+    const dialogRef = useDialogFocus(isOpen, onClose, isSubmitting)
 
     if (!isOpen) return null
 
@@ -53,8 +57,8 @@ export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalP
     const dayCount = durationNum
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full animate-scale-in">
+        <div className="fixed inset-0 modal-viewport bg-black/40 flex items-center justify-center z-[100] p-4">
+            <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="新建旅行" tabIndex={-1} className="dialog-card max-h-full overflow-y-auto outline-none bg-white rounded-2xl shadow-2xl max-w-sm w-full animate-scale-in">
                 {/* Header */}
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-gray-200 rounded-t-2xl">
                     <div className="flex items-center justify-between">
@@ -62,7 +66,7 @@ export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalP
                             <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-base">✈️</div>
                             <h2 className="text-base font-semibold text-gray-900">新建旅行</h2>
                         </div>
-                        <button onClick={handleClose} className="w-8 h-8 rounded-full hover:bg-white/80 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors">
+                        <button aria-label="关闭" onClick={handleClose} className="w-8 h-8 rounded-full hover:bg-white/80 text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -80,7 +84,6 @@ export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalP
                             onChange={e => setName(e.target.value)}
                             placeholder="例如：东京2024春"
                             className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 h-10"
-                            autoFocus
                         />
                     </div>
                     <div>

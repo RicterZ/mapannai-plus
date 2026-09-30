@@ -1,6 +1,8 @@
 'use client'
 
-import { useMemo, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { startAnimationLoop } from '@/lib/ui/animation-loop'
+
+import { useMemo, useEffect, useState, useSyncExternalStore } from 'react'
 import { Source, Layer, useMap } from 'react-map-gl/maplibre'
 import type { GeoJSONSource } from 'maplibre-gl'
 import { toMapCoordinates } from '@/lib/map/basemap'
@@ -64,10 +66,6 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
         () => getZoomThreshold(),
         () => getZoomThreshold(),
     )
-
-    // rAF handle and animation progress (not React state to avoid re-renders)
-    const rafRef = useRef<number | null>(null)
-    const tRef = useRef(0)
 
     // hover 临时激活的 dayId（优先级高于 click 锁定的 highlightedDayId）
     const [hoveredDayId, setHoveredDayId] = useState<string | null>(null)
@@ -204,11 +202,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
         const mapInstance = map?.getMap()
 
         // Stop animation when no highlighted lines or map not ready
-        if (!mapInstance || highlightedLineIds.length === 0 || zoom < zoomThreshold || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-            if (rafRef.current !== null) {
-                cancelAnimationFrame(rafRef.current)
-                rafRef.current = null
-            }
+        if (!mapInstance || highlightedLineIds.length === 0 || zoom < zoomThreshold) {
             // Clear dots
             const src = mapInstance?.getSource('connection-dots') as GeoJSONSource | undefined
             src?.setData(emptyFeatureCollection)
@@ -220,34 +214,28 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
         const lines = lineControlPoints.filter(line => highlighted.has(line.id))
 
         const animate = (now: number) => {
-            tRef.current = (now / 2100) % 1
-            if (document.hidden) { rafRef.current = requestAnimationFrame(animate); return }
+            const progress = (now / 2100) % 1
 
             const features: GeoJSON.Feature[] = lines.flatMap(lc => {
-                const { lng, lat } = lc.route ? pointAlongPath(lc.route, tRef.current) : (() => {
-                    const [lng, lat] = bezierPoint(lc.from, lc.ctrl, lc.to, tRef.current)
+                const { lng, lat } = lc.route ? pointAlongPath(lc.route, progress) : (() => {
+                    const [lng, lat] = bezierPoint(lc.from, lc.ctrl, lc.to, progress)
                     return { lng, lat }
                 })()
                 return [{
                     type: 'Feature' as const,
                     geometry: { type: 'Point' as const, coordinates: [lng, lat] },
-                    properties: { opacity: Math.min(1, tRef.current * 10, (1 - tRef.current) * 10), radius: 5, color: colors.get(lc.id) || routeColor(0) }
+                    properties: { opacity: Math.min(1, progress * 10, (1 - progress) * 10), radius: 5, color: colors.get(lc.id) || routeColor(0) }
                 }]
             })
 
             const src = mapInstance.getSource('connection-dots') as unknown as GeoJSONSource | undefined
             src?.setData({ type: 'FeatureCollection', features })
-            rafRef.current = requestAnimationFrame(animate)
         }
 
-        rafRef.current = requestAnimationFrame(animate)
-
-        return () => {
-            if (rafRef.current !== null) {
-                cancelAnimationFrame(rafRef.current)
-                rafRef.current = null
-            }
-        }
+        return startAnimationLoop(animate, () => {
+            const src = mapInstance.getSource('connection-dots') as GeoJSONSource | undefined
+            src?.setData(emptyFeatureCollection)
+        })
     }, [highlightedLineIds, lineControlPoints, connectionLines, map, zoom, zoomThreshold])
 
     // 生成贝塞尔曲线连接线的 GeoJSON

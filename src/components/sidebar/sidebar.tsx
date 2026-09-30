@@ -136,27 +136,27 @@ export const Sidebar = ({ onClose }: SidebarProps) => {
 
     const { isSidebarOpen, selectedMarkerId, displayedMarkerId } = interactionState
 
-    // Drive enter/exit animation based on isSidebarOpen
+    // Cancel every pending frame/timer when direction changes, including rapid reopen.
     useEffect(() => {
+        let frame = 0
         if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
         if (isSidebarOpen) {
-            // Mount → next frame animate in
             setAnimState('entering')
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    setAnimState('visible')
-                })
+            frame = requestAnimationFrame(() => {
+                frame = requestAnimationFrame(() => setAnimState('visible'))
             })
         } else {
-            if (animState === 'visible' || animState === 'entering') {
-                setAnimState('exiting')
-                closeTimerRef.current = setTimeout(() => {
-                    setAnimState('hidden')
-                }, 300)
-            }
+            setAnimState(state => state === 'hidden' ? 'hidden' : 'exiting')
+            closeTimerRef.current = setTimeout(() => setAnimState('hidden'), 240)
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        return () => {
+            cancelAnimationFrame(frame)
+            if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+        }
     }, [isSidebarOpen])
+    useEffect(() => {
+        if (sidebarRef.current) sidebarRef.current.inert = !isSidebarOpen
+    }, [isSidebarOpen, animState])
 
     const selectedMarker = displayedMarkerId
         ? markers.find(m => m.id === displayedMarkerId)
@@ -194,7 +194,8 @@ export const Sidebar = ({ onClose }: SidebarProps) => {
             <div
                 className={cn(
                     'fixed inset-0 bg-black z-[69] lg:hidden',
-                    'transition-opacity duration-300',
+                    'panel-backdrop',
+                    isSidebarOpen ? 'panel-open' : 'panel-closed',
                     animState === 'visible' ? 'opacity-25' : 'opacity-0',
                 )}
                 onClick={() => {
@@ -225,7 +226,7 @@ export const Sidebar = ({ onClose }: SidebarProps) => {
                     // PC端：正常右侧显示
                     'lg:right-0 lg:top-0 lg:bottom-0 lg:h-auto',
                     // Slide animation
-                    'transition-transform duration-300 ease-out',
+                    'app-panel',
                     (animState === 'entering' || animState === 'exiting') ? 'translate-x-full' : 'translate-x-0',
                 )}
                 style={{

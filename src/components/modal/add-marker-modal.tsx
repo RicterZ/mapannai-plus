@@ -1,5 +1,7 @@
 'use client'
 
+import { useDialogFocus } from '@/lib/ui/use-dialog-focus'
+
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { MarkerCoordinates, MarkerIconType } from '@/types/marker'
@@ -30,6 +32,8 @@ export const AddMarkerModal = ({ coordinates, isOpen, onClose, onSave, placeName
             setName(placeName)
         }
     }, [isOpen, placeName])
+
+    const dialogRef = useDialogFocus(isOpen, onClose, isSubmitting)
 
     if (!isOpen) return null
 
@@ -68,8 +72,8 @@ export const AddMarkerModal = ({ coordinates, isOpen, onClose, onSave, placeName
     }
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-hidden animate-scale-in">
+        <div className="fixed inset-0 modal-viewport bg-black/40 flex items-center justify-center z-[100] p-4">
+            <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="添加新地点" tabIndex={-1} className="dialog-card outline-none bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-full overflow-y-auto animate-scale-in">
                 {/* 头部区域 */}
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b border-gray-200">
                     <div className="flex items-center justify-between">
@@ -85,6 +89,7 @@ export const AddMarkerModal = ({ coordinates, isOpen, onClose, onSave, placeName
                             </div>
                         </div>
                         <button
+                            aria-label="关闭"
                             onClick={handleCancel}
                             className="w-8 h-8 rounded-full bg-white/80 hover:bg-white text-gray-400 hover:text-gray-600 flex items-center justify-center transition-colors duration-200"
                         >

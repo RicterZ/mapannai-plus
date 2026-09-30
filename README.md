@@ -19,7 +19,7 @@ A Next.js 14 travel planning platform. Create and manage location markers on an 
 - **Place services** — Choose Google or AMap independently for search, place details, and walking/driving directions.
 - **Viewport search** — The search box uses the visible map bounds with a 20% margin on each side. AMap searches that area and maps hotel/train-station category keywords to POI types; Google biases results toward the viewport center and radius. MCP place-name searches remain unscoped.
 - **Image uploads** — Attach images to markers via Tencent Cloud COS.
-- **PWA** — Installable as a Progressive Web App with offline tile caching.
+- **PWA** — Installable as a Progressive Web App with offline tile caching. Mobile panels share enter/exit motion and day navigation responds immediately. Form dialogs follow the visible viewport when the keyboard opens; lists contain scrolling, and map animations pause in the background and respect reduced motion.
 - **Optional auth** — Static token authentication; omit `API_TOKEN` for open access.
 
 ---
