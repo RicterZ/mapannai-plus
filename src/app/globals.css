@@ -562,3 +562,12 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
 }
 
 .view-mode-banner button { outline: none; }
+
+/* Leave the map interactive beside desktop chat and above mobile chat. */
+@media (max-width: 639px) {
+    .ai-planner-panel {
+        top: calc(var(--dialog-viewport-top, 0px) + var(--dialog-viewport-height, 100dvh) * 0.35);
+        height: calc(var(--dialog-viewport-height, 100dvh) * 0.65);
+        border-radius: 20px 20px 0 0;
+    }
+}

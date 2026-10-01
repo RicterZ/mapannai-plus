@@ -107,7 +107,7 @@ Open **AI 规划** in the top-right corner and enter your API URL, API key, and 
 
 Discuss your preferences first, then ask the assistant to create or edit your itinerary. It reuses this server's MCP tools to search and save places, create trips, and arrange routes; changes refresh on the map. Create, switch, or delete conversations. Deleting a conversation keeps saved trips and places.
 
-Each conversation keeps its own context. Requests include the current trip list and IDs so the assistant can use them without repeatedly listing trips. AI replies render Markdown with compact headings.
+Each conversation keeps its own context. Requests include the current trip list and IDs so the assistant can use them without repeatedly listing trips. AI replies render Markdown with compact headings. Newly created places automatically come into view on the map. You can keep the chat panel open while interacting with the map.
 
 Conversations, API URL, and model settings stay in the current browser and do not sync across devices. The key stays in the current page by default; selecting the remember-key option stores it as plain text locally. Each request sends the current conversation, relevant itinerary tool results, and key through this server to your configured AI service. This server does not store keys or conversations in its database.
 

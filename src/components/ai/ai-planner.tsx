@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { MessageCircle, Plus, Settings, Square, Trash2, X, Send, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMapStore } from '@/store/map-store'
-import { useDialogFocus } from '@/lib/ui/use-dialog-focus'
+import { useAiMapEffects } from '@/lib/ai/use-ai-map-effects'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import { cn } from '@/utils/cn'
 import { ChatMarkdown } from './chat-markdown'
@@ -15,7 +15,7 @@ import { defaultSettings, emptyHistory, HISTORY_KEY, newConversation, readHistor
 const fieldClass = 'w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500'
 const iconClass = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-40'
 
-export function AiPlanner() {
+export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string[], panel: DOMRect | null) => void }) {
     const [open, setOpen] = useState(false)
     const [hydrated, setHydrated] = useState(false)
     const [history, setHistory] = useState<LocalHistory>(emptyHistory)
@@ -34,7 +34,25 @@ export function AiPlanner() {
     const refreshRef = useRef<Promise<void> | null>(null)
     const refreshAgain = useRef(false)
     const followRef = useRef(true)
-    const panelRef = useDialogFocus(open, () => setOpen(false))
+    const panelRef = useRef<HTMLDivElement>(null)
+    const handleMapResult = useAiMapEffects({ enabled: open, refresh: refreshMap,
+        onCreated: ids => onMarkersCreated(ids, panelRef.current?.getBoundingClientRect() || null) })
+    useEffect(() => {
+        if (!open) return
+        const previous = document.activeElement as HTMLElement | null
+        panelRef.current?.focus({ preventScroll: true })
+        const escape = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape' || !panelRef.current?.contains(document.activeElement)) return
+            // Other form dialogs retain their own Escape behavior.
+            if (Array.from(document.querySelectorAll('[aria-modal="true"]')).some(dialog => dialog.getClientRects().length)) return
+            event.preventDefault(); setOpen(false)
+        }
+        document.addEventListener('keydown', escape)
+        return () => {
+            document.removeEventListener('keydown', escape)
+            if (panelRef.current?.contains(document.activeElement) && previous?.isConnected) previous.focus({ preventScroll: true })
+        }
+    }, [open])
     const conversation = history.conversations.find(item => item.id === history.activeId)
 
     useEffect(() => {
@@ -107,6 +125,7 @@ export function AiPlanner() {
             if (item.type === 'delta') { preview += item.text; setPartial(preview); setStatus('正在回复…') }
             if (item.type === 'message') {
                 if (item.message.role === 'assistant') { preview = ''; setPartial('') }
+                handleMapResult(item.message)
                 updateConversation(current.id, value => ({ ...value, messages: [...value.messages, item.message], updatedAt: new Date().toISOString() }))
             }
             if (item.type === 'status') setStatus(toolLabels[item.name] ? `${toolLabels[item.name]}…` : '正在处理行程…')
@@ -157,13 +176,12 @@ export function AiPlanner() {
     }
 
     return <>
-        <button onClick={() => setOpen(true)} className="absolute right-4 z-50 flex h-12 items-center gap-2 rounded-full border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 shadow-lg hover:bg-gray-50" style={{ top: 'calc(env(safe-area-inset-top) + env(safe-area-inset-top) + 12px)' }} aria-label="打开 AI 行程规划">
-            <MessageCircle size={18} /><span>AI 规划</span>{busy && <span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />}
+        <button onClick={() => setOpen(true)} className="absolute right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-lg hover:bg-gray-50" style={{ top: 'calc(env(safe-area-inset-top) + env(safe-area-inset-top) + 12px)' }} aria-label="打开 AI 行程规划">
+            <MessageCircle size={18} />{busy && <span className="absolute right-2 top-2 h-2 w-2 animate-pulse rounded-full bg-blue-500" />}
         </button>
         {hydrated && createPortal(<>
-            <div className={cn('fixed inset-0 z-[79] bg-black/20 panel-backdrop', open ? 'panel-open' : 'panel-closed')} onClick={() => setOpen(false)} />
-            <div ref={panelRef} role="dialog" aria-modal="true" aria-hidden={!open} aria-label="AI 行程规划" tabIndex={-1}
-                className={cn('dialog-card app-panel modal-viewport fixed inset-y-0 right-0 z-[80] flex w-full flex-col bg-white !p-0 shadow-2xl outline-none sm:w-[420px]', open ? 'translate-x-0 panel-open' : 'translate-x-full panel-closed')}>
+            <div ref={panelRef} role="dialog" aria-modal="false" aria-hidden={!open} aria-label="AI 行程规划" tabIndex={-1}
+                className={cn('ai-planner-panel dialog-card app-panel modal-viewport fixed right-0 z-[80] flex w-full flex-col bg-white !p-0 shadow-2xl outline-none sm:w-[560px] sm:max-w-[calc(100vw-80px)]', open ? 'translate-x-0 panel-open' : 'translate-x-full panel-closed')}>
                 <div className="shrink-0 border-b border-gray-100 px-4" style={{ paddingTop: 'max(8px, env(safe-area-inset-top))' }}>
                     <div className="flex items-center justify-between">
                         <h2 className="text-base font-semibold text-gray-900">AI 行程规划</h2>

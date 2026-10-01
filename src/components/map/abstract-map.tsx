@@ -314,6 +314,24 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         flyMap({ center: [longitude, camera.latitude], zoom: camera.zoom, duration: 1000, offset: [offset, 0] })
     }, [flyMap, isAmap])
 
+    const handleAiMarkersCreated = useCallback((ids: string[], panel: DOMRect | null) => {
+        const state = useMapStore.getState()
+        const places = state.markers.filter(marker => ids.includes(marker.id))
+        if (!places.length || (!mapRef.current && !amapRef.current)) return
+        const viewportWidth = window.innerWidth, viewportHeight = window.innerHeight
+        // Fit the unobscured rectangle, including the existing left sidebar.
+        const mobilePanel = panel && panel.width >= viewportWidth - 1
+        if (mobilePanel) state.closeLeftSidebar()
+        const left = state.leftSidebar.isOpen && viewportWidth >= 1024 ? 360 : 0
+        const right = panel && !mobilePanel ? panel.left : viewportWidth
+        const bottom = mobilePanel ? panel.top : viewportHeight
+        const camera = routeCamera(places, Math.max(120, right - left), Math.max(160, bottom))
+        if (!camera) return
+        state.closePopup()
+        flyMap({ center: [camera.longitude, camera.latitude], zoom: places.length === 1 ? 15 : camera.zoom,
+            duration: flyDuration(camera), offset: [(left + right - viewportWidth) / 2, (bottom - viewportHeight) / 2] })
+    }, [flyMap, flyDuration])
+
     const startupCameraApplied = useRef(false)
     useEffect(() => {
         if (startupCameraApplied.current || !mapInitialized || !dataLoaded || !tripsLoaded) return
@@ -831,7 +849,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                 </button>
             </div>
 
-            <AiPlanner />
+            <AiPlanner onMarkersCreated={handleAiMarkersCreated} />
 
             {/* 视图模式面包屑 Banner */}
             <ViewModeBanner />
