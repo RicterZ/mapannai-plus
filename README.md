@@ -14,7 +14,7 @@ MapAnNai Plus is a self-hosted place collection and travel itinerary editor. Sav
 - **See the whole plan on a map**: Switch between all places, a trip overview, and individual days. Colors distinguish days; selecting a place or route brings up its itinerary.
 - **Choose how routes look**: Connect places with curves or enable road-following walking and driving routes. Automatic mode chooses walking or driving for each segment by distance. Lines show place relationships and visit order; a place's external navigation action opens directions separately.
 - **Search the area you are viewing**: Results appear in both the list and on the map. Save the places you choose to your collection.
-- **Plan with an AI assistant**: Connect through MCP to create trips, find places, organize daily routes, and revise existing itineraries using natural language.
+- **Plan with an AI assistant**: Configure your AI API in the web app and use multi-turn chat to create trips, find places, and arrange routes, with conversation history saved in the current browser. You can also connect an external assistant through MCP to edit the same itineraries.
 - **Use it across devices**: The web app works on desktop and mobile and can be installed as a PWA. A [native iOS client](https://github.com/RicterZ/mapannai-ios) is also available; see its repository for installation and setup.
 - **Keep your data on your server**: Places, trips, and route caches are stored locally on the server. Access can be protected with a token; image uploads optionally use Tencent Cloud COS.
 
@@ -29,7 +29,7 @@ MapAnNai Plus is a self-hosted place collection and travel itinerary editor. Sav
 3. Build one or more routes for a day and drag places into visit order.
 4. Review the trip on the map and open it on your phone while traveling.
 
-To get help from AI, connect the MCP service below and describe your destination, dates, and preferences. For example: “Plan three days in Tokyo with food and parks, prioritizing places I have already saved.”
+To get help from AI, open **AI 规划** in the top-right corner of the web app and configure your API, or connect the MCP service below, then describe your destination, dates, and preferences. For example: “Plan three days in Tokyo with food and parks, prioritizing places I have already saved.”
 
 ## Deploy your own server
 
@@ -101,7 +101,19 @@ For local development or a direct Node build, set `NEXT_PUBLIC_OSM_TILE_PROXY=fa
 
 Restart the service after changing server settings; rebuild after changing `NEXT_PUBLIC_*` settings.
 
-## Connect an AI assistant
+## Plan with AI in the web app
+
+Open **AI 规划** in the top-right corner and enter your API URL, API key, and model name in settings. The integration supports OpenAI-compatible **Chat Completions** APIs with function tools. Enter either an API base URL such as `https://your-api.example/v1` or the full `/chat/completions` endpoint. Services offering only Responses, Anthropic Messages, or other protocols need a compatible gateway.
+
+Discuss your preferences first, then ask the assistant to create or edit your itinerary. It reuses this server's MCP tools to search and save places, create trips, and arrange routes; changes refresh on the map. Create, switch, or delete conversations. Deleting a conversation keeps saved trips and places.
+
+Conversations, API URL, and model settings stay in the current browser and do not sync across devices. The key stays in the current page by default; selecting the remember-key option stores it as plain text locally. Each request sends the current conversation, relevant itinerary tool results, and key through this server to your configured AI service. This server does not store keys or conversations in its database.
+
+Only public HTTPS endpoints are allowed by default. To use a private network or HTTP endpoint for a self-hosted model, the deployment owner can set `AI_ALLOW_PRIVATE_ENDPOINTS=true` in `.env` and restart. The endpoint must be reachable from the application server; inside Docker, `localhost` refers to the container itself.
+
+Stopping a reply does not undo saved itinerary changes, and an executing tool may still complete. Check the map before continuing after stopping or losing the connection.
+
+## Connect an external AI assistant
 
 Add `https://your-domain/api/mcp` to an MCP client supporting **Streamable HTTP**, or use `http://localhost:3000/api/mcp` locally. With authentication enabled, set the request header `Authorization: Bearer YOUR_TOKEN`.
 

@@ -26,6 +26,7 @@ import { cn } from '@/utils/cn'
 import { upcomingTripFirstMarker } from '@/lib/map/startup-camera'
 import { routeCamera } from '@/lib/map/route-presentation'
 import { Modal } from '@/components/ui/modal'
+import { AiPlanner } from '@/components/ai/ai-planner'
 import { MarkerIconType } from '@/types/marker'
 import Map, { Marker as MapboxMarker, MapRef, ViewState, MapProvider as ReactMapProvider } from 'react-map-gl/maplibre'
 
@@ -830,7 +831,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                 </button>
             </div>
 
-            {/* 右上角：添加标记开关 — 已移至左侧 sidebar */}
+            <AiPlanner />
 
             {/* 视图模式面包屑 Banner */}
             <ViewModeBanner />

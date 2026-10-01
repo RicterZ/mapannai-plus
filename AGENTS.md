@@ -80,6 +80,7 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 | `src/lib/map/use-planned-routes.ts` | 当前视图路段计算、可见范围优先、进度、重试 |
 | `src/lib/map/route-settings.ts`, `route-progress.ts` | 全局路线模式设置与计算进度 |
 | `src/lib/map/route-presentation.ts` | 每日 / 链路颜色、地址简写、路线镜头计算 |
+| `src/components/ai/ai-planner.tsx`, `src/lib/ai/`, `src/app/api/ai/chat/` | 网页 AI 设置、本地会话、流式聊天与复用 MCP 的工具循环 |
 | `src/lib/mcp/server.ts`, `tools/` | MCP server factory、workflow prompt、地点 / 行程 / 搜索工具 |
 | `src/lib/upload/`, `src/lib/cos-client.ts` | COS 直传、压缩图片展示 |
 | `src/middleware.ts`, `src/lib/auth.ts`, `fetch-with-auth.ts` | API 认证与前端 token 注入 |
@@ -154,6 +155,16 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 - 默认展示压缩图片，由 `src/lib/upload/image-url.ts` 添加 COS 图片处理参数，正文图片延迟加载；保留原文件，不把数 MB 原图恢复为默认展示。
 - 可选 `API_TOKEN` 保护 `/api/*`；前端用 `fetchWithAuth` 注入 `Authorization: Bearer ...`。也支持 `x-api-token`，不把 token 放在 URL 查询串。
 - 不把生产 token 写进本文件、README、测试或日志。
+
+## 网页 AI 对话
+
+- 网页配置 OpenAI 兼容 Chat Completions API 地址、Key 与支持工具调用的模型。会话与完整工具结果保存在浏览器；Key 默认仅保留在当前页面，用户显式勾选后才保存到 localStorage。不得把 Key 或聊天记录写入服务端数据库、日志或 URL。
+- `POST /api/ai/chat` 继承 API 认证，将多轮消息转发至配置的 AI API，以 NDJSON 返回文本、工具结果与数据变更事件。网页显示模型内容使用 React 文本，不能直接注入模型返回的 HTML。
+- `src/lib/ai/mcp-tools.ts` 使用 SDK 内存 transport 连接现有 MCP server，复用 schema、workflow prompt 和服务规则；不要维护另一套工具定义或绕回本站 HTTP。
+- 默认仅允许公共 HTTPS endpoint；连接时校验实际 DNS 地址，不跟随重定向。仅部署者设置 `AI_ALLOW_PRIVATE_ENDPOINTS=true` 时允许私有地址及 HTTP。此配置需重启服务。
+- 工具按顺序执行；写入（含可能部分失败）后刷新地点与旅行，不自动切换镜头。停止请求不承诺撤销已执行操作；恢复会话补齐缺失工具结果，提示模型查询实际数据，不自动重放写入。
+- AI 聊天输入框与发送 / 停止按钮放在同一圆角输入区域，按钮使用统一圆形尺寸并相对输入区域垂直居中；不添加欢迎引导、示例提示或底部帮助文字，设置仅显示必要字段与操作。
+- AI 面板遵循共享进出动画、inert、焦点管理与 VisualViewport 约定。独立临时 SQLite 与模拟 AI 的验证脚本：`npx tsx scripts/test-ai-planner.ts`；必须在加载数据库模块前设置临时路径。
 
 ## MCP 接入
 
