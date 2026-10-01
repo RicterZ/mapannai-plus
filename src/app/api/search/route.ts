@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { mapProviderFactory } from '@/lib/map/providers'
+import { parseSearchPagination } from '@/lib/map/search-pagination'
 import type { MapSearchBounds } from '@/types/map-provider'
 
 export const dynamic = 'force-dynamic';
@@ -11,7 +12,9 @@ export async function GET(request: NextRequest) {
     try {
         const searchParams = request.nextUrl.searchParams;
         const query = searchParams.get('q')
-        const limit = Math.max(1, Math.min(20, parseInt(searchParams.get('limit') || '5') || 5))
+        let pagination: ReturnType<typeof parseSearchPagination>
+        try { pagination = parseSearchPagination(searchParams) }
+        catch (error) { return NextResponse.json({ error: (error as Error).message }, { status: 400 }) }
         const country = searchParams.get('country') || undefined
         let bounds: MapSearchBounds | undefined
         if (searchParams.has('bounds')) {
@@ -32,10 +35,19 @@ export async function GET(request: NextRequest) {
         }
 
         const provider = mapProviderFactory.createServiceProvider('search')
-        const searchResults = await provider.searchPlaces(query, undefined, country, { bounds })
+        if (pagination.paginated && pagination.page > 1 && !pagination.pageToken && process.env.MAP_SEARCH_PROVIDER !== 'amap') {
+            return NextResponse.json({ error: 'Google 翻页需要上一页返回的 pageToken' }, { status: 400 })
+        }
+        const resultPage = await provider.searchPlacesPage(query, undefined, country, {
+            bounds, signal: request.signal,
+            page: pagination.paginated ? pagination.page : 1,
+            pageSize: pagination.paginated ? pagination.pageSize : 20,
+            pageToken: pagination.pageToken,
+        })
+        const searchResults = pagination.paginated ? resultPage.results : resultPage.results.slice(0, pagination.limit)
 
         // 转换为统一格式
-        const results = searchResults.slice(0, limit).map(result => ({
+        const results = searchResults.map(result => ({
             id: result.name,
             name: result.name,
             coordinates: result.coordinates,
@@ -51,6 +63,11 @@ export async function GET(request: NextRequest) {
             success: true,
             data: results,
             query,
+            ...(pagination.paginated ? {
+                page: resultPage.page, pageSize: resultPage.pageSize,
+                hasMore: resultPage.hasMore, nextPage: resultPage.nextPage,
+                nextPageToken: resultPage.nextPageToken, total: resultPage.total,
+            } : {}),
         })
     } catch (error) {
         console.error('搜索地点失败:', error)

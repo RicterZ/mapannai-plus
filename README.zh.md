@@ -211,3 +211,11 @@ NEXT_PUBLIC_OSM_TILE_PROXY=false
 自动路线模式：按每段 WGS-84 起终点直线距离，小于 2km 用步行，达到或超过 2km 用驾车。紧凑“自动” toggle 保留上次手动模式；点击步行 / 驾车关闭自动。缓存使用实际模式，与已有服务端和浏览器路径共用。
 
 每次页面启动按本地日期定位到最近尚未开始的旅行（含今天），镜头居中在第一天第一条路线的第一个有效地点（没有路线则按当天地点顺序），使用默认概览缩放 zoom=11，不使用旅行范围中心或 popup 偏移，保持总览且不选中旅行 / 日期 / 地点。不再从 URL hash 或 sessionStorage 自动恢复选中；第一天无有效地点的旅行跳过，无可定位的未来旅行时保留上次 / 默认镜头。等待地点、旅行和地图全部加载后仅执行一次，普通数据刷新不重置镜头。
+
+## 搜索分页接口
+
+原生客户端可使用 `GET /api/search?q=关键词&page=1&pageSize=20&bounds=...`。高德 `page` 范围为 1–100，`pageSize` 为 1–25；响应保留 `success/data/query`，并增加 `page`、`pageSize`、`hasMore`、`nextPage` 和可用的 `total`。只有 `hasMore=true` 时继续请求 `nextPage`。同一次搜索后续页使用相同关键词和地图范围。
+
+Google 分页响应还会返回 `nextPageToken`，下一页通过 `pageToken` 传回；其分页大小由上游决定，客户端使用响应中的 `pageSize`。服务器只对尚未生效的翻页 token 做有限异步重试，并响应取消。未提供分页参数时保留旧行为：`limit` 默认5、最多20条，现有 Web/MCP 调用不变。iOS 新版在列表底部加载更多、去重、失败保留已加载结果并提供重试；旧服务端不返回分页字段时，客户端仅显示第一页。此功能需部署新版服务端后生效。
+
+验证：`npx tsx scripts/test-search-pagination.ts` 使用本地 provider mock 检查多页、尾页、参数范围、Google token、取消信号和旧接口兼容，不请求真实地图服务。

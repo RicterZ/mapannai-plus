@@ -212,3 +212,11 @@ Route progress disappears after calculation completes; terminal coverage failure
 Automatic route mode selects walking for endpoint straight-line distances below 2km and driving otherwise. The compact Auto toggle remembers the last manual mode; choosing Walking or Driving disables Auto. Cache keys use the resolved mode, sharing existing server and browser caches.
 
 On each page launch, center the map at overview zoom 11 on the first valid stop of the first day of the nearest upcoming trip (including today), using chain order before day membership order without selecting a trip, day or marker. Use the local date, skip trips whose first day has no valid places, and retain the previous/default camera if no upcoming trip has places. Startup no longer restores a trip/day selection from the URL or sessionStorage.
+
+## Paginated place search
+
+`GET /api/search?q=...&page=1&pageSize=20&bounds=...` preserves `success/data/query` and adds `page`, `pageSize`, `hasMore`, `nextPage`, and an available `total`. AMap accepts pages 1–100 and page sizes 1–25. Keep the query and viewport bounds unchanged between pages. Google continuation requires the returned `nextPageToken` as `pageToken`; use the response's effective page size. Token activation retries are bounded, asynchronous and abortable.
+
+Requests without pagination parameters keep the existing `limit` behavior (default 5, maximum 20), so existing Web and MCP clients stay compatible. The iOS result list loads more on scrolling, deduplicates results and retains previous results if the next page fails. Older servers without pagination metadata are treated as a single page. Deploy the updated server before expecting results beyond the first page in the app.
+
+Run `npx tsx scripts/test-search-pagination.ts` for local mocked pagination, final-page, parameter, Google cursor, cancellation-signal and legacy endpoint checks. The check does not contact live providers.

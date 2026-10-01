@@ -1,4 +1,4 @@
-import { MapProvider, MapProviderConfig, MapSearchResult, MapCoordinates, PlaceDetails, RoutePoint, MapRoute, TravelMode, MapSearchOptions } from '@/types/map-provider'
+import { MapProvider, MapProviderConfig, MapSearchResult, MapCoordinates, PlaceDetails, RoutePoint, MapRoute, TravelMode, MapSearchOptions, MapSearchPage } from '@/types/map-provider'
 import { config } from '@/lib/config'
 import { gcj02ToWgs84, wgs84ToGcj02, isInChina } from '@/lib/coord-transform'
 import { decode } from '@googlemaps/polyline-codec'
@@ -6,6 +6,9 @@ import { decode } from '@googlemaps/polyline-codec'
 export class GoogleServerProvider implements MapProvider {
     // 后端搜索功能 - 支持
     async searchPlaces(query: string, mapConfig: MapProviderConfig = { accessToken: config.map.google.accessToken }, country?: string, options?: MapSearchOptions): Promise<MapSearchResult[]> {
+        return (await this.searchPlacesPage(query, mapConfig, country, options)).results
+    }
+    async searchPlacesPage(query: string, mapConfig: MapProviderConfig = { accessToken: config.map.google.accessToken }, country?: string, options?: MapSearchOptions): Promise<MapSearchPage> {
         try {
             const apiKey = mapConfig.accessToken
             if (!apiKey) {
@@ -30,13 +33,26 @@ export class GoogleServerProvider implements MapProvider {
                 params.set('radius', String(Math.round(radius)))
             }
 
-            const response = await fetch(`${baseUrl}?${params}`)
-
-            if (!response.ok) {
-                throw new Error(`Google Places API 请求失败: ${response.status}`)
+            const page = options?.page ?? 1
+            if (page > 3 || (page > 1 && !options?.pageToken)) throw new Error('Google 翻页需要上一页返回的 pageToken')
+            if (options?.pageToken) params.set('pagetoken', options.pageToken)
+            let data: any
+            // Legacy tokens can take a few seconds to become usable. Retry only this
+            // documented transient status, and abort promptly when the client leaves.
+            for (let attempt = 0; attempt < 3; attempt++) {
+                options?.signal?.throwIfAborted()
+                const response = await fetch(`${baseUrl}?${params}`, { signal: options?.signal })
+                if (!response.ok) throw new Error(`Google Places API 请求失败: ${response.status}`)
+                data = await response.json()
+                if (data.status !== 'INVALID_REQUEST' || !options?.pageToken || attempt === 2) break
+                await new Promise<void>((resolve, reject) => {
+                    const signal = options?.signal
+                    if (signal?.aborted) { reject(signal.reason); return }
+                    const cancel = () => { clearTimeout(timer); reject(signal?.reason ?? new DOMException('Aborted', 'AbortError')) }
+                    const timer = setTimeout(() => { signal?.removeEventListener('abort', cancel); resolve() }, 1500)
+                    signal?.addEventListener('abort', cancel, { once: true })
+                })
             }
-
-            const data = await response.json()
 
             if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
                 throw new Error(`Google Places API 错误: ${data.status} - ${data.error_message || 'Unknown error'}`)
@@ -44,7 +60,7 @@ export class GoogleServerProvider implements MapProvider {
 
             // 转换结果格式，中国境内坐标从 GCJ-02 转为 WGS-84
             const isChina = (country || 'CN').toUpperCase() === 'CN'
-            return (data.results || []).map((place: any) => {
+            const results: MapSearchResult[] = (data.results || []).map((place: any) => {
                 const gcjLng = place.geometry.location.lng
                 const gcjLat = place.geometry.location.lat
                 const coords = isChina ? gcj02ToWgs84(gcjLng, gcjLat) : { longitude: gcjLng, latitude: gcjLat }
@@ -60,6 +76,12 @@ export class GoogleServerProvider implements MapProvider {
                     types: place.types,
                 }
             })
+            const nextPageToken = typeof data.next_page_token === 'string' && page < 3 ? data.next_page_token : undefined
+            const hasMore = !!nextPageToken
+            // Legacy Text Search always serves up to 20 per page; never slice it
+            // to a smaller page size and silently discard the rest of that page.
+            return { results, page, pageSize: 20, hasMore, nextPage: hasMore ? page + 1 : null, nextPageToken }
+
         } catch (error) {
             console.error('Google Places 搜索失败:', error)
             throw error

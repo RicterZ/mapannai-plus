@@ -1,6 +1,6 @@
 import { config } from '@/lib/config'
 import { gcj02ToWgs84, wgs84ToGcj02, isInChina } from '@/lib/coord-transform'
-import type { MapProvider, MapProviderConfig, MapSearchResult, MapCoordinates, PlaceDetails, RoutePoint, MapRoute, TravelMode, MapSearchOptions } from '@/types/map-provider'
+import type { MapProvider, MapProviderConfig, MapSearchResult, MapCoordinates, PlaceDetails, RoutePoint, MapRoute, TravelMode, MapSearchOptions, MapSearchPage } from '@/types/map-provider'
 
 function text(value: unknown): string { return typeof value === 'string' ? value : '' }
 function coordinates(location: string): MapCoordinates {
@@ -16,17 +16,22 @@ function poiResult(poi: any): MapSearchResult {
     }
 }
 export class AmapServerProvider implements MapProvider {
-    private async request(path: string, params: Record<string, string>, key = config.map.amap.accessToken): Promise<any> {
+    private async request(path: string, params: Record<string, string>, key = config.map.amap.accessToken, signal?: AbortSignal): Promise<any> {
         if (!key) throw new Error('高德 Web 服务 Key 未配置（AMAP_API_KEY）')
-        const response = await fetch(`${config.map.amap.baseUrl}${path}?${new URLSearchParams({ ...params, key, output: 'JSON' })}`)
+        const response = await fetch(`${config.map.amap.baseUrl}${path}?${new URLSearchParams({ ...params, key, output: 'JSON' })}`, { signal })
         if (!response.ok) throw new Error(`高德请求失败: ${response.status}`)
         const data = await response.json()
         if (data.status !== '1') throw new Error(`高德 API 错误: ${data.info || data.infocode}`)
         return data
     }
     async searchPlaces(query: string, mapConfig?: MapProviderConfig, country = 'CN', options?: MapSearchOptions): Promise<MapSearchResult[]> {
+        return (await this.searchPlacesPage(query, mapConfig, country, options)).results
+    }
+    async searchPlacesPage(query: string, mapConfig?: MapProviderConfig, country = 'CN', options?: MapSearchOptions): Promise<MapSearchPage> {
         if (country.toUpperCase() !== 'CN') throw new Error('高德地点搜索仅支持中国，请选择 Google 搜索后端')
-        const params: Record<string, string> = { keywords: query, extensions: 'all', offset: '20', page: '1' }
+        const page = Math.max(1, Math.min(100, Math.trunc(options?.page ?? 1)))
+        const pageSize = Math.max(1, Math.min(25, Math.trunc(options?.pageSize ?? 20)))
+        const params: Record<string, string> = { keywords: query, extensions: 'all', offset: String(pageSize), page: String(page) }
         let endpoint = '/v3/place/text'
         if (options?.bounds) {
             const bounds = options.bounds
@@ -38,8 +43,14 @@ export class AmapServerProvider implements MapProvider {
             const category = categories[query.trim()]
             if (category) { params.types = category; delete params.keywords }
         }
-        const data = await this.request(endpoint, params, mapConfig?.accessToken)
-        return (data.pois || []).filter((p: any) => typeof p.location === 'string' && p.location).map(poiResult)
+        const data = await this.request(endpoint, params, mapConfig?.accessToken, options?.signal)
+        const pois = Array.isArray(data.pois) ? data.pois : []
+        const results = pois.filter((p: any) => typeof p.location === 'string' && p.location).map(poiResult)
+        const parsedCount = Number(data.count)
+        const total = data.count !== undefined && Number.isFinite(parsedCount) && parsedCount >= 0 ? parsedCount : undefined
+        // Upstream count counts unfiltered POIs; don't stop because a coordinate was invalid.
+        const hasMore = page < 100 && pois.length > 0 && (total !== undefined ? page * pageSize < total : pois.length === pageSize)
+        return { results, page, pageSize, total, hasMore, nextPage: hasMore ? page + 1 : null }
     }
     async getPlaceDetails(coords: MapCoordinates): Promise<PlaceDetails> {
         if (!isInChina(coords.longitude, coords.latitude)) throw new Error('高德地点详情仅支持中国，请选择 Google 地点详情后端')
