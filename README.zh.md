@@ -1,110 +1,111 @@
-# MapAnNai Plus — 交互式旅行地图编辑器
+# MapAnNai Plus（マップ案内）
 
-[English](README.md) | 中文
+[English](README.md) | 中文 · [iOS 客户端](https://github.com/RicterZ/mapannai-ios)
 
-基于 Next.js 14 的旅行规划平台。在交互式地图上创建和管理地点标记，按旅行和天组织行程，并通过内置 **MCP 服务器**让 AI 助手（Claude Desktop、Cursor 等）直接操作地图。
+把想去的地方放到地图上，再把它们整理成每天的旅行计划。
 
-<img width="1481" height="918" alt="Clipboard_Screenshot_1774582478" src="https://github.com/user-attachments/assets/8cc1543e-1e5c-4f9b-93b8-66b72e73fce9" />
+MapAnNai Plus 是一个可自行部署的地点收藏与旅行行程编辑工具。你可以记录餐厅、酒店、景点和交通站点，添加笔记与图片，按旅行和日期安排访问顺序，也可以让 AI 助手直接帮你整理行程。网页、iOS 客户端和 MCP 使用同一服务端的地点与旅行数据。
 
-<img width="1481" height="918" alt="Clipboard_Screenshot_1774582430" src="https://github.com/user-attachments/assets/5e806e0e-86ff-4758-a85e-dae49e4afc8a" />
+## 产品功能
 
----
+- **收藏地点与旅行笔记**：点击地图或搜索添加地点，用十类图标区分美食、住宿、购物、景点等；富文本笔记支持列表、链接和图片。
+- **按天安排行程**：创建旅行后自动生成每天的安排，支持调整旅行日期、增减天数，以及将已有地点加入不同日期。
+- **自由组织访问顺序**：一天可以有多条路线，拖动调整路线中的地点顺序；同一个地点可以出现在多条路线中，方便安排不同活动。
+- **在地图上看清整体安排**：切换全部地点、旅行总览与每日视图，用颜色区分日期，点击地点或路线查看对应安排。
+- **选择路线呈现方式**：使用曲线连接地点，或开启路线规划，让连线更贴合步行、驾车道路；自动模式按每段距离选择步行或驾车。路线用于表达地点关系和访问顺序，逐路口导航可通过地点的外部导航入口打开。
+- **在当前地图范围内搜索**：搜索结果同时出现在列表和地图上，确认后再保存为自己的地点。
+- **让 AI 帮你规划**：通过 MCP 连接 AI 助手，用自然语言创建旅行、寻找地点、编排每天的路线，也能继续调整已有行程。
+- **随时查看和编辑**：网页适配桌面与手机，支持安装为 PWA；也可使用 [原生 iOS 客户端](https://github.com/RicterZ/mapannai-ios)，客户端的安装与配置见对应仓库。
+- **自行保管旅行数据**：地点、行程和路线缓存存储在自己的服务端，可设置访问 token；图片上传可选接入腾讯云 COS。
 
-## 功能特点
+<img width="1481" height="918" alt="地图与旅行行程总览" src="https://github.com/user-attachments/assets/8cc1543e-1e5c-4f9b-93b8-66b72e73fce9" />
 
-- **交互式地图** — 部署时可选 MapLibre + OpenStreetMap 或高德 JS API 2.0；点击地图添加标记并编辑富文本笔记。
-- **行程规划** — 按旅行、日期组织标记；拖拽或通过 MCP 创建多条行程链，可选关联曲线或带客户端与服务端缓存的步行、驾车寻路形状；显示时简化小转盘、平滑转角，并适度分开同一天重合的往返线，保留地点端点。
-- **MCP 服务器** — 任何支持 MCP 协议的 AI 客户端都可直接创建标记、规划行程、查询路线。
-- **地点服务** — 地点搜索、详情和步行／驾车寻路可独立选择 Google 或高德后端。
-- **地图范围搜索** — 搜索框使用当前可见范围并向外扩展 20%。高德按范围搜索，“酒店”“高铁站／火车站”按 POI 类别匹配；Google 使用中心点与半径优先返回附近结果。MCP 的地点名称搜索不受地图范围限制。
-- **图片上传** — 通过腾讯云 COS 为标记附加图片。
-- **PWA** — 可作为渐进式 Web App 安装，支持离线瓦片缓存。移动端侧栏使用统一进出动画，日期切换即时响应；表单弹窗适配软键盘可见区域，列表独立滚动，地图动画在后台暂停并尊重系统减少动态效果设置。
-- **可选鉴权** — 静态 Token 认证；不设置 `API_TOKEN` 即为开放访问。
+<img width="1481" height="918" alt="每日地点与路线编辑" src="https://github.com/user-attachments/assets/5e806e0e-86ff-4758-a85e-dae49e4afc8a" />
 
----
+## 开始规划
 
-## 快速开始
+1. 在地图上搜索或点击添加想去的地方，记录类型、笔记与图片。
+2. 创建旅行并选择日期，把收藏的地点加入每天的安排。
+3. 为当天建立一条或多条路线，拖动地点调整访问顺序。
+4. 在总览中检查每天的安排，出行时用手机查看地点与笔记。
 
-### 1. 环境变量
+希望 AI 帮忙时，先连接下方的 MCP 服务，再描述目的地、日期和偏好。例如：“帮我安排东京三日游，喜欢美食和公园，优先使用我已经收藏的地点。”
+
+## 部署自己的服务
+
+### 1. 获取项目并选择地图服务
 
 ```bash
+git clone https://github.com/RicterZ/mapannai-public.git
+cd mapannai-public
 cp env.example .env
-# 启动前编辑 .env
 ```
 
-地图渲染和三项地点服务分别配置，可自由组合。`env.example` 包含全部变量说明及全高德示例。在中国地区使用高德的配置如下：
+编辑 `.env`。底图与搜索、地点详情、路线服务可以分别选择，完整配置见 [env.example](env.example)。
 
-```env
+| 使用场景 | 底图 | 搜索 / 详情 / 路线 | 所需配置 |
+| --- | --- | --- | --- |
+| 中国境内使用高德 | `MAP_RENDERER=amap` | 三项 provider 设为 `amap` | 高德 Web 端 JS Key、配套安全密钥、独立的 Web 服务 Key |
+| 海外地点使用 Google 服务 | `MAP_RENDERER=osm` | 三项 provider 设为 `google` | Google API Key，并启用所用的 Places、Geocoding、Directions API；配置 OSM 瓦片访问 |
+
+全高德配置示例：
+
+```dotenv
 MAP_RENDERER=amap
 MAP_SEARCH_PROVIDER=amap
 MAP_DETAILS_PROVIDER=amap
 MAP_DIRECTIONS_PROVIDER=amap
-AMAP_JS_KEY=你的高德Web端JS_API_Key
-AMAP_JS_SECURITY_CODE=对应的安全密钥
-AMAP_API_KEY=你的高德Web服务Key
+AMAP_JS_KEY=your-web-js-key
+AMAP_JS_SECURITY_CODE=your-js-security-code
+AMAP_API_KEY=your-web-service-key
+API_TOKEN=your-access-token
 ```
 
-在高德控制台申请 **Web 端 JS API Key** 和对应安全密钥，并配置部署域名；`AMAP_API_KEY` 须另行申请 **Web 服务 Key**。高德地点与寻路服务适用于中国，海外地点请选择 Google。当前实现会将高德 JS Key 和安全密钥下发到浏览器。
+高德 JS Key 与安全密钥需配套，并在控制台配置部署域名；服务端使用的 Web 服务 Key 单独申请。选择 Google 服务时填写 `GOOGLE_API_KEY`。只使用 OSM 底图、手动添加地点无需地图服务 Key；搜索、详情和道路路线需要对应服务凭据。
 
-| 变量 | 默认值／使用条件 | 用途 |
-|------|-----------------|------|
-| `MAP_RENDERER` | `osm` | `osm` 为 MapLibre + OSM；`amap` 为高德 JS API 2.0。 |
-| `MAP_SEARCH_PROVIDER` | `google` | 搜索后端：`google` 或 `amap`。 |
-| `MAP_DETAILS_PROVIDER` | `google` | 地点详情后端：`google` 或 `amap`。 |
-| `MAP_DIRECTIONS_PROVIDER` | `google` | 步行、驾车寻路后端：`google` 或 `amap`。 |
-| `AMAP_JS_KEY`、`AMAP_JS_SECURITY_CODE` | `MAP_RENDERER=amap` 时必填 | 高德 Web 端 JS API 凭据。 |
-| `AMAP_API_KEY` | 使用任一高德地点服务时必填 | 高德 Web 服务 Key。 |
-| `GOOGLE_API_KEY` | 使用任一 Google 地点服务时必填 | 按实际功能启用 Places、Geocoding、Directions API。 |
-| `AMAP_API_BASE_URL`、`GOOGLE_API_BASE_URL` | 各服务默认地址 | 可选的 API 代理地址，见 `env.example`。 |
-| `NEXT_PUBLIC_OSM_TILE_PROXY` | `true` | 设为 `false` 可直接获取 OSM 瓦片；否则须配置 `/osm-tiles/` 反代。 |
-| `SQLITE_PATH` | `./data/mapannai.db` | SQLite 数据库文件。 |
-| `API_TOKEN` | 空 | 可选 API 与 MCP Bearer Token；留空即开放访问。 |
-| `TENCENT_COS_SECRET_ID`、`TENCENT_COS_SECRET_KEY`、`TENCENT_COS_REGION`、`TENCENT_COS_BUCKET` | 可选 | 腾讯云 COS 图片上传。 |
-| `NEXT_PUBLIC_IMAGE_DOMAINS` | 可选 | 允许加载的图片域名，须在构建前设置。 |
+设置 `API_TOKEN` 后，网页首次访问会要求输入 token，iOS 与 MCP 使用相同 token。留空时，任何能访问服务的人都可以操作数据。需要图片上传时再填写 `TENCENT_COS_*`，并配置存储桶的上传跨域规则和 `NEXT_PUBLIC_IMAGE_DOMAINS`。
 
-修改服务端变量后需重启或重新部署；`NEXT_PUBLIC_*` 变量须在构建前设置。数据库坐标统一保存为 WGS-84，接入高德时在边界转换坐标。
+### 2. 使用 Docker Compose 启动
 
-寻路结果同时缓存在浏览器和 SQLite 的 `direction_cache` 表中。不同设备请求相同 provider、模式及起终点坐标时可复用服务端结果；更换模式、provider 或移动标记会使用新的缓存键。部署时需持久化 `SQLITE_PATH` 所在目录，Docker Compose 默认将 `/app/data` 挂载为 `mapannai_data` 卷。
-
-### 2. 本地开发
+安装 Docker 与 Compose 后，在项目目录运行：
 
 ```bash
-npm install
-npm run dev        # http://localhost:3000
-npm run type-check # TypeScript 类型检查
+docker compose up -d --build mapannai
+docker compose logs -f mapannai
 ```
 
-### 3. Docker 部署
+高德配置完成后，可打开 `http://localhost:3000`；远程部署时使用服务器地址，或通过反向代理配置 HTTPS 域名。后续更新：
 
 ```bash
-docker-compose up -d mapannai
-docker-compose logs -f mapannai
+git pull
+docker compose up -d --build mapannai
 ```
 
-SQLite 数据库持久化存储在 `mapannai_data` Docker Volume 中。
+默认 Compose 使用 `mapannai_data` 命名卷保存 `/app/data`，包含地点、旅行和路线缓存。更新时保留该卷，并定期备份；`docker compose down -v` 会删除数据卷。自定义 `SQLITE_PATH` 时，应指向持久化挂载目录。
 
----
+### 3. OSM 底图配置
 
-## MCP 接入（AI 助手操作地图）
+OSM 默认从同源 `/osm-tiles/{z}/{x}/{y}.png` 加载瓦片，需要在应用前配置反向代理。以下规则放入已有的 Nginx `server` 块中，与转发至应用 3000 端口的规则配合使用：
 
-MapAnNai 在 `/api/mcp` 暴露 MCP 服务器，支持 Streamable HTTP 的 AI 客户端均可接入。启用鉴权后，每次请求通过 `Authorization: Bearer <token>` Header 传递 token。
-
-### 客户端配置
-
-使用 `.mcp.json` 的客户端（如 Claude Code）可配置为：
-
-```json
-{
-  "mcpServers": {
-    "mapannai": {
-      "type": "http",
-      "url": "http://localhost:3000/api/mcp"
-    }
-  }
+```nginx
+location /osm-tiles/ {
+    proxy_pass https://tile.openstreetmap.org/;
+    proxy_set_header Host tile.openstreetmap.org;
+    proxy_set_header User-Agent "MapAnNai/1.0 (your-contact-email)";
 }
 ```
 
-开启鉴权（设置了 `API_TOKEN`）时：
+将联系邮箱换成自己的地址。直接访问应用的 3000 端口不会经过这条代理规则。
+
+本地开发或直接使用 Node 构建时，可在 `.env` 中设置 `NEXT_PUBLIC_OSM_TILE_PROXY=false`，让浏览器直接加载 OSM 瓦片。`NEXT_PUBLIC_*` 变量在构建时生效；当前 Docker 构建只透传 `NEXT_PUBLIC_IMAGE_DOMAINS`，若要在 Docker 中关闭瓦片代理，需要同时为 Dockerfile 和 Compose 增加对应构建参数后重新构建。
+
+服务端配置变更后重启服务，`NEXT_PUBLIC_*` 配置变更后重新构建。
+
+## 连接 AI 助手
+
+在支持 **Streamable HTTP** 的 MCP 客户端中添加服务地址 `https://your-domain/api/mcp`；本地地址为 `http://localhost:3000/api/mcp`。启用认证时配置请求头 `Authorization: Bearer YOUR_TOKEN`。
+
+使用 `mcpServers` 配置格式的客户端可参考：
 
 ```json
 {
@@ -120,104 +121,36 @@ MapAnNai 在 `/api/mcp` 暴露 MCP 服务器，支持 Streamable HTTP 的 AI 客
 }
 ```
 
-远程部署时将 `localhost:3000` 替换为实际域名。
+未设置 `API_TOKEN` 时可移除 `headers`。不同客户端的配置格式以其设置界面为准。
 
-### 可用 MCP 工具
+连接后，AI 可以搜索与收藏地点、创建旅行、安排每天的地点，以及用已有地点建立路线。支持 prompt 的客户端可读取 `workflow` 获取操作指南。描述地点时带上城市名，海外搜索明确国家；让 AI 先确认搜索结果，再保存行程。
 
-| 分类 | 工具 | 说明 |
-|------|------|------|
-| **旅行** | `create_trip` | 创建旅行，按日期自动生成每天行程 |
-| | `list_trips` | 列出所有旅行 |
-| | `get_trip_detail` | 获取旅行详情（含每天地点） |
-| | `add_day_to_trip` | 为旅行手动新增一天 |
-| | `delete_trip` | 删除旅行（不删除标记） |
-| **行程规划** | `plan_trip_day` | ⭐ 批量创建地点并加入指定天，一步完成 |
-| | `assign_marker_to_day` | 将已有标记加入某天 |
-| | `reorder_day_markers` | 调整当天地点顺序 |
-| | `create_day_chain` | 使用已有标记 ID 按顺序建链，不创建新地点 |
-| **标记** | `create_marker` | 按地名创建标记 |
-| | `list_markers` | 列出地图上所有标记 |
-| | `update_marker` | 更新标记内容或图标 |
-| | `delete_marker` | 删除标记 |
-| **搜索** | `search_places` | 搜索地点（返回坐标） |
-| | `get_place_details` | 获取地点详情（电话、评分、营业时间） |
-| | `get_walking_directions` | 获取两点间步行路线 |
+## 本地开发
 
-### 推荐工作流
+使用 Node.js 20 与 npm，在项目目录中执行：
 
-```
-1. create_trip("东京2024春", "2024-03-01", "2024-03-05")
-   → 返回 trip.id 和 days[0..4].id
-
-2. plan_trip_day(tripId, days[0].id, [
-     { name: "新宿御苑",   iconType: "park" },
-     { name: "东京塔",     iconType: "landmark" },
-     { name: "筑地市场",   iconType: "food" }
-   ])
-   → 一步创建标记并加入第1天
-
-3. 若地点已存在，调用 create_day_chain(tripId, dayId, markerIds)
-   → 按已有标记 ID 建链，不重复创建地点
-
-4. 按需为其他日期规划
+```bash
+cp env.example .env
+npm ci
 ```
 
-连接后可调用 `workflow` prompt，让 AI 自动获取操作指南。
+编辑 `.env` 配置地图服务。使用默认 OSM 底图且没有瓦片反向代理时，将 `NEXT_PUBLIC_OSM_TILE_PROXY` 设为 `false`，然后启动：
 
----
-
-## 标记类型
-
-| 图标 | 类型 | 说明 |
-|------|------|------|
-| 🎯 | `activity` | 活动和娱乐 |
-| 📍 | `location` | 一般地点 |
-| 🏨 | `hotel` | 住宿 |
-| 🛍️ | `shopping` | 购物 |
-| 🍜 | `food` | 美食 |
-| 🌆 | `landmark` | 地标建筑 |
-| 🎡 | `park` | 公园游乐 |
-| 🗻 | `natural` | 自然景观 |
-| ⛩️ | `culture` | 人文景观 |
-| 🚉 | `transit` | 交通枢纽 |
-
----
-
-## OSM 瓦片代理
-
-默认通过同源路径 `/osm-tiles/{z}/{x}/{y}.png` 获取地图瓦片。在 nginx 或 CDN 中配置转发：
-
-```nginx
-location /osm-tiles/ {
-    proxy_pass https://tile.openstreetmap.org/;
-    proxy_set_header Host tile.openstreetmap.org;
-    proxy_set_header User-Agent "MapAnNai/1.0 (your@email.com)";
-    proxy_cache osm;
-    proxy_cache_valid 200 30d;
-    add_header Access-Control-Allow-Origin *;
-}
+```bash
+npm run dev
 ```
 
-如需直接从 OSM 获取瓦片（跳过代理）：
+打开 `http://localhost:3000`。需要其他端口时运行 `npm run dev -- --port 3101`。数据库默认保存在 `./data/mapannai.db`，首次运行自动创建。
 
-```env
-NEXT_PUBLIC_OSM_TILE_PROXY=false
+常用检查与生产运行命令：
+
+```bash
+npm run type-check
+npm run build
+npm start
+git diff --check
 ```
 
-路径与高德 `OVER_DIRECTION_RANGE` 和不支持地区终止结果永久保存在 SQLite `direction_cache`，Web / MCP 共用；超范围仅显示起终点之间的虚线贝塞尔关联曲线，不提供虚构路程 / 时长，不自动或手动重试。坐标、模式或 provider 变化后使用新缓存键。
+构建前停止同一目录下的开发服务，避免争用 `.next`。`npm start` 使用已完成的构建；不使用 Docker 时，也可用这种方式运行服务并持久化 `data` 目录。更换 Node 版本后若 SQLite 原生依赖报 ABI 错误，可运行 `npm rebuild better-sqlite3`。
 
-路线计算完成后移除进度显示；高德不支持地区的路段保存为不可规划结果，显示虚线贝塞尔关联曲线，不反复请求或显示重试。仅临时失败保留重试入口。
-
-自动路线模式：按每段 WGS-84 起终点直线距离，小于 2km 用步行，达到或超过 2km 用驾车。紧凑“自动” toggle 保留上次手动模式；点击步行 / 驾车关闭自动。缓存使用实际模式，与已有服务端和浏览器路径共用。
-
-每次页面启动按本地日期定位到最近尚未开始的旅行（含今天），镜头居中在第一天第一条路线的第一个有效地点（没有路线则按当天地点顺序），使用默认概览缩放 zoom=11，不使用旅行范围中心或 popup 偏移，保持总览且不选中旅行 / 日期 / 地点。不再从 URL hash 或 sessionStorage 自动恢复选中；第一天无有效地点的旅行跳过，无可定位的未来旅行时保留上次 / 默认镜头。等待地点、旅行和地图全部加载后仅执行一次，普通数据刷新不重置镜头。
-
-## 搜索分页接口
-
-原生客户端可使用 `GET /api/search?q=关键词&page=1&pageSize=20&bounds=...`。高德 `page` 范围为 1–100，`pageSize` 为 1–25；响应保留 `success/data/query`，并增加 `page`、`pageSize`、`hasMore`、`nextPage` 和可用的 `total`。只有 `hasMore=true` 时继续请求 `nextPage`。同一次搜索后续页使用相同关键词和地图范围。
-
-Google 分页响应还会返回 `nextPageToken`，下一页通过 `pageToken` 传回；其分页大小由上游决定，客户端使用响应中的 `pageSize`。服务器只对尚未生效的翻页 token 做有限异步重试，并响应取消。未提供分页参数时保留旧行为：`limit` 默认5、最多20条，现有 Web/MCP 调用不变。iOS 新版在列表底部加载更多、去重、失败保留已加载结果并提供重试；旧服务端不返回分页字段时，客户端仅显示第一页。此功能需部署新版服务端后生效。
-
-验证：`npx tsx scripts/test-search-pagination.ts` 使用本地 provider mock 检查多页、尾页、参数范围、Google token、取消信号和旧接口兼容，不请求真实地图服务。
-
-- Web 搜索结果同步显示临时蓝色圆点，地图圆点与列表共用选择和添加弹窗，选中项高亮；清空、换关键词、失败和退出地图移除临时覆盖物。两种 renderer 共享样式和POI稳定ID，高德覆盖物复用并在边界转换GCJ-02；搜索结果不会自动写入地点或行程。
+项目使用 Next.js、React、TypeScript 与 SQLite。开发约定、源码职责和验证要求见 [AGENTS.md](AGENTS.md)；环境变量说明统一维护在 [env.example](env.example)。

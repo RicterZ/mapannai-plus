@@ -1,111 +1,111 @@
-# MapAnNai Plus — Interactive Travel Map Editor
+# MapAnNai Plus（マップ案内）
 
-English | [中文](README.zh.md)
+English | [中文](README.zh.md) · [iOS client](https://github.com/RicterZ/mapannai-ios)
 
-A Next.js 14 travel planning platform. Create and manage location markers on an interactive map, organize them into trips and days, and let AI assistants (Claude Desktop, Cursor, etc.) operate the map directly via the built-in **MCP server**.
+Put the places you want to visit on a map, then turn them into a day-by-day travel plan.
 
-<img width="1481" height="918" alt="Clipboard_Screenshot_1774582478" src="https://github.com/user-attachments/assets/8cc1543e-1e5c-4f9b-93b8-66b72e73fce9" />
-
-
-<img width="1481" height="918" alt="Clipboard_Screenshot_1774582430" src="https://github.com/user-attachments/assets/5e806e0e-86ff-4758-a85e-dae49e4afc8a" />
-
----
+MapAnNai Plus is a self-hosted place collection and travel itinerary editor. Save restaurants, hotels, sights, and transit stops, add notes and photos, arrange visits by trip and day, or ask an AI assistant to help plan. The web app, iOS client, and MCP share the places and trips stored on your server.
 
 ## Features
 
-- **Interactive map** — Select MapLibre + OpenStreetMap or the official AMap JS API 2.0 at deployment. Click to add markers and edit their rich text notes.
-- **Trip planning** — Organize markers by trip and day, build multiple ordered chains by dragging or with MCP, and choose curved association lines or walking/driving route shapes cached in the browser and on the server. Display geometry simplifies small traffic circles, rounds corners, and gently separates overlapping outbound/inbound paths within a day while preserving waypoint endpoints.
-- **MCP server** — Any MCP-compatible AI client can create markers, plan itineraries, and query routes directly.
-- **Place services** — Choose Google or AMap independently for search, place details, and walking/driving directions.
-- **Viewport search** — The search box uses the visible map bounds with a 20% margin on each side. AMap searches that area and maps hotel/train-station category keywords to POI types; Google biases results toward the viewport center and radius. MCP place-name searches remain unscoped.
-- **Image uploads** — Attach images to markers via Tencent Cloud COS.
-- **PWA** — Installable as a Progressive Web App with offline tile caching. Mobile panels share enter/exit motion and day navigation responds immediately. Form dialogs follow the visible viewport when the keyboard opens; lists contain scrolling, and map animations pause in the background and respect reduced motion.
-- **Optional auth** — Static token authentication; omit `API_TOKEN` for open access.
+- **Save places and travel notes**: Add places by clicking the map or searching. Use ten icon categories for food, accommodation, shopping, sights, and more. Rich text notes support lists, links, and images.
+- **Plan each day**: Create a trip with automatically generated days, shift its dates, add or remove days, and reuse saved places across your itinerary.
+- **Arrange visits your way**: Create multiple routes within a day and drag places to change their visit order. A place can belong to several routes.
+- **See the whole plan on a map**: Switch between all places, a trip overview, and individual days. Colors distinguish days; selecting a place or route brings up its itinerary.
+- **Choose how routes look**: Connect places with curves or enable road-following walking and driving routes. Automatic mode chooses walking or driving for each segment by distance. Lines show place relationships and visit order; a place's external navigation action opens directions separately.
+- **Search the area you are viewing**: Results appear in both the list and on the map. Save the places you choose to your collection.
+- **Plan with an AI assistant**: Connect through MCP to create trips, find places, organize daily routes, and revise existing itineraries using natural language.
+- **Use it across devices**: The web app works on desktop and mobile and can be installed as a PWA. A [native iOS client](https://github.com/RicterZ/mapannai-ios) is also available; see its repository for installation and setup.
+- **Keep your data on your server**: Places, trips, and route caches are stored locally on the server. Access can be protected with a token; image uploads optionally use Tencent Cloud COS.
 
----
+<img width="1481" height="918" alt="Map and trip overview" src="https://github.com/user-attachments/assets/8cc1543e-1e5c-4f9b-93b8-66b72e73fce9" />
 
-## Quick Start
+<img width="1481" height="918" alt="Daily places and route editing" src="https://github.com/user-attachments/assets/5e806e0e-86ff-4758-a85e-dae49e4afc8a" />
 
-### 1. Environment variables
+## Plan your first trip
+
+1. Search or click the map to save places, with icons, notes, and photos.
+2. Create a trip, choose its dates, and add saved places to each day.
+3. Build one or more routes for a day and drag places into visit order.
+4. Review the trip on the map and open it on your phone while traveling.
+
+To get help from AI, connect the MCP service below and describe your destination, dates, and preferences. For example: “Plan three days in Tokyo with food and parks, prioritizing places I have already saved.”
+
+## Deploy your own server
+
+### 1. Get the project and choose map services
 
 ```bash
+git clone https://github.com/RicterZ/mapannai-public.git
+cd mapannai-public
 cp env.example .env
-# Edit .env before starting the app
 ```
 
-The map renderer and the three place services are configured independently. `env.example` lists every setting and an all-AMap example. For an AMap deployment in China:
+Edit `.env`. The basemap, search, place details, and directions services can be chosen independently. See [env.example](env.example) for all settings.
 
-```env
+| Use case | Basemap | Search / details / directions | Required configuration |
+| --- | --- | --- | --- |
+| AMap services in China | `MAP_RENDERER=amap` | Set all three providers to `amap` | AMap Web JS key, matching security code, and a separate Web Service key |
+| Google services for overseas places | `MAP_RENDERER=osm` | Set all three providers to `google` | Google API key with the relevant Places, Geocoding, and Directions APIs enabled; configure OSM tile access |
+
+Example using AMap for all services:
+
+```dotenv
 MAP_RENDERER=amap
 MAP_SEARCH_PROVIDER=amap
 MAP_DETAILS_PROVIDER=amap
 MAP_DIRECTIONS_PROVIDER=amap
-AMAP_JS_KEY=your-amap-web-js-key
-AMAP_JS_SECURITY_CODE=your-amap-js-security-code
-AMAP_API_KEY=your-amap-web-service-key
+AMAP_JS_KEY=your-web-js-key
+AMAP_JS_SECURITY_CODE=your-js-security-code
+AMAP_API_KEY=your-web-service-key
+API_TOKEN=your-access-token
 ```
 
-Get `AMAP_JS_KEY` (Web JS API key) and its security code from the AMap console and configure your deployment domain there. `AMAP_API_KEY` must be a separate **Web Service** key. AMap place and route services cover China; use Google providers for other countries. The AMap JS key and security code are sent to the browser by the current implementation.
+Use a matching AMap JS key and security code, and configure the deployment domain in the provider console. Obtain the backend Web Service key separately. For Google services, fill in `GOOGLE_API_KEY`. The OSM basemap and manually added places work without a map service key; search, details, and road routes require the relevant service credentials.
 
-| Variable | Default / when needed | Purpose |
-|----------|-----------------------|---------|
-| `MAP_RENDERER` | `osm` | `osm` uses MapLibre + OSM tiles; `amap` uses AMap JS API 2.0. |
-| `MAP_SEARCH_PROVIDER` | `google` | Search backend: `google` or `amap`. |
-| `MAP_DETAILS_PROVIDER` | `google` | Place details backend: `google` or `amap`. |
-| `MAP_DIRECTIONS_PROVIDER` | `google` | Walking/driving directions backend: `google` or `amap`. |
-| `AMAP_JS_KEY`, `AMAP_JS_SECURITY_CODE` | Required for `MAP_RENDERER=amap` | AMap Web JS API credentials. |
-| `AMAP_API_KEY` | Required for any AMap place service | AMap Web Service key. |
-| `GOOGLE_API_KEY` | Required for any Google place service | Enable the corresponding Places, Geocoding, and Directions APIs. |
-| `AMAP_API_BASE_URL`, `GOOGLE_API_BASE_URL` | Provider defaults | Optional API proxy base URLs; see `env.example`. |
-| `NEXT_PUBLIC_OSM_TILE_PROXY` | `true` | Set `false` to fetch OSM tiles directly. Otherwise configure `/osm-tiles/` on your reverse proxy. |
-| `SQLITE_PATH` | `./data/mapannai.db` | SQLite database file. |
-| `API_TOKEN` | Empty | Optional API and MCP bearer token; empty means open access. |
-| `TENCENT_COS_SECRET_ID`, `TENCENT_COS_SECRET_KEY`, `TENCENT_COS_REGION`, `TENCENT_COS_BUCKET` | Optional | Tencent COS image uploads. |
-| `NEXT_PUBLIC_IMAGE_DOMAINS` | Optional | Allowed remote image hostnames; set before building. |
+When `API_TOKEN` is set, the web app asks for it on first access, and iOS and MCP use the same token. If left empty, anyone who can reach the service can modify its data. For image uploads, configure `TENCENT_COS_*`, the bucket's upload CORS rules, and `NEXT_PUBLIC_IMAGE_DOMAINS`.
 
-Restart or redeploy after changing server variables. Set `NEXT_PUBLIC_*` variables before building. Map coordinates are stored as WGS-84 and converted at the AMap boundary.
+### 2. Start with Docker Compose
 
-Directions are cached both in the browser and in SQLite's `direction_cache` table. Devices share cached routes when provider, mode, and endpoint coordinates match. Changing the mode, provider, or marker coordinates produces a new cache key. Persist the directory containing `SQLITE_PATH`; Docker Compose mounts `/app/data` in the `mapannai_data` volume by default.
-
-### 2. Local Development
+With Docker and Compose installed, run from the project directory:
 
 ```bash
-npm install
-npm run dev        # http://localhost:3000
-npm run type-check # TypeScript check
+docker compose up -d --build mapannai
+docker compose logs -f mapannai
 ```
 
-### 3. Docker
+After configuring AMap, open `http://localhost:3000`. For remote deployments, use the server address or configure an HTTPS domain through a reverse proxy. To update:
 
 ```bash
-docker-compose up -d mapannai
-docker-compose logs -f mapannai
+git pull
+docker compose up -d --build mapannai
 ```
 
-The SQLite database is persisted to the `mapannai_data` Docker volume.
+Compose stores `/app/data` in the `mapannai_data` named volume, including places, trips, and route caches. Keep and back up this volume when updating; `docker compose down -v` deletes it. If you customize `SQLITE_PATH`, point it to a persistent mounted directory.
 
----
+### 3. Configure the OSM basemap
 
-## MCP Integration
+By default, OSM tiles load from the same-origin path `/osm-tiles/{z}/{x}/{y}.png`, which requires a reverse proxy in front of the app. Add this rule to an existing Nginx `server` block alongside the rule forwarding application requests to port 3000:
 
-MapAnNai exposes an MCP server at `/api/mcp`. AI clients supporting Streamable HTTP can connect and operate the map. Authentication uses the `Authorization: Bearer <token>` header on every request.
-
-### Client configuration
-
-For clients using `.mcp.json` (such as Claude Code):
-
-```json
-{
-  "mcpServers": {
-    "mapannai": {
-      "type": "http",
-      "url": "http://localhost:3000/api/mcp"
-    }
-  }
+```nginx
+location /osm-tiles/ {
+    proxy_pass https://tile.openstreetmap.org/;
+    proxy_set_header Host tile.openstreetmap.org;
+    proxy_set_header User-Agent "MapAnNai/1.0 (your-contact-email)";
 }
 ```
 
-With authentication (`API_TOKEN` set):
+Replace the contact email with your own. Accessing the application's port 3000 directly bypasses this proxy rule.
+
+For local development or a direct Node build, set `NEXT_PUBLIC_OSM_TILE_PROXY=false` in `.env` to load OSM tiles directly in the browser. `NEXT_PUBLIC_*` settings take effect at build time. The current Docker build forwards only `NEXT_PUBLIC_IMAGE_DOMAINS`; disabling the tile proxy in Docker also requires adding the corresponding build argument to both the Dockerfile and Compose, then rebuilding.
+
+Restart the service after changing server settings; rebuild after changing `NEXT_PUBLIC_*` settings.
+
+## Connect an AI assistant
+
+Add `https://your-domain/api/mcp` to an MCP client supporting **Streamable HTTP**, or use `http://localhost:3000/api/mcp` locally. With authentication enabled, set the request header `Authorization: Bearer YOUR_TOKEN`.
+
+For clients using the `mcpServers` configuration format:
 
 ```json
 {
@@ -121,104 +121,36 @@ With authentication (`API_TOKEN` set):
 }
 ```
 
-Replace `localhost:3000` with your domain for remote deployments.
+Remove `headers` if `API_TOKEN` is unset. Follow your client's settings for its exact configuration format.
 
-### Available MCP Tools
+Once connected, your assistant can search and save places, create trips, organize daily visits, and build routes from existing places. Clients supporting prompts can read `workflow` for the operating guide. Include a city in place names and specify the country for overseas searches; ask the assistant to confirm search results before saving the itinerary.
 
-| Category | Tool | Description |
-|----------|------|-------------|
-| **Trips** | `create_trip` | Create a trip with auto-generated days |
-| | `list_trips` | List all trips |
-| | `get_trip_detail` | Get trip details including all days and markers |
-| | `add_day_to_trip` | Add a day to an existing trip |
-| | `delete_trip` | Delete a trip (markers are kept) |
-| **Planning** | `plan_trip_day` | ⭐ Batch-create places and add them to a day in one step |
-| | `assign_marker_to_day` | Assign an existing marker to a day |
-| | `reorder_day_markers` | Reorder markers within a day |
-| | `create_day_chain` | Connect existing marker IDs in order; does not create places |
-| **Markers** | `create_marker` | Create a marker by place name |
-| | `list_markers` | List all markers on the map |
-| | `update_marker` | Update marker content or icon |
-| | `delete_marker` | Delete a marker |
-| **Search** | `search_places` | Search for places (returns coordinates) |
-| | `get_place_details` | Get place details (phone, rating, hours) |
-| | `get_walking_directions` | Get walking directions between two points |
+## Local development
 
-### Recommended Workflow
+Use Node.js 20 and npm. From the project directory:
 
-```
-1. create_trip("Tokyo Spring 2024", "2024-03-01", "2024-03-05")
-   → returns trip.id and days[0..4].id
-
-2. plan_trip_day(tripId, days[0].id, [
-     { name: "Shinjuku Gyoen", iconType: "park" },
-     { name: "Tokyo Tower",    iconType: "landmark" },
-     { name: "Tsukiji Market", iconType: "food" }
-   ])
-   → creates markers and adds them to day 1 in one call
-
-3. For places already on the map, call create_day_chain(tripId, dayId, markerIds)
-   → connects existing marker IDs without creating places
-
-4. Repeat for each day
+```bash
+cp env.example .env
+npm ci
 ```
 
-After connecting, invoke the `workflow` prompt to have the AI automatically retrieve usage guidance.
+Edit `.env` to configure map services. If you use the default OSM basemap without a tile reverse proxy, set `NEXT_PUBLIC_OSM_TILE_PROXY=false`, then start:
 
----
-
-## Marker Icon Types
-
-| Icon | Type | Description |
-|------|------|-------------|
-| 🎯 | `activity` | Activities & entertainment |
-| 📍 | `location` | General locations |
-| 🏨 | `hotel` | Accommodation |
-| 🛍️ | `shopping` | Shopping |
-| 🍜 | `food` | Food & dining |
-| 🌆 | `landmark` | Landmarks & buildings |
-| 🎡 | `park` | Parks & amusement |
-| 🗻 | `natural` | Natural scenery |
-| ⛩️ | `culture` | Cultural & heritage sites |
-| 🚉 | `transit` | Transit hubs |
-
----
-
-## OSM tile proxy
-
-By default, map tiles are fetched through the same origin at `/osm-tiles/{z}/{x}/{y}.png`. Configure your nginx or CDN to forward this path to `https://tile.openstreetmap.org/`:
-
-```nginx
-location /osm-tiles/ {
-    proxy_pass https://tile.openstreetmap.org/;
-    proxy_set_header Host tile.openstreetmap.org;
-    proxy_set_header User-Agent "MapAnNai/1.0 (your@email.com)";
-    proxy_cache osm;
-    proxy_cache_valid 200 30d;
-    add_header Access-Control-Allow-Origin *;
-}
+```bash
+npm run dev
 ```
 
-To skip the proxy and fetch tiles directly from OSM:
+Open `http://localhost:3000`. For another port, run `npm run dev -- --port 3101`. The database is created automatically at `./data/mapannai.db` on first use.
 
-```env
-NEXT_PUBLIC_OSM_TILE_PROXY=false
+Common checks and production commands:
+
+```bash
+npm run type-check
+npm run build
+npm start
+git diff --check
 ```
 
-Routes and terminal AMap OVER_DIRECTION_RANGE and unsupported-region results persist in SQLite direction_cache, shared by Web and MCP. Range failures display a dashed Bézier association with no travel metrics and are not retried; changing endpoints, mode or provider uses a new cache key.
+Stop the development server in the same directory before building to avoid conflicts in `.next`. `npm start` serves a completed build; this is also an option for running without Docker, with the `data` directory persisted. If changing Node versions causes a SQLite native dependency ABI error, run `npm rebuild better-sqlite3`.
 
-Route progress disappears after calculation completes; terminal coverage failures do not produce retry prompts.
-
-Automatic route mode selects walking for endpoint straight-line distances below 2km and driving otherwise. The compact Auto toggle remembers the last manual mode; choosing Walking or Driving disables Auto. Cache keys use the resolved mode, sharing existing server and browser caches.
-
-On each page launch, center the map at overview zoom 11 on the first valid stop of the first day of the nearest upcoming trip (including today), using chain order before day membership order without selecting a trip, day or marker. Use the local date, skip trips whose first day has no valid places, and retain the previous/default camera if no upcoming trip has places. Startup no longer restores a trip/day selection from the URL or sessionStorage.
-
-## Paginated place search
-
-`GET /api/search?q=...&page=1&pageSize=20&bounds=...` preserves `success/data/query` and adds `page`, `pageSize`, `hasMore`, `nextPage`, and an available `total`. AMap accepts pages 1–100 and page sizes 1–25. Keep the query and viewport bounds unchanged between pages. Google continuation requires the returned `nextPageToken` as `pageToken`; use the response's effective page size. Token activation retries are bounded, asynchronous and abortable.
-
-Requests without pagination parameters keep the existing `limit` behavior (default 5, maximum 20), so existing Web and MCP clients stay compatible. The iOS result list loads more on scrolling, deduplicates results and retains previous results if the next page fails. Older servers without pagination metadata are treated as a single page. Deploy the updated server before expecting results beyond the first page in the app.
-
-Run `npx tsx scripts/test-search-pagination.ts` for local mocked pagination, final-page, parameter, Google cursor, cancellation-signal and legacy endpoint checks. The check does not contact live providers.
-
-Web search results also appear as temporary blue map dots. List rows and map dots share selection and the add-place popup. Clearing/changing the query or a failed search removes stale dots; no places or trip membership are created until explicitly saved. Both OSM and AMap renderers support the same controls, with stable POI identities and coordinate conversion only at the AMap boundary.
+The project uses Next.js, React, TypeScript, and SQLite. See [AGENTS.md](AGENTS.md) for development conventions, source responsibilities, and validation requirements. Environment settings are maintained in [env.example](env.example).
