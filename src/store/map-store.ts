@@ -105,10 +105,10 @@ interface MapStore {
     setActiveView: (mode: ActiveView['mode'], tripId?: string | null, dayId?: string | null, options?: { focusFirstMarker?: boolean }) => void
     createTrip: (data: { name: string; description?: string; startDate: string; endDate: string }) => Promise<Trip>
     updateTrip: (tripId: string, data: Partial<Trip>) => Promise<void>
-    deleteTrip: (tripId: string) => Promise<void>
+    deleteTrip: (tripId: string, deleteExclusiveMarkers?: boolean) => Promise<void>
     createTripDay: (tripId: string, data: { date: string; title?: string }) => Promise<TripDay>
     updateTripDay: (tripId: string, dayId: string, data: Partial<TripDay>) => Promise<void>
-    deleteTripDay: (tripId: string, dayId: string) => Promise<void>
+    deleteTripDay: (tripId: string, dayId: string, deleteExclusiveMarkers?: boolean) => Promise<void>
     addMarkerToDay: (tripId: string, dayId: string, markerId: string) => Promise<void>
     removeMarkerFromDay: (tripId: string, dayId: string, markerId: string) => Promise<void>
     reorderDayMarkers: (tripId: string, dayId: string, newOrder: string[]) => Promise<void>
@@ -789,11 +789,15 @@ export const useMapStore = create<MapStore>()(
                 }), false, 'updateTrip')
             },
 
-            deleteTrip: async (tripId) => {
-                const response = await fetchWithAuth(`/api/trips/${tripId}`, { method: 'DELETE' })
+            deleteTrip: async (tripId, deleteExclusiveMarkers = false) => {
+                const response = await fetchWithAuth(`/api/trips/${tripId}?deleteExclusiveMarkers=${deleteExclusiveMarkers}`, { method: 'DELETE' })
                 if (!response.ok) throw new Error('删除旅行失败')
+                const { deletedMarkerIds = [] }: { deletedMarkerIds?: string[] } = await response.json()
 
                 set(prevState => ({
+                    markers: prevState.markers.filter(marker => !deletedMarkerIds.includes(marker.id)),
+                    interactionState: deletedMarkerIds.includes(prevState.interactionState.selectedMarkerId || '')
+                        ? { ...prevState.interactionState, selectedMarkerId: null, isPopupOpen: false, isSidebarOpen: false } : prevState.interactionState,
                     trips: prevState.trips.filter(t => t.id !== tripId),
                     tripDays: prevState.tripDays.filter(d => d.tripId !== tripId),
                     activeView: prevState.activeView.tripId === tripId
@@ -827,11 +831,14 @@ export const useMapStore = create<MapStore>()(
                 }), false, 'updateTripDay')
             },
 
-            deleteTripDay: async (tripId, dayId) => {
-                const response = await fetchWithAuth(`/api/trips/${tripId}/days/${dayId}`, { method: 'DELETE' })
+            deleteTripDay: async (tripId, dayId, deleteExclusiveMarkers = false) => {
+                const response = await fetchWithAuth(`/api/trips/${tripId}/days/${dayId}?deleteExclusiveMarkers=${deleteExclusiveMarkers}`, { method: 'DELETE' })
                 if (!response.ok) throw new Error('删除天失败')
-                const { trip, days }: { trip: Trip; days: TripDay[] } = await response.json()
+                const { trip, days, deletedMarkerIds = [] }: { trip: Trip; days: TripDay[]; deletedMarkerIds?: string[] } = await response.json()
                 set(state => ({
+                    markers: state.markers.filter(marker => !deletedMarkerIds.includes(marker.id)),
+                    interactionState: deletedMarkerIds.includes(state.interactionState.selectedMarkerId || '')
+                        ? { ...state.interactionState, selectedMarkerId: null, isPopupOpen: false, isSidebarOpen: false } : state.interactionState,
                     trips: state.trips.map(t => t.id === tripId ? trip : t),
                     tripDays: [...state.tripDays.filter(d => d.tripId !== tripId), ...days],
                     activeView: state.activeView.dayId === dayId

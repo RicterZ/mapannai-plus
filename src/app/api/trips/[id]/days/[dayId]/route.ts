@@ -35,7 +35,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     try {
         const day = getDayById(params.dayId)
         if (!day || day.tripId !== params.id) return NextResponse.json({ error: '行程日不存在' }, { status: 404 })
-        return NextResponse.json(removeTripDayAndCloseGap(params.id, params.dayId))
+        return NextResponse.json(removeTripDayAndCloseGap(params.id, params.dayId, _req.nextUrl.searchParams.get('deleteExclusiveMarkers') === 'true'))
     } catch (error) {
         console.error('删除天失败:', error)
         return NextResponse.json({ error: error instanceof Error ? error.message : '删除天失败' }, { status: 400 })

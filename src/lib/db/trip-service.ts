@@ -1,5 +1,7 @@
 import { getDb } from './index'
 import { Trip, TripDay } from '@/types/trip'
+import { exclusiveMarkerIds } from '@/lib/trip-deletion'
+import { deleteMarker } from './marker-service'
 
 // ── Trip ──────────────────────────────────────────────
 
@@ -52,9 +54,13 @@ export function moveTripStartDate(trip: Trip, startDate: string): { trip: Trip; 
     })()
 }
 
-export function deleteTrip(id: string): void {
-    // ON DELETE CASCADE automatically removes associated trip_days
-    getDb().prepare(`DELETE FROM trips WHERE id = ?`).run(id)
+export function deleteTrip(id: string, deleteExclusiveMarkers = false): { deletedMarkerIds: string[] } {
+    return getDb().transaction(() => {
+        const ids = deleteExclusiveMarkers ? exclusiveMarkerIds(getTripDays(id), getAllTripDays()) : []
+        getDb().prepare('DELETE FROM trips WHERE id = ?').run(id)
+        ids.forEach(deleteMarker)
+        return { deletedMarkerIds: ids }
+    })()
 }
 
 // ── TripDay ───────────────────────────────────────────
@@ -103,7 +109,7 @@ export function deleteTripDay(dayId: string): void {
     getDb().prepare(`DELETE FROM trip_days WHERE id = ?`).run(dayId)
 }
 
-export function removeTripDayAndCloseGap(tripId: string, dayId: string): { trip: Trip; days: TripDay[] } {
+export function removeTripDayAndCloseGap(tripId: string, dayId: string, deleteExclusiveMarkers = false): { trip: Trip; days: TripDay[]; deletedMarkerIds: string[] } {
     const db = getDb()
     return db.transaction(() => {
         const trip = getTripById(tripId)
@@ -112,7 +118,9 @@ export function removeTripDayAndCloseGap(tripId: string, dayId: string): { trip:
         if (days.length <= 1) throw new Error('行程至少保留一天')
         if (!days.some(day => day.id === dayId)) throw new Error('行程日不存在')
 
+        const deletedMarkerIds = deleteExclusiveMarkers ? exclusiveMarkerIds(days.filter(day => day.id === dayId), getAllTripDays()) : []
         db.prepare('DELETE FROM trip_days WHERE id = ? AND trip_id = ?').run(dayId, tripId)
+        deletedMarkerIds.forEach(deleteMarker)
         const remaining = days.filter(day => day.id !== dayId)
         const start = Date.parse(`${trip.startDate}T00:00:00Z`)
         const dateAt = (index: number) => new Date(start + index * 86400000).toISOString().slice(0, 10)
@@ -124,7 +132,7 @@ export function removeTripDayAndCloseGap(tripId: string, dayId: string): { trip:
         })
         const updatedTrip = { ...trip, endDate: dateAt(remaining.length - 1), updatedAt: new Date().toISOString() }
         upsertTrip(updatedTrip)
-        return { trip: updatedTrip, days: updatedDays }
+        return { trip: updatedTrip, days: updatedDays, deletedMarkerIds }
     })()
 }
 

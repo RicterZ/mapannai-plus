@@ -1,5 +1,7 @@
 'use client'
 
+import { exclusiveMarkerIds } from '@/lib/trip-deletion'
+
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import {
@@ -288,6 +290,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
 
     const [showCreateTrip, setShowCreateTrip] = useState(false)
     const [pendingDeletion, setPendingDeletion] = useState<{ kind: 'day' | 'trip'; id: string } | null>(null)
+    const [deleteExclusiveMarkers, setDeleteExclusiveMarkers] = useState(false)
     const [deleting, setDeleting] = useState(false)
     useEffect(() => {
         if (!addMarkerEnabled) { setPendingDeletion(null); setEditingTripName(false); setEditingTripDate(false); setShowEmojiPicker(false) }
@@ -640,17 +643,19 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         if (window.innerWidth < 1024) closeLeftSidebar()
     }
 
+    useEffect(() => { setDeleteExclusiveMarkers(false) }, [pendingDeletion])
+
     const handleConfirmDeletion = async () => {
         if (!pendingDeletion || deleting) return
         setDeleting(true)
         try {
             if (pendingDeletion.kind === 'trip') {
-                await deleteTrip(pendingDeletion.id)
+                await deleteTrip(pendingDeletion.id, deleteExclusiveMarkers)
                 toast.success('旅行已删除')
             } else {
                 const day = tripDays.find(d => d.id === pendingDeletion.id)
                 if (!day) throw new Error('行程日不存在')
-                await useMapStore.getState().deleteTripDay(day.tripId, day.id)
+                await useMapStore.getState().deleteTripDay(day.tripId, day.id, deleteExclusiveMarkers)
                 toast.success('行程日已删除')
             }
             setPendingDeletion(null)
@@ -1493,13 +1498,19 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 const dayIndex = days.findIndex(d => d.id === pendingDeletion.id)
                 const day = days[dayIndex]
                 if (!trip || (!isTrip && !day)) return null
+                const exclusiveCount = exclusiveMarkerIds(isTrip ? days : [day], tripDays).filter(id => markers.some(marker => marker.id === id)).length
                 return <Modal title={isTrip ? `删除「${trip.name}」？` : `删除第${dayIndex + 1}天？`} onClose={() => setPendingDeletion(null)} busy={deleting}>
                         <p className="mt-2 text-sm text-gray-600">
                             {isTrip
-                                ? `这次旅行和其中 ${days.length} 天的行程安排将被删除。地图标记仍会保留。`
-                                : `${formatDate(day.date)}${day.title ? ` · ${day.title}` : ''} 的行程安排将被删除。后续日期会前移一天，地图标记仍会保留。`}
+                                ? `这次旅行和其中 ${days.length} 天的行程安排将被删除。`
+                                : `${formatDate(day.date)}${day.title ? ` · ${day.title}` : ''} 的行程安排将被删除。后续日期会前移一天。`}
                         </p>
                         {!isTrip && days[dayIndex + 1] && <p className="mt-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-800">例如，原 {formatDate(days[dayIndex + 1].date)} 将调整为 {formatDate(day.date)}。</p>}
+                        <label className="mt-4 flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" checked={deleteExclusiveMarkers} disabled={deleting || exclusiveCount === 0} onChange={event => setDeleteExclusiveMarkers(event.target.checked)} />
+                            同时删除独占地点（{exclusiveCount} 个）
+                        </label>
+                        <p className="mt-1 text-xs text-gray-500">关联多个旅行或多个日期的地点会保留；未勾选时保留全部地点。</p>
                         <div className="mt-5 flex justify-end gap-2">
                             <button type="button" autoFocus onClick={() => setPendingDeletion(null)} disabled={deleting} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600">取消</button>
                             <button type="button" onClick={handleConfirmDeletion} disabled={deleting} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50">{deleting ? '删除中…' : '确认删除'}</button>

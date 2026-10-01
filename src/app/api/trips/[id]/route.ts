@@ -53,9 +53,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
     try {
         // deleteTrip cascades to trip_days via ON DELETE CASCADE
-        deleteTrip(params.id)
+        const result = deleteTrip(params.id, _req.nextUrl.searchParams.get('deleteExclusiveMarkers') === 'true')
 
-        return NextResponse.json({ success: true })
+        return NextResponse.json({ success: true, ...result })
     } catch (error) {
         console.error('删除旅行失败:', error)
         return NextResponse.json({ error: '删除旅行失败' }, { status: 500 })

@@ -273,13 +273,13 @@ export function registerTripTools(server: McpServer) {
     // delete_trip
     server.tool(
         'delete_trip',
-        '删除旅行及其所有天（不删除 marker 本身）',
-        { tripId: z.string().describe('旅行 ID') },
-        async ({ tripId }) => {
+        '删除旅行及其所有天；默认保留地点，可显式同时删除仅属于一个旅行和一个日期的地点，共享地点跳过。',
+        { tripId: z.string().describe('旅行 ID'), deleteExclusiveMarkers: z.boolean().optional().default(false).describe('同时删除独占地点，用户明确要求时开启；涉及多个旅行或多个日期的地点保留') },
+        async ({ tripId, deleteExclusiveMarkers }) => {
             const days = getTripDays(tripId)
             // ON DELETE CASCADE handles trip_days cleanup automatically
-            deleteTrip(tripId)
-            return { content: [{ type: 'text', text: JSON.stringify({ success: true, deletedDays: days.length }) }] }
+            const result = deleteTrip(tripId, deleteExclusiveMarkers)
+            return { content: [{ type: 'text', text: JSON.stringify({ success: true, deletedDays: days.length, ...result }) }] }
         }
     )
 }
