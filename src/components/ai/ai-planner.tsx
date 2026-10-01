@@ -31,6 +31,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
     const [error, setError] = useState<string | null>(null)
     const requestRef = useRef<AbortController | null>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
+    const inputRef = useRef<HTMLTextAreaElement>(null)
     const refreshRef = useRef<Promise<void> | null>(null)
     const refreshAgain = useRef(false)
     const followRef = useRef(true)
@@ -74,6 +75,13 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
     useEffect(() => {
         if (followRef.current && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }, [history, partial, status, error, open])
+
+    useEffect(() => {
+        const input = inputRef.current
+        if (!input) return
+        input.style.height = '0px'
+        input.style.height = `${Math.min(120, Math.max(24, input.scrollHeight))}px`
+    }, [text])
 
     function updateConversation(id: string, update: (item: NonNullable<typeof conversation>) => NonNullable<typeof conversation>) {
         setHistory(previous => ({ ...previous, conversations: previous.conversations.map(item => item.id === id ? update(item) : item) }))
@@ -235,13 +243,13 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
                     {busy && <p role="status" className="flex items-center gap-2 text-xs text-gray-500"><span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />{status}</p>}
                     {error && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">{error}</p>}
                 </div>
-                <form className="shrink-0 border-t border-gray-100 px-4 pt-3" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }} onSubmit={e => { e.preventDefault(); void send() }}>
-                    <div className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-3 py-2 transition-colors focus-within:border-blue-400 focus-within:bg-white">
-                        <textarea aria-label="发给 AI 的消息" className="max-h-36 min-h-[48px] min-w-0 flex-1 resize-none border-0 bg-transparent py-1 text-sm leading-6 text-gray-800 outline-none placeholder:text-gray-400" rows={2} maxLength={30_000} disabled={busy} value={text} onChange={e => setText(e.target.value)} placeholder="输入消息…" onKeyDown={e => {
+                <form className="shrink-0 border-t border-gray-100 px-4 pt-2" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }} onSubmit={e => { e.preventDefault(); void send() }}>
+                    <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 pl-3 pr-1 transition-colors focus-within:border-blue-400 focus-within:bg-white">
+                        <textarea ref={inputRef} aria-label="发给 AI 的消息" className="my-2 max-h-[120px] min-h-6 min-w-0 flex-1 resize-none border-0 bg-transparent p-0 text-sm leading-6 text-gray-800 outline-none placeholder:text-gray-400" rows={1} maxLength={30_000} disabled={busy} value={text} onChange={e => setText(e.target.value)} placeholder="输入消息…" onKeyDown={e => {
                             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && window.matchMedia('(pointer: fine)').matches) { e.preventDefault(); void send() }
                         }} />
-                        {busy ? <button type="button" onClick={() => requestRef.current?.abort()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gray-200 text-gray-700 transition-colors hover:bg-gray-300" aria-label="停止回复"><Square size={18} /></button>
-                            : <button type="submit" disabled={!text.trim()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white transition-colors hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400" aria-label="发送消息"><Send size={18} /></button>}
+                        {busy ? <button type="button" onClick={() => requestRef.current?.abort()} className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-600" aria-label="停止回复"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 transition-colors group-hover:bg-gray-200"><Square size={14} /></span></button>
+                            : <button type="submit" disabled={!text.trim()} className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-blue-600 disabled:text-gray-300" aria-label="发送消息"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 transition-colors group-hover:bg-blue-100 group-disabled:bg-transparent"><Send size={16} /></span></button>}
                     </div>
                 </form>
             </div>
