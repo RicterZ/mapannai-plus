@@ -19,6 +19,8 @@ import { MapMarker } from './map-marker'
 import { routeColor } from '@/lib/map/route-presentation'
 import { pickRouteDay } from '@/lib/map/route-picking'
 import { layoutRoutePaths } from '@/lib/map/route-geometry'
+import { SearchResultMarker, searchResultKey } from './search-result-marker'
+import type { SearchResult } from '@/lib/api/search-service'
 import type { MapSearchBounds } from '@/types/map-provider'
 
 interface AMapPoint { lng?: number; lat?: number; getLng?: () => number; getLat?: () => number }
@@ -72,6 +74,9 @@ interface Props {
     securityCode: string
     viewState: MapCamera
     markers: Marker[]
+    searchResults: SearchResult[]
+    selectedSearchKey: string | null
+    onSearchResultClick: (result: SearchResult) => void
     selectedMarkerId: string | null
     popupCoordinates: MarkerCoordinates | null
     popup: React.ReactNode
@@ -95,6 +100,8 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     const [ready, setReady] = useState(false)
     const [routeViewport, setRouteViewport] = useState<RouteViewport | null>(null)
     const [markerNodes, setMarkerNodes] = useState<HTMLElement[]>([])
+    const [searchNodes, setSearchNodes] = useState<Array<{ key: string; node: HTMLElement }>>([])
+    const searchOverlaysRef = useRef(new Map<string, { overlay: any; node: HTMLElement }>())
     const [popupNode, setPopupNode] = useState<HTMLElement | null>(null)
     const latest = useRef(props)
     latest.current = props
@@ -137,7 +144,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
         let cancelled = false
         let map: AMapInstance | null = null
         const onClick = (event: any) => {
-            if (event.originEvent?.target?.closest?.('.map-marker, .map-popup, .amap-marker')) return
+            if (event.originEvent?.target?.closest?.('.map-marker, .map-search-marker, .map-popup, .amap-marker')) return
             latest.current.onClick(wgs(event.lnglat), event.originEvent || new Event('click'))
         }
         const onMove = () => {
@@ -206,9 +213,34 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
         setMarkerNodes([...nodesRef.current])
     }, [ready, props.markers, props.selectedMarkerId])
 
+    useEffect(() => {
+        const map = mapRef.current, AMap = namespaceRef.current
+        if (!ready || !map || !AMap) return
+        const live = new Set(props.searchResults.map(searchResultKey))
+        for (const [key, entry] of Array.from(searchOverlaysRef.current)) {
+            if (!live.has(key)) {
+                map.remove([entry.overlay]); entry.node.remove(); searchOverlaysRef.current.delete(key)
+            }
+        }
+        for (const result of props.searchResults) {
+            const key = searchResultKey(result)
+            const zIndex = props.selectedSearchKey === key ? 125 : 105
+            const existing = searchOverlaysRef.current.get(key)
+            if (existing) { existing.overlay.setPosition(gcj(result.coordinates)); existing.overlay.setzIndex(zIndex); continue }
+            const node = document.createElement('div')
+            node.className = 'map-search-marker'
+            const overlay = new AMap.Marker({ position: gcj(result.coordinates), content: node,
+                offset: new AMap.Pixel(-22, -22), zIndex })
+            map.add([overlay]); searchOverlaysRef.current.set(key, { overlay, node })
+        }
+        setSearchNodes(props.searchResults.map(result => ({ key: searchResultKey(result), node: searchOverlaysRef.current.get(searchResultKey(result))!.node })))
+    }, [ready, props.searchResults, props.selectedSearchKey])
+
     useEffect(() => () => {
         markerOverlaysRef.current.forEach(entry => entry.node.remove())
         markerOverlaysRef.current.clear()
+        searchOverlaysRef.current.forEach(entry => entry.node.remove())
+        searchOverlaysRef.current.clear()
         routeOverlaysRef.current.clear()
     }, [])
 
@@ -378,6 +410,10 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
             <MapMarker marker={props.markers[index]} isSelected={props.markers[index].id === props.selectedMarkerId} onClick={() => props.onMarkerClick(props.markers[index].id)} zoom={props.viewState.zoom} />,
             node, props.markers[index].id,
         ))}
+        {ready && searchNodes.map(({ key, node }) => {
+            const result = props.searchResults.find(item => searchResultKey(item) === key)
+            return result && createPortal(<SearchResultMarker result={result} selected={props.selectedSearchKey === key} onClick={() => props.onSearchResultClick(result)} />, node, `search:${key}`)
+        })}
         {ready && popupNode && createPortal(props.popup, popupNode)}
     </>
 })

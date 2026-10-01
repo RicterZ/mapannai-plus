@@ -8,7 +8,8 @@ import { createBasemapStyle, toMapCoordinates, fromMapCoordinates } from '@/lib/
 import { config } from '@/lib/config'
 import { isInChina } from '@/lib/coord-transform'
 import { installZoomThresholdBackdoor } from '@/lib/zoom-threshold'
-import { searchService } from '@/lib/api/search-service'
+import { SearchResultMarker, searchResultKey } from './search-result-marker'
+import { searchService, SearchResult } from '@/lib/api/search-service'
 import { useMapStore } from '@/store/map-store'
 import { MarkerCoordinates } from '@/types/marker'
 import type { BasemapProviderType } from '@/types/map-provider'
@@ -151,7 +152,9 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
 
     // 右下角搜索栏状态
     const [fabQuery, setFabQuery] = useState('')
-    const [fabResults, setFabResults] = useState<any[]>([])
+    const [fabResults, setFabResults] = useState<SearchResult[]>([])
+    const [selectedSearchKey, setSelectedSearchKey] = useState<string | null>(null)
+    const selectedSearchRef = useRef<string | null>(null)
     const [fabQueryError, setFabQueryError] = useState('')
     const [isSearching, setIsSearching] = useState(false)
 
@@ -346,6 +349,10 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     // 右下角搜索：防抖自动搜索（输入≥2字）
     useEffect(() => {
         const trimmedQuery = fabQuery.trim()
+        if (selectedSearchRef.current) closePopup()
+        selectedSearchRef.current = null
+        setFabResults([])
+        setSelectedSearchKey(null)
         
         // 如果查询为空，清除结果
         if (!trimmedQuery) {
@@ -383,7 +390,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                 } : undefined
                 const results = await searchService.searchPlaces(trimmedQuery, 10, 'zh-CN', 'CN', { bounds: searchBounds, signal: controller.signal })
                 if (controller.signal.aborted) return
-                setFabResults(results)
+                setFabResults(results.filter(result => Number.isFinite(result.coordinates?.longitude) && Number.isFinite(result.coordinates?.latitude) && Math.abs(result.coordinates.longitude) <= 180 && Math.abs(result.coordinates.latitude) <= 90).filter((result, index, all) => all.findIndex(item => searchResultKey(item) === searchResultKey(result)) === index))
             } catch (e) {
                 if (controller.signal.aborted) return
                 setFabQueryError(e instanceof Error ? e.message : '搜索失败，请稍后再试')
@@ -398,68 +405,24 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             clearTimeout(searchTimeout)
             controller.abort()
         }
-    }, [fabQuery, isAmap])
+    }, [fabQuery, isAmap, closePopup])
 
-    const handleFabResultClick = useCallback((result: any) => {
-        if (!result?.coordinates) return
-        
-        // 清除之前的地点名称和地址，避免显示缓存的结果
-        setCurrentPlaceName(undefined)
-        setCurrentPlaceAddress(undefined)
-        
-        // 异步获取 placeId（不阻塞主流程）
-        getPlaceIdAsync({
-            latitude: result.coordinates.latitude,
-            longitude: result.coordinates.longitude
-        })
-        
-        // 根据搜索结果类型智能调整缩放级别
-        let zoomLevel = 16 // 默认缩放级别
-        
-        // 如果搜索结果名称包含特定关键词，调整缩放级别
-        const name = result.name?.toLowerCase() || ''
-        
-        if (name.includes('城市') || name.includes('市') || name.includes('县') || name.includes('区')) {
-            // 城市级别，使用较小的缩放
-            zoomLevel = 12
-        } else if (name.includes('国家') || name.includes('省') || name.includes('州')) {
-            // 国家/省级别，使用更小的缩放
-            zoomLevel = 8
-        } else if (name.includes('街道') || name.includes('路') || name.includes('街')) {
-            // 街道级别，使用较大的缩放
-            zoomLevel = 18
-        } else if (name.includes('建筑') || name.includes('大厦') || name.includes('商场') || name.includes('酒店')) {
-            // 具体建筑，使用最大的缩放
-            zoomLevel = 19
-        } else {
-            // 默认地点，使用中等缩放
-            zoomLevel = 16
-        }
-        
-        // Measure the actual retained results panel before positioning the search target.
-        setTimeout(() => {
-            if (window.innerWidth < 1024 && searchPanelRef.current) {
-                const bounds = searchPanelRef.current.getBoundingClientRect()
-                const viewport = window.visualViewport
-                const visibleTop = viewport?.offsetTop ?? 0
-                const visibleBottom = visibleTop + (viewport?.height ?? window.innerHeight)
-                const freeBottom = Math.max(visibleTop, Math.min(bounds.top, visibleBottom))
-                const targetY = (visibleTop + freeBottom) / 2
-                flyMap({ center: [result.coordinates.longitude, result.coordinates.latitude], zoom: zoomLevel, offset: [0, targetY - window.innerHeight / 2], duration: flyDuration(result.coordinates) })
-            } else {
-                handleFlyTo({ longitude: result.coordinates.longitude, latitude: result.coordinates.latitude }, zoomLevel)
-            }
-
-            // 自动弹出添加标记的 popup（先清除选中标记，避免显示旧内容）
-            setTimeout(() => {
-                selectMarker(null)
-                openPopup({
-                    latitude: result.coordinates.latitude,
-                    longitude: result.coordinates.longitude
-                })
-            }, 500)
-        }, 100)
-    }, [handleFlyTo, openPopup, flyMap, flyDuration])
+    const handleFabResultClick = useCallback((result: SearchResult) => {
+        selectedSearchRef.current = searchResultKey(result)
+        setSelectedSearchKey(selectedSearchRef.current)
+        setCurrentPlaceName(result.name)
+        setCurrentPlaceAddress(result.address)
+        selectMarker(null)
+        openPopup(result.coordinates)
+        // The same fixed zoom applies on list and map selection; no delayed popup.
+        const viewport = window.visualViewport
+        const visibleTop = viewport?.offsetTop ?? 0
+        const visibleBottom = visibleTop + (viewport?.height ?? window.innerHeight)
+        const panelTop = window.innerWidth < 1024 ? searchPanelRef.current?.getBoundingClientRect().top : undefined
+        const targetY = panelTop === undefined ? window.innerHeight / 2 : (visibleTop + Math.max(visibleTop, Math.min(panelTop, visibleBottom))) / 2
+        flyMap({ center: [result.coordinates.longitude, result.coordinates.latitude], zoom: 16,
+            offset: [0, targetY - window.innerHeight / 2], duration: flyDuration(result.coordinates) })
+    }, [openPopup, selectMarker, flyMap, flyDuration])
 
     // 静默重试加载数据
     const silentRetryLoad = useCallback(async () => {
@@ -596,7 +559,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         try {
             // Prevent map click when clicking on markers
             if (event.originalEvent?.target &&
-                (event.originalEvent.target as HTMLElement).closest('.map-marker')) {
+                (event.originalEvent.target as HTMLElement).closest('.map-marker, .map-search-marker')) {
                 return
             }
 
@@ -663,6 +626,8 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     }, [isPopupOpen, isSidebarOpen, openPopup, closePopup, closeSidebar, selectMarker, selectedMarkerId, addMarkerEnabled, fromDisplay, getPlaceIdAsync])
 
     const handleMarkerClick = useCallback((markerId: string) => {
+        selectedSearchRef.current = null
+        setSelectedSearchKey(null)
         try {
             const marker = markers.find(m => m.id === markerId)
             if (!marker) return
@@ -897,6 +862,9 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                     routeProvider={routeProvider}
                     viewState={viewState}
                     markers={visibleMarkers}
+                    searchResults={fabResults}
+                    selectedSearchKey={selectedSearchKey}
+                    onSearchResultClick={handleFabResultClick}
                     selectedMarkerId={selectedMarkerId}
                     popupCoordinates={isPopupOpen ? popupCoordinates : null}
                     userLocation={userLocation}
@@ -971,6 +939,16 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                     )
                 })}
 
+                {fabResults.map(result => <MapboxMarker
+                    key={`search:${searchResultKey(result)}`}
+                    longitude={toDisplay(result.coordinates).longitude}
+                    latitude={toDisplay(result.coordinates).latitude}
+                    anchor="center"
+                    style={{ zIndex: selectedSearchKey === searchResultKey(result) ? 125 : 105 }}
+                >
+                    <SearchResultMarker result={result} selected={selectedSearchKey === searchResultKey(result)} onClick={() => handleFabResultClick(result)} />
+                </MapboxMarker>)}
+
                 {/* Render popup：仅用于空白处添加标记，不再用于标记操作 */}
                 {isPopupOpen && popupCoordinates && (
                     <MapPopup
@@ -1002,15 +980,17 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
 
             {/* 右下角：搜索栏 */}
             <div ref={searchPanelRef} className="fixed bottom-6 right-4 left-4 lg:left-auto z-30 flex flex-col gap-2">
+                {fabQueryError && <div role="status" className="rounded-xl bg-white px-4 py-2 text-sm text-red-600 shadow">{fabQueryError}</div>}
                         {/* 搜索结果列表（向上弹出，与输入框等宽） */}
                         {fabResults.length > 0 && (
                             <div className="w-full lg:hidden bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-scale-in">
                                 <div className="max-h-64 overflow-y-auto custom-scrollbar">
-                                    {fabResults.map((r: any, idx: number) => (
+                                    {fabResults.map(r => (
                                         <button
-                                            key={`${r.name}-${idx}`}
+                                            key={searchResultKey(r)}
+                                            aria-pressed={selectedSearchKey === searchResultKey(r)}
                                             onClick={() => handleFabResultClick(r)}
-                                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors text-left border-b border-gray-50 last:border-0"
+                                            className={cn("w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors text-left border-b border-gray-50 last:border-0", selectedSearchKey === searchResultKey(r) && "bg-blue-50")}
                                         >
                                             <span className="text-blue-500 flex-shrink-0">
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1036,11 +1016,12 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                         {fabResults.length > 0 && (
                             <div className="hidden lg:block absolute bottom-full mb-2 inset-x-0 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-scale-in">
                                 <div className="max-h-64 overflow-y-auto custom-scrollbar">
-                                    {fabResults.map((r: any, idx: number) => (
+                                    {fabResults.map(r => (
                                         <button
-                                            key={`${r.name}-${idx}`}
+                                            key={searchResultKey(r)}
+                                            aria-pressed={selectedSearchKey === searchResultKey(r)}
                                             onClick={() => handleFabResultClick(r)}
-                                            className="w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors text-left border-b border-gray-50 last:border-0"
+                                            className={cn("w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors text-left border-b border-gray-50 last:border-0", selectedSearchKey === searchResultKey(r) && "bg-blue-50")}
                                         >
                                             <span className="text-blue-500 flex-shrink-0">
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -219,3 +219,5 @@ NEXT_PUBLIC_OSM_TILE_PROXY=false
 Google 分页响应还会返回 `nextPageToken`，下一页通过 `pageToken` 传回；其分页大小由上游决定，客户端使用响应中的 `pageSize`。服务器只对尚未生效的翻页 token 做有限异步重试，并响应取消。未提供分页参数时保留旧行为：`limit` 默认5、最多20条，现有 Web/MCP 调用不变。iOS 新版在列表底部加载更多、去重、失败保留已加载结果并提供重试；旧服务端不返回分页字段时，客户端仅显示第一页。此功能需部署新版服务端后生效。
 
 验证：`npx tsx scripts/test-search-pagination.ts` 使用本地 provider mock 检查多页、尾页、参数范围、Google token、取消信号和旧接口兼容，不请求真实地图服务。
+
+- Web 搜索结果同步显示临时蓝色圆点，地图圆点与列表共用选择和添加弹窗，选中项高亮；清空、换关键词、失败和退出地图移除临时覆盖物。两种 renderer 共享样式和POI稳定ID，高德覆盖物复用并在边界转换GCJ-02；搜索结果不会自动写入地点或行程。

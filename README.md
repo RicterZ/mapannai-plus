@@ -220,3 +220,5 @@ On each page launch, center the map at overview zoom 11 on the first valid stop 
 Requests without pagination parameters keep the existing `limit` behavior (default 5, maximum 20), so existing Web and MCP clients stay compatible. The iOS result list loads more on scrolling, deduplicates results and retains previous results if the next page fails. Older servers without pagination metadata are treated as a single page. Deploy the updated server before expecting results beyond the first page in the app.
 
 Run `npx tsx scripts/test-search-pagination.ts` for local mocked pagination, final-page, parameter, Google cursor, cancellation-signal and legacy endpoint checks. The check does not contact live providers.
+
+Web search results also appear as temporary blue map dots. List rows and map dots share selection and the add-place popup. Clearing/changing the query or a failed search removes stale dots; no places or trip membership are created until explicitly saved. Both OSM and AMap renderers support the same controls, with stable POI identities and coordinate conversion only at the AMap boundary.
