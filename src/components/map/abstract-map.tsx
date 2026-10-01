@@ -388,7 +388,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                     south: Math.max(-90, bounds.south - (bounds.north - bounds.south) * 0.2),
                     north: Math.min(90, bounds.north + (bounds.north - bounds.south) * 0.2),
                 } : undefined
-                const results = await searchService.searchPlaces(trimmedQuery, 10, 'zh-CN', 'CN', { bounds: searchBounds, signal: controller.signal })
+                const results = await searchService.searchPlaces(trimmedQuery, 20, 'zh-CN', 'CN', { bounds: searchBounds, signal: controller.signal })
                 if (controller.signal.aborted) return
                 setFabResults(results.filter(result => Number.isFinite(result.coordinates?.longitude) && Number.isFinite(result.coordinates?.latitude) && Math.abs(result.coordinates.longitude) <= 180 && Math.abs(result.coordinates.latitude) <= 90).filter((result, index, all) => all.findIndex(item => searchResultKey(item) === searchResultKey(result)) === index))
             } catch (e) {
