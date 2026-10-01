@@ -159,12 +159,14 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 ## 网页 AI 对话
 
 - 网页配置 OpenAI 兼容 Chat Completions API 地址、Key 与支持工具调用的模型。会话与完整工具结果保存在浏览器；Key 默认仅保留在当前页面，用户显式勾选后才保存到 localStorage。不得把 Key 或聊天记录写入服务端数据库、日志或 URL。
-- `POST /api/ai/chat` 继承 API 认证，将多轮消息转发至配置的 AI API，以 NDJSON 返回文本、工具结果与数据变更事件。网页显示模型内容使用 React 文本，不能直接注入模型返回的 HTML。
-- `src/lib/ai/mcp-tools.ts` 使用 SDK 内存 transport 连接现有 MCP server，复用 schema、workflow prompt 和服务规则；不要维护另一套工具定义或绕回本站 HTTP。
+- `POST /api/ai/chat` 继承 API 认证，将多轮消息转发至配置的 AI API，以 NDJSON 返回文本、工具结果与数据变更事件。AI 回复的 Markdown 由 marked 分词后渲染为 React 元素，H1–H6 统一紧凑字号；不能直接注入模型返回的 HTML，链接仅允许 HTTP(S) / mailto。
+- `src/lib/ai/mcp-tools.ts` 使用 SDK 内存 transport 连接现有 MCP server，复用 schema 和服务规则；不要维护另一套工具定义或绕回本站 HTTP。
+- 网页提示词说明产品定位、对象关系、工具能力、完整创建旅行流程与必要业务规则，不拼接 MCP workflow 全文。每次模型请求将最新旅行列表（ID、名称、日期范围）和当前日期 / 视图 ID 附加到第一条 user 消息；附加内容不写回本地 transcript。只使用当前话题的完整 transcript，不增加跨话题记忆或压缩层。
+- 话题下拉框使用自定义箭头，箭头距右边缘 12px，文本留出空间。
 - 默认仅允许公共 HTTPS endpoint；连接时校验实际 DNS 地址，不跟随重定向。仅部署者设置 `AI_ALLOW_PRIVATE_ENDPOINTS=true` 时允许私有地址及 HTTP。此配置需重启服务。
 - 工具按顺序执行；写入（含可能部分失败）后刷新地点与旅行，不自动切换镜头。停止请求不承诺撤销已执行操作；恢复会话补齐缺失工具结果，提示模型查询实际数据，不自动重放写入。
 - AI 聊天输入框与发送 / 停止按钮放在同一圆角输入区域，按钮使用统一圆形尺寸并相对输入区域垂直居中；不添加欢迎引导、示例提示或底部帮助文字，设置仅显示必要字段与操作。
-- AI 面板遵循共享进出动画、inert、焦点管理与 VisualViewport 约定。独立临时 SQLite 与模拟 AI 的验证脚本：`npx tsx scripts/test-ai-planner.ts`；必须在加载数据库模块前设置临时路径。
+- AI 面板遵循共享进出动画、inert、焦点管理与 VisualViewport 约定。独立临时 SQLite 与模拟 AI 的验证脚本：`npx tsx scripts/test-ai-planner.ts`；必须在加载数据库模块前设置临时路径。Markdown 渲染与链接 / HTML 边界验证：`npx tsx scripts/test-chat-markdown.ts`。
 
 ## MCP 接入
 

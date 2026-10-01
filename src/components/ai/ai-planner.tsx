@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { MessageCircle, Plus, Settings, Square, Trash2, X, Send } from 'lucide-react'
+import { MessageCircle, Plus, Settings, Square, Trash2, X, Send, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMapStore } from '@/store/map-store'
 import { useDialogFocus } from '@/lib/ui/use-dialog-focus'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import { cn } from '@/utils/cn'
+import { ChatMarkdown } from './chat-markdown'
 import { aiSettingsSchema, repairInterruptedMessages, toolLabels, type ChatEvent, type ChatMessage } from '@/lib/ai/protocol'
 import { defaultSettings, emptyHistory, HISTORY_KEY, newConversation, readHistory, readSettings, writeSettings, type LocalHistory, type LocalSettings } from '@/lib/ai/local-history'
 
@@ -173,9 +174,12 @@ export function AiPlanner() {
                         </div>
                     </div>
                     {history.conversations.length > 0 && <div className="mb-2 flex items-center gap-2">
-                        <select aria-label="聊天记录" value={history.activeId || ''} disabled={busy} className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-2 py-2 text-sm" onChange={e => {
+                        <div className="relative min-w-0 flex-1">
+                        <select aria-label="聊天记录" value={history.activeId || ''} disabled={busy} className="w-full min-w-0 appearance-none rounded-lg border border-gray-200 bg-white py-2 pl-3 pr-10 text-sm" onChange={e => {
                             setHistory(previous => ({ ...previous, activeId: e.target.value })); setError(null); setText(''); followRef.current = true
                         }}>{history.conversations.map(item => <option value={item.id} key={item.id}>{item.title}</option>)}</select>
+                        <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-500" aria-hidden="true" />
+                        </div>
                         <button className={iconClass} disabled={busy || !conversation} aria-label="删除当前聊天记录" title="删除当前聊天记录" onClick={() => {
                             setHistory(previous => { const remaining = previous.conversations.filter(item => item.id !== previous.activeId); return { ...previous, conversations: remaining, activeId: remaining[0]?.id || null } })
                             setError(null); setText('')
@@ -209,7 +213,7 @@ export function AiPlanner() {
                         }}>清空本地记录</button>}
                     </div>}
                     {conversation?.messages.map((message, index) => <ChatBubble key={index} message={message} />)}
-                    {partial && <div className="whitespace-pre-wrap break-words rounded-2xl bg-gray-50 p-3 text-sm leading-6 text-gray-800">{partial}</div>}
+                    {partial && <div className="min-w-0 rounded-2xl bg-gray-50 p-3 text-gray-800"><ChatMarkdown content={partial} /></div>}
                     {busy && <p role="status" className="flex items-center gap-2 text-xs text-gray-500"><span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />{status}</p>}
                     {error && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">{error}</p>}
                 </div>
@@ -240,5 +244,7 @@ function ChatBubble({ message }: { message: ChatMessage }) {
         return <p className={cn('text-xs', failed ? 'text-amber-700' : 'text-gray-500')}>{failed ? '⚠' : '✓'} {toolLabels[message.name || ''] || '行程操作'}{failed ? '未完成，请查看回复' : '已返回结果'}</p>
     }
     if (!message.content) return null
-    return <div className={cn('whitespace-pre-wrap break-words rounded-2xl p-3 text-sm leading-6', message.role === 'user' ? 'ml-6 bg-blue-50 text-blue-950' : 'mr-2 bg-gray-50 text-gray-800')}>{message.content}</div>
+    return message.role === 'user'
+        ? <div className="ml-6 whitespace-pre-wrap break-words rounded-2xl bg-blue-50 p-3 text-sm leading-6 text-blue-950">{message.content}</div>
+        : <div className="mr-2 min-w-0 rounded-2xl bg-gray-50 p-3 text-gray-800"><ChatMarkdown content={message.content} /></div>
 }

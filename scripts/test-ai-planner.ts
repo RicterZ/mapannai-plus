@@ -25,6 +25,7 @@ async function main() {
         const { runPlanner } = await import('../src/lib/ai/planner')
         const { getAllTrips } = await import('../src/lib/db/trip-service')
         const { POST } = await import('../src/app/api/ai/chat/route')
+        const { planningPrompt, attachTripContext } = await import('../src/lib/ai/prompt')
         assert.equal(getAllTrips().length, 0, 'test must start in an empty isolated DB')
         // Public endpoint validation, including mapped IPv4 and explicit private opt-in.
         assert.equal(completionUrl('https://ai.example/v1/').pathname, '/v1/chat/completions')
@@ -61,6 +62,11 @@ async function main() {
             const payload = body as { tools: Array<{ function: { name: string; parameters: unknown } }>; messages: ChatMessage[] }
             assert(payload.tools.some(tool => tool.function.name === 'create_trip' && tool.function.parameters))
             assert(payload.tools.some(tool => tool.function.name === 'create_day_chain'))
+            assert.equal(payload.messages[0].content, planningPrompt)
+            assert(planningPrompt.length < 1500, 'product identity and workflow should remain concise')
+            const firstUser = payload.messages.find(message => message.role === 'user')!
+            const attached = JSON.parse(firstUser.content!.split('以下为应用附加的当前数据：\n')[1].split('\n</mapannai_context>')[0])
+            assert.equal(attached.trips.length, rounds === 0 ? 0 : 1, 'trip list refreshes after writes within the tool loop')
             if (rounds++ === 0) return assistant(null, [{ name: 'create_trip', args: { name: '东京三日', startDate: '2026-10-10', endDate: '2026-10-12' } }])
             assert.equal(payload.messages.at(-1)?.role, 'tool')
             return assistant('已创建东京三日旅行。')
@@ -69,16 +75,25 @@ async function main() {
         assert.equal(getAllTrips().length, 1)
         assert(events.some(event => event.type === 'changed'))
         assert.equal(events.at(-1)?.type, 'complete')
+        assert.equal(first.messages[0].content, '创建东京三日旅行', 'attached context must not mutate saved user messages')
         const transcript = [...first.messages, ...events.filter((event): event is Extract<ChatEvent, { type: 'message' }> => event.type === 'message').map(event => event.message)]
         let secondRound = 0
         await runPlanner({ ...first, messages: [...transcript, { role: 'user', content: '继续查看刚创建的旅行' }] }, () => {}, signal, { complete: async (_url, _key, body) => {
             const payload = body as { messages: ChatMessage[] }
             assert(payload.messages.some(message => message.role === 'assistant' && message.content?.includes('已创建')))
-            if (secondRound++ === 0) return assistant(null, [{ name: 'list_trips', args: {} }])
+            const firstUser = payload.messages.find(message => message.role === 'user')!
+            assert.equal(firstUser.content!.split('<mapannai_context>').length, 2, 'append context only once')
+            assert(firstUser.content!.includes(getAllTrips()[0].id), 'existing trip ID is supplied without list_trips')
+            if (secondRound++ === 0) return assistant(null, [{ name: 'get_trip_detail', args: { tripId: getAllTrips()[0].id } }])
             assert.equal(payload.messages.at(-1)?.role, 'tool')
             return assistant('找到了东京三日旅行。')
         } })
         assert.equal(getAllTrips().length, 1, 'second turn must not recreate the trip')
+        const otherTopic: ChatMessage[] = [{ role: 'user', content: '另一话题的安排' }]
+        const assembled = attachTripContext(otherTopic, context)
+        assert.equal(assembled.length, 1)
+        assert(!assembled[0].content?.includes('已创建东京三日旅行'), 'do not carry conversation history across topics')
+        assert.equal(otherTopic[0].content, '另一话题的安排')
 
         let invalidRound = 0
         await runPlanner(first, () => {}, signal, { complete: async (_url, _key, body) => {

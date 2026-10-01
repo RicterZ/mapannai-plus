@@ -12,12 +12,10 @@ export async function connectPlanningTools() {
         await server.connect(serverTransport)
         await client.connect(clientTransport)
         const { tools } = await client.listTools()
-        const prompt = await client.getPrompt({ name: 'workflow', arguments: {} })
         return {
             tools: tools.map(tool => ({ type: 'function' as const, function: {
                 name: tool.name, description: tool.description, parameters: tool.inputSchema,
             } })),
-            workflow: prompt.messages.map(message => message.content.type === 'text' ? message.content.text : '').join('\n'),
             call: (name: string, args: Record<string, unknown>, signal: AbortSignal) => client.callTool({ name, arguments: args }, undefined, { signal, timeout: 120_000 }),
             close,
         }
