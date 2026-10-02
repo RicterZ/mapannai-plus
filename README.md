@@ -105,6 +105,10 @@ Restart the service after changing server settings; rebuild after changing `NEXT
 
 Open **AI 规划** in the top-right corner and enter your API URL, API key, and model name in settings. The integration supports OpenAI-compatible **Chat Completions** APIs with function tools. Enter either an API base URL such as `https://your-api.example/v1` or the full `/chat/completions` endpoint. Services offering only Responses, Anthropic Messages, or other protocols need a compatible gateway.
 
+The assistant goes by **M酱**, with a warm, upbeat travel-companion voice.
+
+Native clients can fetch the shared system prompt from `GET /api/ai/prompt`, which returns `{ "prompt": "…" }`. Use `prompt` as the system message and fetch it when starting a conversation, instead of maintaining a client-side copy. When `API_TOKEN` is enabled, send `Authorization: Bearer <token>` or `x-api-token`. Trip data and tool definitions are supplied separately by the client’s existing chat flow; web chat already uses this prompt on the server.
+
 Discuss your preferences first, then ask the assistant to create or edit your itinerary. It reuses this server's MCP tools to search and save places, create trips, and arrange routes; changes refresh on the map. Create, switch, or delete conversations. Deleting a conversation keeps saved trips and places.
 
 Each conversation keeps its own context. Requests include the current trip list and IDs so the assistant can use them without repeatedly listing trips. AI replies render Markdown with compact headings. Newly created places automatically come into view on the map. You can keep the chat panel open while interacting with the map.

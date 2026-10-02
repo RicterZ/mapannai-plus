@@ -2,7 +2,8 @@ import { chatMessageSchema, repairInterruptedMessages, type ChatEvent, type Chat
 import { connectPlanningTools, readOnlyTools } from './mcp-tools'
 import { completionUrl, requestCompletion } from './endpoint'
 import { readCompletion } from './completions'
-import { attachTripContext, planningPrompt } from './prompt'
+import { planningPrompt } from './prompt'
+import { attachTripContext } from './trip-context'
 
 type Dependencies = {
     connect?: typeof connectPlanningTools
