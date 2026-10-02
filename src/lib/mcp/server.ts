@@ -10,7 +10,7 @@
  *   Markers: list_markers, create_marker, update_marker, delete_marker
  *   Search:  search_places, get_place_details, get_walking_directions
  *   Trips:   list_trips, get_trip_detail, create_trip, add_day_to_trip,
- *            assign_marker_to_day, plan_trip_day, create_day_chain, update_day_chain, delete_day_chain, reorder_day_markers, delete_trip
+ *            assign_marker_to_trip, remove_marker_from_trip, assign_marker_to_day, plan_trip_day, create_day_chain, update_day_chain, delete_day_chain, reorder_day_markers, delete_trip
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -43,6 +43,9 @@ function createMcpServer(): McpServer {
           text: `# MapAnNai 使用指南
 
 ## 核心概念
+
+旅行的 \`markerIds\` 是尚未分配日期的地点，区别于每日成员。\`assign_marker_to_trip\` 收藏到旅行，\`assign_marker_to_day\` 分配日期后自动移出该旅行待分配列表，不自动建链。
+
 
 - **Marker**：地图上的地点标记，包含坐标、标题、图标类型、富文本内容（HTML）。内容字段（\`content\` / \`markdownContent\`）存储 Tiptap 富文本编辑器输出的 HTML，支持标题（h1/h2/h3）、加粗、斜体、下划线、无序/有序列表、引用块、图片。通过 MCP 写入时请传入合法 HTML，例如：\`<h2>浅草寺</h2><p>东京最古老的寺庙。</p><ul><li>开放时间：6:00–17:00</li></ul>\`。
 - **Trip**：一次旅行，包含名称、日期范围，创建时自动按天生成 TripDay。
@@ -116,6 +119,8 @@ function createMcpServer(): McpServer {
 | \`add_day_to_trip\` | 手动为旅行添加一天 |
 | \`assign_marker_to_day\` | 将已有 marker 加入某天 |
 | \`plan_trip_day\` | 批量创建地点并加入某天（推荐主力工具） |
+| \`assign_marker_to_trip\` | 收藏已有地点到旅行，暂不分配日期 |
+| \`remove_marker_from_trip\` | 移除旅行待分配归属，保留地点 |
 | \`create_day_chain\` | 按已有标记 ID 创建某天的行程链 |
 | \`update_day_chain\` | 修改已有路线的地点及访问顺序 |
 | \`delete_day_chain\` | 删除一条路线，保留地点与当天成员 |

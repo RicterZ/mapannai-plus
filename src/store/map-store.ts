@@ -109,6 +109,7 @@ interface MapStore {
     createTripDay: (tripId: string, data: { date: string; title?: string }) => Promise<TripDay>
     updateTripDay: (tripId: string, dayId: string, data: Partial<TripDay>) => Promise<void>
     deleteTripDay: (tripId: string, dayId: string, deleteExclusiveMarkers?: boolean) => Promise<void>
+    setTripMarker: (tripId: string, markerId: string, add: boolean) => Promise<void>
     addMarkerToDay: (tripId: string, dayId: string, markerId: string) => Promise<void>
     removeMarkerFromDay: (tripId: string, dayId: string, markerId: string) => Promise<void>
     reorderDayMarkers: (tripId: string, dayId: string, newOrder: string[]) => Promise<void>
@@ -393,6 +394,7 @@ export const useMapStore = create<MapStore>()(
                 await get().deleteMarkerFromDataset(markerId)
                 set(state => ({
                     markers: state.markers.filter(marker => marker.id !== markerId),
+                    trips: state.trips.map(trip => ({ ...trip, markerIds: trip.markerIds?.filter(id => id !== markerId) })),
                     tripDays: state.tripDays.map(day => ({ ...day, markerIds: day.markerIds.filter(id => id !== markerId), chains: day.chains.map(chain => chain.filter(id => id !== markerId)).filter(chain => chain.length > 0) })),
                     interactionState: {
                         ...state.interactionState,
@@ -828,6 +830,7 @@ export const useMapStore = create<MapStore>()(
                 const updated: TripDay = await response.json()
                 set(state => ({
                     tripDays: state.tripDays.map(d => d.id === dayId ? updated : d),
+                    trips: state.trips.map(trip => trip.id === tripId ? { ...trip, markerIds: trip.markerIds?.filter(id => !updated.markerIds.includes(id) && !updated.chains.some(chain => chain.includes(id))) } : trip),
                 }), false, 'updateTripDay')
             },
 
@@ -845,6 +848,15 @@ export const useMapStore = create<MapStore>()(
                         ? { mode: 'trip', tripId, dayId: null }
                         : state.activeView,
                 }), false, 'deleteTripDay')
+            },
+
+            setTripMarker: async (tripId, markerId, add) => {
+                const response = await fetchWithAuth(`/api/trips/${tripId}/markers`, {
+                    method: add ? 'POST' : 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ markerId }),
+                })
+                if (!response.ok) throw new Error('更新旅行地点失败')
+                const trip: Trip = await response.json()
+                set(state => ({ trips: state.trips.map(item => item.id === tripId ? trip : item) }), false, 'setTripMarker')
             },
 
             addMarkerToDay: async (tripId, dayId, markerId) => {
@@ -865,6 +877,7 @@ export const useMapStore = create<MapStore>()(
                     body: JSON.stringify({ markerId }),
                 }).then(res => {
                     if (!res.ok) throw new Error('添加标记到天失败')
+                    set(state => ({ trips: state.trips.map(trip => trip.id === tripId ? { ...trip, markerIds: trip.markerIds?.filter(id => id !== markerId) } : trip) }), false, 'assignTripMarker')
                 }).catch(error => {
                     // 回滚
                     set(state => ({
@@ -939,6 +952,8 @@ export const useMapStore = create<MapStore>()(
                     body: JSON.stringify({ chains }),
                 })
                 if (!response.ok) throw new Error('更新链路失败')
+                const assignedIds = new Set(chains.flat())
+                set(state => ({ trips: state.trips.map(trip => trip.id === tripId ? { ...trip, markerIds: trip.markerIds?.filter(id => !assignedIds.has(id)) } : trip) }), false, 'updateDayChains-tripPool')
                 } catch (error) {
                     set(state => ({ tripDays: state.tripDays.map(d => d.id === dayId && d.chains === chains ? { ...d, chains: previous } : d) }), false, 'updateDayChains-rollback')
                     throw error

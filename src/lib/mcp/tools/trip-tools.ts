@@ -15,6 +15,7 @@ import {
     getDayById,
     upsertTripDay,
     editDayChain,
+    setTripMarker,
 } from '@/lib/db/trip-service'
 import {
     getMarkerById,
@@ -39,7 +40,7 @@ export function registerTripTools(server: McpServer) {
                 .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
                 .map(trip => {
                     const tripDays = days.filter(d => d.tripId === trip.id)
-                    const totalMarkers = new Set(tripDays.flatMap(d => d.markerIds)).size
+                    const totalMarkers = new Set([...tripDays.flatMap(d => d.markerIds), ...(trip.markerIds ?? [])]).size
                     return {
                         id: trip.id,
                         name: trip.name,
@@ -57,7 +58,7 @@ export function registerTripTools(server: McpServer) {
     // get_trip_detail
     server.tool(
         'get_trip_detail',
-        '获取单次旅行详情，包含每天的 markerIds 和 chains（每条路线按访问顺序排列）；修改或删除路线前用此工具获取最新链索引',
+        '获取单次旅行详情，旅行 markerIds 是未分配日期的地点；包含每天的 markerIds 和 chains（每条路线按访问顺序排列）；修改或删除路线前用此工具获取最新链索引',
         { tripId: z.string().describe('旅行 ID') },
         async ({ tripId }) => {
             const trip = getTripById(tripId)
@@ -129,6 +130,19 @@ export function registerTripTools(server: McpServer) {
             upsertTripDay(day)
             return { content: [{ type: 'text', text: JSON.stringify(day, null, 2) }] }
         }
+    )
+
+    server.tool(
+        'assign_marker_to_trip',
+        '将已有地点收藏到旅行但暂不分配日期，不创建行程日或路线；已属于该旅行某日的地点不能重复加入待分配列表。',
+        { tripId: z.string().describe('旅行 ID'), markerId: z.string().describe('已有地点 ID') },
+        async ({ tripId, markerId }) => ({ content: [{ type: 'text', text: JSON.stringify(setTripMarker(tripId, markerId, true)) }] })
+    )
+    server.tool(
+        'remove_marker_from_trip',
+        '移除旅行中未分配日期的地点归属，保留地点本身，不影响其他旅行或每日安排。',
+        { tripId: z.string().describe('旅行 ID'), markerId: z.string().describe('未分配日期的地点 ID') },
+        async ({ tripId, markerId }) => ({ content: [{ type: 'text', text: JSON.stringify(setTripMarker(tripId, markerId, false)) }] })
     )
 
     // assign_marker_to_day

@@ -11,6 +11,8 @@ import {
     TouchSensor,
     KeyboardSensor,
     closestCenter,
+    pointerWithin,
+    rectIntersection,
     useSensor,
     useSensors,
     useDroppable,
@@ -276,6 +278,22 @@ function ChainDropContainer({ chainIdx, children, isEmpty }: {
     )
 }
 
+function TripDayDrop({ dayId, enabled, children }: { dayId: string; enabled: boolean; children: React.ReactNode }) {
+    const { setNodeRef, isOver } = useDroppable({ id: `trip-day:${dayId}`, disabled: !enabled })
+    return <div ref={setNodeRef} data-day-drop={dayId} className={cn('rounded-xl', isOver && 'ring-2 ring-blue-400 bg-blue-50')}>{children}</div>
+}
+
+function TripPendingMarker({ marker, editable, onSelect, onAssign, onRemove }: { marker: Marker; editable: boolean; onSelect: () => void; onAssign: () => void; onRemove: () => void }) {
+    const { setNodeRef, listeners, attributes, isDragging } = useDraggable({ id: `trip-marker:${marker.id}`, disabled: !editable })
+    return <div ref={setNodeRef} data-marker-id={marker.id} className={cn('flex items-center gap-1 rounded-xl border border-gray-200 bg-white', isDragging && 'opacity-40')}>
+        {editable && <button {...listeners} {...attributes} aria-label={`拖动${marker.content.title}到日期`} className="touch-none px-2 py-3 text-gray-400">⠿</button>}
+        <button onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2.5 text-left">
+            <span>{MARKER_ICONS[marker.content.iconType || 'location']?.emoji}</span><span className="truncate text-sm text-gray-800">{marker.content.title || '未命名地点'}</span>
+        </button>
+        {editable && <><button onClick={onAssign} className="min-h-[44px] px-2 text-xs text-blue-600">分配</button><button aria-label={`从旅行移除${marker.content.title}`} onClick={onRemove} className="min-h-[44px] px-2 text-gray-400">×</button></>}
+    </div>
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEnabled, onToggleAddMarker }: LeftSidebarProps) => {
@@ -313,7 +331,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
     const [deleteExclusiveMarkers, setDeleteExclusiveMarkers] = useState(false)
     const [deleting, setDeleting] = useState(false)
     useEffect(() => {
-        if (!addMarkerEnabled) { setPendingDeletion(null); setEditingTripName(false); setEditingTripDate(false); setShowEmojiPicker(false) }
+        if (!addMarkerEnabled) { setAssignTripMarker(null); setPendingDeletion(null); setEditingTripName(false); setEditingTripDate(false); setShowEmojiPicker(false) }
     }, [addMarkerEnabled])
     // Edit mode: number of pending (empty) chain slots user has clicked "create"
     const [pendingEmptyChains, setPendingEmptyChains] = useState(0)
@@ -321,6 +339,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
     const [showAllDayMarkers, setShowAllDayMarkers] = useState(false)
     const [collapsedRoutes, setCollapsedRoutes] = useState<Set<number>>(new Set())
     const [routePicker, setRoutePicker] = useState<{ markerId?: string; chainIndex?: number } | null>(null)
+    const [assignTripMarker, setAssignTripMarker] = useState<string | null>(null)
     const [savingRoute, setSavingRoute] = useState(false)
 
     const [editingTripName, setEditingTripName] = useState(false)
@@ -341,7 +360,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
     const displayMode = activeView.mode
     const displayTripId = activeView.tripId
     const displayDayId = activeView.dayId
-    useEffect(() => { setPendingDeletion(null) }, [activeView.mode, activeView.tripId, activeView.dayId])
+    useEffect(() => { setPendingDeletion(null); setAssignTripMarker(null) }, [activeView.mode, activeView.tripId, activeView.dayId])
     useEffect(() => () => clearTimeout(clickUnlockRef.current), [])
     useEffect(() => {
         if (sidebarRef.current) sidebarRef.current.inert = !leftSidebar.isOpen
@@ -477,9 +496,9 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
 
     // Unassigned markers: those not appearing in any TripDay's markerIds
     const unassignedMarkers = useMemo(() => {
-        const assignedIds = new Set(tripDays.flatMap(d => d.markerIds))
+        const assignedIds = new Set([...tripDays.flatMap(d => [...d.markerIds, ...d.chains.flat()]), ...trips.flatMap(trip => trip.markerIds ?? [])])
         return markers.filter(m => !assignedIds.has(m.id))
-    }, [markers, tripDays])
+    }, [markers, tripDays, trips])
 
     // ── Drag and drop ─────────────────────────────────────────────────────────
 
@@ -1001,7 +1020,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                 </div>
                                 {yearTrips.map(trip => {
                                     const days = tripDays.filter(d => d.tripId === trip.id)
-                                    const totalMarkers = Array.from(new Set(days.flatMap(d => d.markerIds))).length
+                                    const totalMarkers = new Set([...days.flatMap(d => d.markerIds), ...(trip.markerIds ?? [])]).size
                                     return (
                                         <div key={trip.id} className="border border-gray-200 rounded-xl bg-white overflow-hidden mb-2">
                                             <button
@@ -1115,6 +1134,16 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         }
 
         return (
+        <DndContext sensors={sensors} collisionDetection={args => args.pointerCoordinates ? pointerWithin(args) : rectIntersection(args)} onDragStart={handleDragStart} onDragCancel={() => setActiveDragId(null)} onDragEnd={event => {
+            setActiveDragId(null)
+            setBlockClicksSync(true)
+            clearTimeout(clickUnlockRef.current)
+            clickUnlockRef.current = setTimeout(() => setBlockClicksSync(false), 300)
+            const markerId = String(event.active.id).replace('trip-marker:', '')
+            const dayId = event.over && String(event.over.id).replace('trip-day:', '')
+            if (!addMarkerEnabled || !currentTrip || !dayId || !currentTrip.markerIds?.includes(markerId) || !currentTripDays.some(day => day.id === dayId)) return
+            void useMapStore.getState().addMarkerToDay(currentTrip.id, dayId, markerId).catch(() => toast.error('分配日期失败，请重试'))
+        }}>
         <div className="flex-1 overflow-y-auto custom-scrollbar">
             <div className="p-3">
                 {currentTripDays.length === 0 ? (
@@ -1128,7 +1157,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                             .map(id => markers.find(m => m.id === id))
                             .filter(Boolean) as typeof markers
                         return (
-                            <React.Fragment key={day.id}>
+                            <TripDayDrop key={day.id} dayId={day.id} enabled={addMarkerEnabled}>
                             <div className="flex items-stretch rounded-xl border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 transition-colors">
                             <button
                                 onClick={() => { setActiveView('day', activeView.tripId, day.id) }}
@@ -1174,11 +1203,19 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                     </svg>
                                 </div>
                             )}
-                            </React.Fragment>
+                            </TripDayDrop>
                         )
                     })
                 )}
 
+                {((currentTrip?.markerIds?.length ?? 0) > 0 || addMarkerEnabled) && <div className="mt-4 space-y-2">
+                    <div className="px-1 text-xs font-medium text-gray-500">未分配日期 · {currentTrip?.markerIds?.length ?? 0}</div>
+                    {(currentTrip?.markerIds ?? []).map(id => markers.find(marker => marker.id === id)).filter((marker): marker is Marker => !!marker).map(marker => (
+                        <TripPendingMarker key={marker.id} marker={marker} editable={addMarkerEnabled} onSelect={() => handleMarkerClick(marker.id)} onAssign={() => setAssignTripMarker(marker.id)} onRemove={() => {
+                            if (currentTrip) void useMapStore.getState().setTripMarker(currentTrip.id, marker.id, false).catch(() => toast.error('移除失败'))
+                        }} />
+                    ))}
+                </div>}
                 {addMarkerEnabled && <div className="grid grid-cols-2 gap-2 mt-2">
                     <button type="button" onClick={handleAddDay} className="flex items-center justify-center gap-1.5 py-2 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="新增一天">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -1191,6 +1228,11 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 </div>}
             </div>
         </div>
+        <DragOverlay>{activeDragId?.startsWith('trip-marker:') && (() => {
+            const marker = markers.find(item => item.id === activeDragId.slice(12))
+            return marker ? <DragGhostItem marker={marker} index={0} /> : null
+        })()}</DragOverlay>
+        </DndContext>
         )
     }
 
@@ -1492,6 +1534,12 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 </div>
             </div>
 
+            {assignTripMarker && currentTrip && <Modal title="分配日期" onClose={() => setAssignTripMarker(null)}>
+                <div className="space-y-2">{currentTripDays.map((day, index) => <button key={day.id} className="min-h-[44px] w-full rounded-lg border px-3 text-left text-sm" onClick={async () => {
+                    try { await useMapStore.getState().addMarkerToDay(currentTrip.id, day.id, assignTripMarker); setAssignTripMarker(null) }
+                    catch { toast.error('分配日期失败，请重试') }
+                }}>第{index + 1}天 · {formatDate(day.date)}</button>)}</div>
+            </Modal>}
             <CreateTripModal isOpen={showCreateTrip} onClose={() => setShowCreateTrip(false)} />
             {routePicker && currentDay && <Modal title={routePicker.markerId ? '加入哪条路线？' : '添加地点到路线'} onClose={() => setRoutePicker(null)} busy={savingRoute}>
                 <p className="mb-3 text-xs text-gray-500">{routePicker.markerId ? markers.find(marker => marker.id === routePicker.markerId)?.content.title : '从当天地点中选择，加入后排在路线末尾。'}</p>
@@ -1513,7 +1561,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 const dayIndex = days.findIndex(d => d.id === pendingDeletion.id)
                 const day = days[dayIndex]
                 if (!trip || (!isTrip && !day)) return null
-                const exclusiveCount = exclusiveMarkerIds(isTrip ? days : [day], tripDays).filter(id => markers.some(marker => marker.id === id)).length
+                const exclusiveCount = exclusiveMarkerIds(isTrip ? days : [day], tripDays, trips, isTrip ? trip.id : undefined).filter(id => markers.some(marker => marker.id === id)).length
                 return <Modal title={isTrip ? `删除「${trip.name}」？` : `删除第${dayIndex + 1}天？`} onClose={() => setPendingDeletion(null)} busy={deleting}>
                         <p className="mt-2 text-sm text-gray-600">
                             {isTrip

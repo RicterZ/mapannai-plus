@@ -24,6 +24,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         if (!trip) return NextResponse.json({ error: '旅行不存在' }, { status: 404 })
 
         const body = await request.json()
+        // Membership changes use the dedicated markers endpoint.
+        delete body.markerIds
         if (body.startDate !== undefined && body.startDate !== trip.startDate) {
             const startDate = body.startDate
             const parsedDate = typeof startDate === 'string' ? new Date(`${startDate}T00:00:00Z`) : new Date(NaN)

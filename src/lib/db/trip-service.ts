@@ -16,9 +16,10 @@ export function getTripById(id: string): Trip | null {
 
 export function upsertTrip(trip: Trip): void {
     getDb().prepare(`
-        INSERT INTO trips (id, name, description, start_date, end_date, cover_image, emoji, created_at, updated_at)
-        VALUES (@id, @name, @description, @startDate, @endDate, @coverImage, @emoji, @createdAt, @updatedAt)
+        INSERT INTO trips (id, name, description, start_date, end_date, cover_image, emoji, marker_ids, created_at, updated_at)
+        VALUES (@id, @name, @description, @startDate, @endDate, @coverImage, @emoji, @markerIds, @createdAt, @updatedAt)
         ON CONFLICT(id) DO UPDATE SET
+            marker_ids  = excluded.marker_ids,
             name        = excluded.name,
             description = excluded.description,
             start_date  = excluded.start_date,
@@ -27,6 +28,7 @@ export function upsertTrip(trip: Trip): void {
             emoji       = excluded.emoji,
             updated_at  = excluded.updated_at
     `).run({
+        markerIds: JSON.stringify(trip.markerIds ?? getTripById(trip.id)?.markerIds ?? []),
         id: trip.id,
         name: trip.name,
         description: trip.description ?? null,
@@ -37,6 +39,22 @@ export function upsertTrip(trip: Trip): void {
         createdAt: trip.createdAt,
         updatedAt: trip.updatedAt,
     })
+}
+
+/** Trip-only membership never duplicates a day membership within the same trip. */
+export function setTripMarker(tripId: string, markerId: string, add: boolean): Trip {
+    return getDb().transaction(() => {
+        const trip = getTripById(tripId)
+        if (!trip) throw new Error('旅行不存在')
+        if (add && !getMarkerById(markerId)) throw new Error('地点不存在')
+        if (add && getTripDays(tripId).some(day => day.markerIds.includes(markerId) || day.chains.some(chain => chain.includes(markerId)))) throw new Error('地点已分配到日期')
+        if (add && trip.markerIds?.includes(markerId)) return trip
+        const markerIds = (trip.markerIds ?? []).filter(id => id !== markerId)
+        if (add) markerIds.push(markerId)
+        const updated = { ...trip, markerIds, updatedAt: new Date().toISOString() }
+        upsertTrip(updated)
+        return updated
+    })()
 }
 
 export function moveTripStartDate(trip: Trip, startDate: string): { trip: Trip; days: TripDay[] } {
@@ -56,7 +74,7 @@ export function moveTripStartDate(trip: Trip, startDate: string): { trip: Trip; 
 
 export function deleteTrip(id: string, deleteExclusiveMarkers = false): { deletedMarkerIds: string[] } {
     return getDb().transaction(() => {
-        const ids = deleteExclusiveMarkers ? exclusiveMarkerIds(getTripDays(id), getAllTripDays()) : []
+        const ids = deleteExclusiveMarkers ? exclusiveMarkerIds(getTripDays(id), getAllTripDays(), getAllTrips(), id) : []
         getDb().prepare('DELETE FROM trips WHERE id = ?').run(id)
         ids.forEach(deleteMarker)
         return { deletedMarkerIds: ids }
@@ -79,31 +97,37 @@ export function getDayById(dayId: string): TripDay | null {
 }
 
 export function upsertTripDay(day: TripDay): void {
-    const existing = getDayById(day.id)
-    const used = new Set(getTripDays(day.tripId).map(day => day.colorIndex))
-    let colorIndex = 0
-    while (used.has(colorIndex)) colorIndex++
-    day.colorIndex = existing?.colorIndex ?? colorIndex
-    getDb().prepare(`
-        INSERT INTO trip_days (id, trip_id, date, title, emoji, marker_ids, chains, color_index)
-        VALUES (@id, @tripId, @date, @title, @emoji, @markerIds, @chains, @colorIndex)
-        ON CONFLICT(id) DO UPDATE SET
-            date       = excluded.date,
-            title      = excluded.title,
-            emoji      = excluded.emoji,
-            marker_ids = excluded.marker_ids,
-            chains     = excluded.chains
-    `).run({
-        id: day.id,
-        tripId: day.tripId,
-        date: day.date,
-        title: day.title ?? null,
-        emoji: day.emoji ?? null,
-        colorIndex: day.colorIndex,
-        markerIds: JSON.stringify(day.markerIds),
-        chains: JSON.stringify(day.chains ?? []),
-    })
+    getDb().transaction(() => {
+        const trip = getTripById(day.tripId)
+        const assigned = new Set([...day.markerIds, ...(day.chains ?? []).flat()])
+        if (trip?.markerIds?.some(id => assigned.has(id))) upsertTrip({ ...trip, markerIds: trip.markerIds.filter(id => !assigned.has(id)) })
+        const existing = getDayById(day.id)
+        const used = new Set(getTripDays(day.tripId).map(day => day.colorIndex))
+        let colorIndex = 0
+        while (used.has(colorIndex)) colorIndex++
+        day.colorIndex = existing?.colorIndex ?? colorIndex
+        getDb().prepare(`
+            INSERT INTO trip_days (id, trip_id, date, title, emoji, marker_ids, chains, color_index)
+            VALUES (@id, @tripId, @date, @title, @emoji, @markerIds, @chains, @colorIndex)
+            ON CONFLICT(id) DO UPDATE SET
+                date       = excluded.date,
+                title      = excluded.title,
+                emoji      = excluded.emoji,
+                marker_ids = excluded.marker_ids,
+                chains     = excluded.chains
+        `).run({
+            id: day.id,
+            tripId: day.tripId,
+            date: day.date,
+            title: day.title ?? null,
+            emoji: day.emoji ?? null,
+            colorIndex: day.colorIndex,
+            markerIds: JSON.stringify(day.markerIds),
+            chains: JSON.stringify(day.chains ?? []),
+        })
+    })()
 }
+
 
 /** Replace or remove one route while preserving day membership and other routes. */
 export function editDayChain(tripId: string, dayId: string, chainIndex: number, markerIds: string[] | null): TripDay {
@@ -141,7 +165,7 @@ export function removeTripDayAndCloseGap(tripId: string, dayId: string, deleteEx
         if (days.length <= 1) throw new Error('行程至少保留一天')
         if (!days.some(day => day.id === dayId)) throw new Error('行程日不存在')
 
-        const deletedMarkerIds = deleteExclusiveMarkers ? exclusiveMarkerIds(days.filter(day => day.id === dayId), getAllTripDays()) : []
+        const deletedMarkerIds = deleteExclusiveMarkers ? exclusiveMarkerIds(days.filter(day => day.id === dayId), getAllTripDays(), getAllTrips()) : []
         db.prepare('DELETE FROM trip_days WHERE id = ? AND trip_id = ?').run(dayId, tripId)
         deletedMarkerIds.forEach(deleteMarker)
         const remaining = days.filter(day => day.id !== dayId)
@@ -163,6 +187,7 @@ export function removeTripDayAndCloseGap(tripId: string, dayId: string, deleteEx
 
 function rowToTrip(row: any): Trip {
     return {
+        markerIds: JSON.parse(row.marker_ids || '[]'),
         id: row.id,
         name: row.name,
         description: row.description ?? undefined,

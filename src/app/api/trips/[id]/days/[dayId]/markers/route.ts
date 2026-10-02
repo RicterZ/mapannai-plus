@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getMarkerById } from '@/lib/db/marker-service'
 import { getDayById, upsertTripDay } from '@/lib/db/trip-service'
 
 export const dynamic = 'force-dynamic'
@@ -8,11 +9,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     try {
         const body = await request.json()
         const { markerId } = body
-        if (!markerId) return NextResponse.json({ error: 'markerId 不能为空' }, { status: 400 })
+        if (typeof markerId !== 'string' || !markerId) return NextResponse.json({ error: 'markerId 不能为空' }, { status: 400 })
 
         const day = getDayById(params.dayId)
         if (!day || day.tripId !== params.id) return NextResponse.json({ error: '天不存在' }, { status: 404 })
 
+        if (!getMarkerById(markerId)) return NextResponse.json({ error: '地点不存在' }, { status: 404 })
         if (!day.markerIds.includes(markerId)) {
             upsertTripDay({ ...day, markerIds: [...day.markerIds, markerId] })
         }

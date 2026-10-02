@@ -733,6 +733,9 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                     } catch {
                         toast.success('标记已创建')
                     }
+                } : tripId ? async (realMarkerId) => {
+                    try { await useMapStore.getState().setTripMarker(tripId, realMarkerId, true) }
+                    catch { toast.error('地点已创建，但加入旅行失败') }
                 } : undefined,
             })
 

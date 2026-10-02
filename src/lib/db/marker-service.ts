@@ -163,6 +163,11 @@ export function deleteMarker(id: string): void {
     const db = getDb()
     db.transaction(() => {
         db.prepare(`DELETE FROM markers WHERE id = ?`).run(id)
+        const trips = db.prepare('SELECT id, marker_ids FROM trips').all() as { id: string; marker_ids: string }[]
+        for (const trip of trips) {
+            const ids: string[] = JSON.parse(trip.marker_ids)
+            if (ids.includes(id)) db.prepare('UPDATE trips SET marker_ids = ? WHERE id = ?').run(JSON.stringify(ids.filter(markerId => markerId !== id)), trip.id)
+        }
         const days = db.prepare('SELECT id, marker_ids, chains FROM trip_days').all() as { id: string; marker_ids: string; chains: string }[]
         const update = db.prepare('UPDATE trip_days SET marker_ids = ?, chains = ? WHERE id = ?')
         for (const day of days) {

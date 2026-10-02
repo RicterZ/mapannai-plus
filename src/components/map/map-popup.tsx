@@ -39,7 +39,7 @@ export const MapPopup = ({
     onInteract,
 }: MapPopupProps) => {
     const popupRef = useRef<HTMLDivElement>(null)
-    const { markers, activeView, tripDays, trips, interactionState, editMode, addMarkerToDay, setActiveView, openLeftSidebar, closeSidebar } = useMapStore()
+    const { markers, activeView, tripDays, trips, interactionState, editMode, addMarkerToDay, setTripMarker, setActiveView, openLeftSidebar, closeSidebar } = useMapStore()
 
     const { isSidebarOpen } = interactionState
     const isSidebarShowingThisMarker = isSidebarOpen && interactionState.selectedMarkerId === selectedMarkerId
@@ -190,6 +190,15 @@ export const MapPopup = ({
                                         </button>
                                     ))}
                                 </div>
+                            )}
+                            {trips.filter(trip => trip.markerIds?.includes(selectedMarkerId ?? '')).map(trip => (
+                                <button key={trip.id} className="w-full py-1 text-left text-xs text-indigo-600" onClick={() => { setActiveView('trip', trip.id); openLeftSidebar() }}>{trip.name} · 未分配日期</button>
+                            ))}
+                            {editMode.isEnabled && activeView.mode === 'trip' && activeView.tripId && selectedMarkerId && !trips.find(trip => trip.id === activeView.tripId)?.markerIds?.includes(selectedMarkerId) && !tripDays.some(day => day.tripId === activeView.tripId && day.markerIds.includes(selectedMarkerId)) && (
+                                <button className="w-full rounded-lg bg-indigo-500 px-2 py-1.5 text-xs font-medium text-white" onClick={async () => {
+                                    try { await setTripMarker(activeView.tripId!, selectedMarkerId, true); toast.success('已加入旅行'); onClose() }
+                                    catch { toast.error('加入旅行失败') }
+                                }}>加入旅行</button>
                             )}
                             {editMode.isEnabled && currentDay && !isMarkerInCurrentDay && (
                                 <button

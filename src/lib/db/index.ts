@@ -63,6 +63,9 @@ function initSchema(db: Database.Database) {
         );
     `)
 
+    const tripCols = db.prepare('PRAGMA table_info(trips)').all() as { name: string }[]
+    if (!tripCols.some(c => c.name === 'marker_ids')) db.exec("ALTER TABLE trips ADD COLUMN marker_ids TEXT NOT NULL DEFAULT '[]'")
+
     // Runtime migration: add chains column if it doesn't exist yet (for existing DBs)
     const cols = db.prepare(`PRAGMA table_info(trip_days)`).all() as { name: string }[]
     if (!cols.some(c => c.name === 'emoji')) {

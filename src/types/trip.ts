@@ -6,6 +6,7 @@ export interface Trip {
   endDate: string      // ISO date "2024-03-07"
   coverImage?: string
   emoji?: string       // 旅行图标，默认 ✈️
+  markerIds?: string[]  // Places saved to this trip but not assigned to a day
   createdAt: string
   updatedAt: string
 }
