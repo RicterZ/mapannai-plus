@@ -10,7 +10,7 @@
  *   Markers: list_markers, create_marker, update_marker, delete_marker
  *   Search:  search_places, get_place_details, get_walking_directions
  *   Trips:   list_trips, get_trip_detail, create_trip, add_day_to_trip,
- *            assign_marker_to_day, plan_trip_day, create_day_chain, reorder_day_markers, delete_trip
+ *            assign_marker_to_day, plan_trip_day, create_day_chain, update_day_chain, delete_day_chain, reorder_day_markers, delete_trip
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -55,7 +55,7 @@ function createMcpServer(): McpServer {
 1. \`create_trip\` — 创建旅行，指定名称和日期范围，自动生成每天的 TripDay。
 2. \`plan_trip_day\` — 对每一天批量创建地点 marker 并加入当天行程，自动生成行程链。
 3. 已有标记可使用 \`create_day_chain\`，按标记 ID 创建行程链，无需重新创建地点。
-4. 如需调整当天标记列表的顺序，使用 \`reorder_day_markers\`；行程链顺序由 \`create_day_chain\` 的 \`markerIds\` 决定。
+4. 修改已有路线的地点或顺序用 \`update_day_chain\`，删除路线用 \`delete_day_chain\`；先读取最新 \`get_trip_detail\`，按当天 \`chains\` 数组从 0 开始的索引定位。删除会使后续索引前移，但保留地点与当天成员。\`reorder_day_markers\` 只调整当天地点列表，不修改路线。
 
 ### 地图服务选择
 - 地图渲染引擎由部署环境的 \`MAP_RENDERER\` 选择 OpenStreetMap/MapLibre 或高德 JS API 2.0。
@@ -117,6 +117,8 @@ function createMcpServer(): McpServer {
 | \`assign_marker_to_day\` | 将已有 marker 加入某天 |
 | \`plan_trip_day\` | 批量创建地点并加入某天（推荐主力工具） |
 | \`create_day_chain\` | 按已有标记 ID 创建某天的行程链 |
+| \`update_day_chain\` | 修改已有路线的地点及访问顺序 |
+| \`delete_day_chain\` | 删除一条路线，保留地点与当天成员 |
 | \`reorder_day_markers\` | 调整某天地点顺序 |
 | \`delete_trip\` | 删除旅行 |`,
         },

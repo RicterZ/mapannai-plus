@@ -177,6 +177,7 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 - 工具注册在 `src/lib/mcp/tools/`，完整工作流参考 `server.ts` 的 `workflow` prompt。
 - `plan_trip_day` 按地点名称搜索 / 创建标记并加入当天，会生成链；创建同一天地点后校验坐标，任意两点超过 100km 或定位失败应报告，不默默继续。
 - **`create_day_chain` 使用已有 marker ID 创建链，不创建地点**；校验旅行 / 天、marker 是否存在及链内重复，并将尚未属于当天的 marker 加入当天成员。
+- `update_day_chain` 以完整已有 marker ID 列表替换一条链，校验索引、重复与地点存在，并补齐当天成员；`delete_day_chain` 仅移除链。二者保留地点、原有当天成员及其他路线，通过服务层事务写入。`chainIndex` 是最新 `get_trip_detail` 的 `chains` 数组索引，从 0 开始；删除后后续索引前移，继续操作先重读详情。网页 AI 自动复用这两个 MCP 工具，写入后刷新地图与行程。
 - 搜索名称应包含城市 / 区域，海外显式传 country 并选择合适 provider。MCP 与 Web 维护相同的数据一致性。
 
 ## 验证与交付

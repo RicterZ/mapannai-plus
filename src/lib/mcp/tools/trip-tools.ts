@@ -14,6 +14,7 @@ import {
     getTripDays,
     getDayById,
     upsertTripDay,
+    editDayChain,
 } from '@/lib/db/trip-service'
 import {
     getMarkerById,
@@ -56,7 +57,7 @@ export function registerTripTools(server: McpServer) {
     // get_trip_detail
     server.tool(
         'get_trip_detail',
-        '获取单次旅行的详情，包含所有天和每天的 marker 列表',
+        '获取单次旅行详情，包含每天的 markerIds 和 chains（每条路线按访问顺序排列）；修改或删除路线前用此工具获取最新链索引',
         { tripId: z.string().describe('旅行 ID') },
         async ({ tripId }) => {
             const trip = getTripById(tripId)
@@ -250,6 +251,31 @@ export function registerTripTools(server: McpServer) {
             }
             upsertTripDay(updated)
             return { content: [{ type: 'text', text: JSON.stringify({ dayId, chain: markerIds, addedMarkerIds: addedIds }, null, 2) }] }
+        }
+    )
+
+    // Existing route indices follow the latest get_trip_detail days[].chains array.
+    const chainTarget = {
+        tripId: z.string().describe('旅行 ID'),
+        dayId: z.string().describe('天 ID'),
+        chainIndex: z.number().int().min(0).describe('最新 get_trip_detail 中当天 chains 数组的索引，从 0 开始；界面路线 N 对应 N-1。删除后后续索引会变化'),
+    }
+    server.tool(
+        'update_day_chain',
+        '修改已有路线链的地点和访问顺序，传入完整 marker ID 列表；不新增路线或地点。新加入的已有地点自动加入当天，移出的地点仍保留在当天。',
+        { ...chainTarget, markerIds: z.array(z.string()).min(2).describe('修改后的完整路线，按访问顺序排列，至少两个不重复的已有地点 ID') },
+        async ({ tripId, dayId, chainIndex, markerIds }) => {
+            const day = editDayChain(tripId, dayId, chainIndex, markerIds)
+            return { content: [{ type: 'text', text: JSON.stringify({ success: true, dayId, chainIndex, markerIds: day.markerIds, chains: day.chains }) }] }
+        }
+    )
+    server.tool(
+        'delete_day_chain',
+        '删除当天的一条路线链，保留全部地点和当天地点成员，不影响其他路线。删除后后续路线索引前移，继续操作前读取最新行程。',
+        chainTarget,
+        async ({ tripId, dayId, chainIndex }) => {
+            const day = editDayChain(tripId, dayId, chainIndex, null)
+            return { content: [{ type: 'text', text: JSON.stringify({ success: true, dayId, deletedChainIndex: chainIndex, markerIds: day.markerIds, chains: day.chains }) }] }
         }
     )
 

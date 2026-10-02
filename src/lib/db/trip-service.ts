@@ -1,7 +1,7 @@
 import { getDb } from './index'
 import { Trip, TripDay } from '@/types/trip'
 import { exclusiveMarkerIds } from '@/lib/trip-deletion'
-import { deleteMarker } from './marker-service'
+import { deleteMarker, getMarkerById } from './marker-service'
 
 // ── Trip ──────────────────────────────────────────────
 
@@ -103,6 +103,29 @@ export function upsertTripDay(day: TripDay): void {
         markerIds: JSON.stringify(day.markerIds),
         chains: JSON.stringify(day.chains ?? []),
     })
+}
+
+/** Replace or remove one route while preserving day membership and other routes. */
+export function editDayChain(tripId: string, dayId: string, chainIndex: number, markerIds: string[] | null): TripDay {
+    return getDb().transaction(() => {
+        const day = getDayById(dayId)
+        if (!day || day.tripId !== tripId) throw new Error(`天不存在: ${dayId}`)
+        if (!Number.isInteger(chainIndex) || chainIndex < 0 || chainIndex >= day.chains.length) throw new Error('路线索引无效，请查询最新行程')
+        if (markerIds !== null) {
+            if (markerIds.length < 2) throw new Error('路线至少需要两个地点；删除路线请使用 delete_day_chain')
+            if (new Set(markerIds).size !== markerIds.length) throw new Error('行程链中不能重复使用同一个标记 ID')
+            const missing = markerIds.filter(id => !getMarkerById(id))
+            if (missing.length) throw new Error(`标记不存在: ${missing.join(', ')}`)
+        }
+        const updated: TripDay = {
+            ...day,
+            markerIds: markerIds === null ? day.markerIds : [...day.markerIds, ...markerIds.filter(id => !day.markerIds.includes(id))],
+            chains: markerIds === null ? day.chains.filter((_, index) => index !== chainIndex)
+                : day.chains.map((chain, index) => index === chainIndex ? markerIds : chain),
+        }
+        upsertTripDay(updated)
+        return updated
+    })()
 }
 
 export function deleteTripDay(dayId: string): void {

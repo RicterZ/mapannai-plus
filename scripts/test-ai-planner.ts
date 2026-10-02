@@ -62,7 +62,7 @@ async function main() {
             assert.equal(key, settings.apiKey)
             const payload = body as { tools: Array<{ function: { name: string; parameters: unknown } }>; messages: ChatMessage[] }
             assert(payload.tools.some(tool => tool.function.name === 'create_trip' && tool.function.parameters))
-            assert(payload.tools.some(tool => tool.function.name === 'create_day_chain'))
+            for (const name of ['create_day_chain', 'update_day_chain', 'delete_day_chain']) assert(payload.tools.some(tool => tool.function.name === name))
             assert.equal(payload.messages[0].content, planningPrompt)
             assert(planningPrompt.length < 1500, 'product identity and workflow should remain concise')
             const firstUser = payload.messages.find(message => message.role === 'user')!
@@ -95,6 +95,53 @@ async function main() {
         assert.equal(assembled.length, 1)
         assert(!assembled[0].content?.includes('已创建东京三日旅行'), 'do not carry conversation history across topics')
         assert.equal(otherTopic[0].content, '另一话题的安排')
+
+        // Exercise route editing through the real MCP bridge, with an isolated DB.
+        const { connectPlanningTools } = await import('../src/lib/ai/mcp-tools')
+        const { upsertMarker, getMarkerById } = await import('../src/lib/db/marker-service')
+        const { getTripDays, upsertTripDay, getDayById } = await import('../src/lib/db/trip-service')
+        const day = getTripDays(getAllTrips()[0].id)[0]
+        const ids = ['route-a', 'route-b', 'route-c', 'route-d']
+        ids.forEach((id, index) => upsertMarker(id, 139 + index / 100, 35, { metadata: { id, title: id } }))
+        upsertTripDay({ ...day, markerIds: ids.slice(0, 3), chains: [ids.slice(0, 2), ids.slice(1, 3)] })
+        const bridge = await connectPlanningTools()
+        const target = { tripId: day.tripId, dayId: day.id, chainIndex: 0 }
+        try {
+            const before = getDayById(day.id)
+            for (const args of [
+                { ...target, tripId: 'wrong-trip' }, { ...target, chainIndex: 9 },
+                { ...target, chainIndex: -1 }, { ...target, chainIndex: 0.5 },
+                { ...target, markerIds: ['route-a', 'route-a'] },
+                { ...target, markerIds: ['route-a', 'missing'] },
+                { ...target, markerIds: ['route-a'] },
+            ]) {
+                const result = await bridge.call('update_day_chain', { markerIds: ['route-c', 'route-a', 'route-d'], ...args }, signal)
+                assert.equal(result.isError, true)
+                assert.deepEqual(getDayById(day.id), before, 'invalid edit must not change membership or routes')
+            }
+            let editRound = 0
+            const editEvents: ChatEvent[] = []
+            await runPlanner({ ...first, messages: [{ role: 'user', content: '修改第一条路线' }] }, event => editEvents.push(event), signal, {
+                complete: async () => editRound++ === 0
+                    ? assistant(null, [{ name: 'update_day_chain', args: { ...target, markerIds: ['route-c', 'route-a', 'route-d'] } }])
+                    : assistant('路线改好了。'),
+            })
+            assert(editEvents.some(event => event.type === 'changed'), 'editing a chain refreshes web data')
+            const edited = getDayById(day.id)!
+            assert.deepEqual(edited.chains, [['route-c', 'route-a', 'route-d'], ['route-b', 'route-c']])
+            assert.deepEqual(edited.markerIds, ids, 'new member added; removed route member retained')
+            assert.equal(edited.colorIndex, before!.colorIndex)
+            const deleted = await bridge.call('delete_day_chain', target, signal)
+            assert(!deleted.isError)
+            assert.deepEqual(getDayById(day.id)!.chains, [['route-b', 'route-c']])
+            assert.deepEqual(getDayById(day.id)!.markerIds, ids)
+            assert(ids.every(id => getMarkerById(id)), 'route deletion must preserve even shared places')
+            const invalidDelete = await bridge.call('delete_day_chain', { ...target, chainIndex: 1 }, signal)
+            assert.equal(invalidDelete.isError, true, 'shifted indices need latest detail')
+            await bridge.call('delete_day_chain', target, signal)
+            assert.deepEqual(getDayById(day.id)!.chains, [], 'last route can be deleted')
+            assert.deepEqual(getDayById(day.id)!.markerIds, ids)
+        } finally { await bridge.close() }
 
         let invalidRound = 0
         await runPlanner(first, () => {}, signal, { complete: async (_url, _key, body) => {
