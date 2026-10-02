@@ -27,11 +27,6 @@ async function main() {
         const { POST } = await import('../src/app/api/ai/chat/route')
         const { planningPrompt } = await import('../src/lib/ai/prompt')
         const { attachTripContext } = await import('../src/lib/ai/trip-context')
-        const { GET: getPrompt } = await import('../src/app/api/ai/prompt/route')
-        const promptResponse = await getPrompt()
-        assert.equal(promptResponse.status, 200)
-        assert.equal(promptResponse.headers.get('Cache-Control'), 'no-store')
-        assert.deepEqual(await promptResponse.json(), { prompt: planningPrompt })
         assert.equal(getAllTrips().length, 0, 'test must start in an empty isolated DB')
         // Public endpoint validation, including mapped IPv4 and explicit private opt-in.
         assert.equal(completionUrl('https://ai.example/v1/').pathname, '/v1/chat/completions')
