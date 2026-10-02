@@ -33,6 +33,7 @@ import { useRouteSettings, setRouteSettings } from '@/lib/map/route-settings'
 import { CreateTripModal } from '@/components/modal/create-trip-modal'
 import { routeColor, dayColor, shortAddress } from '@/lib/map/route-presentation'
 import { useRouteProgress } from '@/lib/map/route-progress'
+import { isRangeFallback, readCachedRoute, readRouteMetrics, routeCacheKey } from '@/lib/map/route-cache'
 import { Modal } from '@/components/ui/modal'
 
 interface LeftSidebarProps {
@@ -60,6 +61,18 @@ function getMarkerColor(iconType: string): string {
         transit: 'bg-blue-500/50',
     }
     return map[iconType] || 'bg-sky-500/50'
+}
+
+function RouteConnector({ distance }: { distance: number | null }) {
+    const label = distance === null ? null : distance < 1000 ? `${Math.round(distance)} m` : `${Number((distance / 1000).toFixed(1))} km`
+    return (
+        <div className="relative flex items-center justify-center py-0.5">
+            <svg aria-hidden="true" className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+            {label && <span className="absolute left-0 whitespace-nowrap text-[11px] leading-4 tabular-nums text-gray-500" aria-label={`规划距离 ${label}`}>{label}</span>}
+        </div>
+    )
 }
 
 // Ghost item rendered in DragOverlay
@@ -92,6 +105,7 @@ interface ChainItemProps {
     marker: Marker
     index: number
     hasArrowAfter: boolean
+    distance: number | null
     onRemove: () => void
     onFlyTo?: () => void
     selected?: boolean
@@ -99,7 +113,7 @@ interface ChainItemProps {
     last: boolean
 }
 
-function ChainItem({ id, marker, index, hasArrowAfter, onRemove, onFlyTo, selected, onMove, last }: ChainItemProps) {
+function ChainItem({ id, marker, index, hasArrowAfter, distance, onRemove, onFlyTo, selected, onMove, last }: ChainItemProps) {
     const {
         attributes,
         listeners,
@@ -162,13 +176,7 @@ function ChainItem({ id, marker, index, hasArrowAfter, onRemove, onFlyTo, select
                 <button type="button" disabled={last} onClick={() => onMove(1)} className="min-h-[32px] px-2 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30">下移</button>
               </div>
             </div>
-            {hasArrowAfter && (
-                <div className="flex justify-center py-0.5">
-                    <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                </div>
-            )}
+            {hasArrowAfter && <RouteConnector distance={distance} />}
         </div>
     )
 }
@@ -273,6 +281,18 @@ function ChainDropContainer({ chainIdx, children, isEmpty }: {
 export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEnabled, onToggleAddMarker }: LeftSidebarProps) => {
     const routeSettings = useRouteSettings()
     const progress = useRouteProgress()
+    // The existing progress subscription rerenders after each segment is cached.
+    const segmentDistance = (from: Marker, to: Marker | undefined): number | null => {
+        if (!routeSettings.enabled || !to) return null
+        const key = routeCacheKey(routeProvider, routeSettings.auto ? 'auto' : routeSettings.mode, {
+            fromId: from.id, toId: to.id,
+            origin: { lat: from.coordinates.latitude, lng: from.coordinates.longitude },
+            destination: { lat: to.coordinates.latitude, lng: to.coordinates.longitude },
+        })
+        const path = readCachedRoute(key)
+        if (!path || isRangeFallback(path)) return null
+        return readRouteMetrics(key)?.distance ?? null
+    }
     const sidebarRef = useRef<HTMLDivElement>(null)
     const scrollPositions = useRef(new Map<string, number>())
     const {
@@ -1242,6 +1262,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                         marker={marker}
                                                         index={idx}
                                                         hasArrowAfter={idx < chainGroup.length - 1}
+                                                        distance={segmentDistance(marker, chainGroup[idx + 1])}
                                                         onRemove={() => handleRemoveFromChain(marker.id, chainIdx)}
                                                         onFlyTo={() => handleMarkerClick(marker.id)}
                                                         selected={interactionState.selectedMarkerId === marker.id}
@@ -1348,13 +1369,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                     </div>
                                                 </button>
                                             </div>
-                                            {idx < group.length - 1 && (
-                                                <div className="flex justify-center py-0.5">
-                                                    <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                    </svg>
-                                                </div>
-                                            )}
+                                            {idx < group.length - 1 && <RouteConnector distance={segmentDistance(marker, group[idx + 1])} />}
                                         </div>
                                     )
                                 })}
