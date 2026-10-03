@@ -23,6 +23,8 @@ import {
     findNearbyMarker,
     generateCoordinateHash,
 } from '@/lib/db/marker-service'
+import { createRouteChain, updateRouteChain, deleteRouteChain } from '@/lib/db/route-chain-service'
+import { stopPatchSchema, legPatchSchema } from '@/lib/trips/route-chain-schema'
 import { Trip, TripDay } from '@/types/trip'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -58,7 +60,7 @@ export function registerTripTools(server: McpServer) {
     // get_trip_detail
     server.tool(
         'get_trip_detail',
-        '获取单次旅行详情，旅行 markerIds 是未分配日期的地点；包含每天的 markerIds 和 chains（每条路线按访问顺序排列）；修改或删除路线前用此工具获取最新链索引',
+        '获取单次旅行详情，旅行 markerIds 是未分配日期的地点；包含每天 markerIds、兼容 chains 和 routeChains（稳定路线ID、stops访问ID及游览时间/时长、legs交通方式/车次号/备注）；修改或删除路线前用此工具获取最新链索引',
         { tripId: z.string().describe('旅行 ID') },
         async ({ tripId }) => {
             const trip = getTripById(tripId)
@@ -251,20 +253,8 @@ export function registerTripTools(server: McpServer) {
             markerIds: z.array(z.string()).min(2).describe('行程链中的标记 ID，按游览顺序排列，至少两个'),
         },
         async ({ tripId, dayId, markerIds }) => {
-            const day = getDayById(dayId)
-            if (!day || day.tripId !== tripId) throw new Error(`天不存在: ${dayId}`)
-            if (new Set(markerIds).size !== markerIds.length) throw new Error('行程链中不能重复使用同一个标记 ID')
-            const missing = markerIds.filter(id => !getMarkerById(id))
-            if (missing.length) throw new Error(`标记不存在: ${missing.join(', ')}`)
-
-            const addedIds = markerIds.filter(id => !day.markerIds.includes(id))
-            const updated: TripDay = {
-                ...day,
-                markerIds: [...day.markerIds, ...addedIds],
-                chains: [...(day.chains ?? []), markerIds],
-            }
-            upsertTripDay(updated)
-            return { content: [{ type: 'text', text: JSON.stringify({ dayId, chain: markerIds, addedMarkerIds: addedIds }, null, 2) }] }
+            const { route, addedMarkerIds } = createRouteChain(tripId, dayId, markerIds)
+            return { content: [{ type: 'text', text: JSON.stringify({ dayId, chain: markerIds, addedMarkerIds, routeChain: route }, null, 2) }] }
         }
     )
 
@@ -272,24 +262,36 @@ export function registerTripTools(server: McpServer) {
     const chainTarget = {
         tripId: z.string().describe('旅行 ID'),
         dayId: z.string().describe('天 ID'),
-        chainIndex: z.number().int().min(0).describe('最新 get_trip_detail 中当天 chains 数组的索引，从 0 开始；界面路线 N 对应 N-1。删除后后续索引会变化'),
+        chainId: z.string().optional().describe('优先使用 get_trip_detail 中 routeChains 的稳定路线 ID'),
+        chainIndex: z.number().int().min(0).optional().describe('兼容旧客户端：chains 数组索引，从0开始。chainId 和 chainIndex 二选一；删除后索引变化'),
     }
     server.tool(
         'update_day_chain',
-        '修改已有路线链的地点和访问顺序，传入完整 marker ID 列表；不新增路线或地点。新加入的已有地点自动加入当天，移出的地点仍保留在当天。',
-        { ...chainTarget, markerIds: z.array(z.string()).min(2).describe('修改后的完整路线，按访问顺序排列，至少两个不重复的已有地点 ID') },
-        async ({ tripId, dayId, chainIndex, markerIds }) => {
-            const day = editDayChain(tripId, dayId, chainIndex, markerIds)
-            return { content: [{ type: 'text', text: JSON.stringify({ success: true, dayId, chainIndex, markerIds: day.markerIds, chains: day.chains }) }] }
+        '修改已有路线顺序、地点游览安排与路段交通安排。优先传稳定 chainId；省略字段保留，时间/时长/车次号/note传null清除。车次号独立放serviceNumber。计划时长不影响寻路缓存，不自动排程。',
+        {
+            ...chainTarget,
+            markerIds: z.array(z.string()).min(2).optional().describe('可选：修改后的完整地点顺序，至少两个不重复的已有地点ID'),
+            stops: z.array(stopPatchSchema).optional().describe('可选：按访问stopId局部修改游览时间、停留分钟数、note'),
+            legs: z.array(legPatchSchema).optional().describe('可选：按相邻访问ID修改交通、独立线路/车次号serviceNumber、出发时间、计划分钟数、note；remove=true清除交通安排'),
+        },
+        async ({ tripId, dayId, chainId, chainIndex, markerIds, stops, legs }) => {
+            const day = getDayById(dayId)
+            if (!day || day.tripId !== tripId) throw new Error('行程日不存在')
+            if ((chainId === undefined) === (chainIndex === undefined)) throw new Error('chainId和chainIndex须二选一')
+            const id = chainId ?? day.routeChains?.[chainIndex!]?.id
+            if (!id) throw new Error('路线不存在，请查询最新行程')
+            const updated = updateRouteChain(tripId, dayId, id, { markerIds, stops, legs })
+            return { content: [{ type: 'text', text: JSON.stringify({ success: true, dayId, chainId: id, markerIds: updated.markerIds, chains: updated.chains, routeChains: updated.routeChains }) }] }
         }
     )
     server.tool(
         'delete_day_chain',
-        '删除当天的一条路线链，保留全部地点和当天地点成员，不影响其他路线。删除后后续路线索引前移，继续操作前读取最新行程。',
+        '删除一条路线及其游览/交通安排，保留全部地点和当天成员。优先chainId；兼容chainIndex，删除后后续索引前移。',
         chainTarget,
-        async ({ tripId, dayId, chainIndex }) => {
-            const day = editDayChain(tripId, dayId, chainIndex, null)
-            return { content: [{ type: 'text', text: JSON.stringify({ success: true, dayId, deletedChainIndex: chainIndex, markerIds: day.markerIds, chains: day.chains }) }] }
+        async ({ tripId, dayId, chainId, chainIndex }) => {
+            if ((chainId === undefined) === (chainIndex === undefined)) throw new Error('chainId和chainIndex须二选一')
+            const day = chainId !== undefined ? deleteRouteChain(tripId, dayId, chainId) : editDayChain(tripId, dayId, chainIndex!, null)
+            return { content: [{ type: 'text', text: JSON.stringify({ success: true, dayId, deletedChainId: chainId, deletedChainIndex: chainIndex, markerIds: day.markerIds, chains: day.chains, routeChains: day.routeChains }) }] }
         }
     )
 

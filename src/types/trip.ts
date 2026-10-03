@@ -19,6 +19,7 @@ export interface TripDay {
   emoji?: string       // 自定义每日图标
   colorIndex?: number  // Persisted palette slot, independent of date and ordering
   markerIds: string[]  // ordered list of marker IDs for this day (membership)
+  routeChains?: RouteChain[] // Canonical routes; chains is the legacy projection
   chains: string[][]   // ordered chains of marker IDs for this day (connection lines)
                        // e.g. [[A,B,C],[D,E]] — F in markerIds but not in chains = isolated
 }
@@ -31,4 +32,28 @@ export interface ActiveView {
   mode: ActiveViewMode
   tripId: string | null
   dayId: string | null
+}
+
+/** Local clock time on TripDay.date, not a timezone-converted timestamp. */
+export interface Schedule {
+  startTime?: string
+  durationMinutes?: number // User-planned duration; never provider duration
+}
+export type TransportMode = 'walking' | 'cycling' | 'driving' | 'taxi' | 'bus' | 'subway' | 'train' | 'flight' | 'ferry' | 'other'
+export interface ChainStop extends Schedule {
+  id: string
+  markerId: string
+  note?: string
+}
+export interface ChainLeg extends Schedule {
+  fromStopId: string
+  toStopId: string
+  mode: TransportMode
+  serviceNumber?: string // Line / service number: 2号线, G123, NH920, ferry service
+  note?: string
+}
+export interface RouteChain {
+  id: string
+  stops: ChainStop[]
+  legs: ChainLeg[] // Only manually defined directed adjacent legs
 }

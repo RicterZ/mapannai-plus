@@ -6,10 +6,11 @@ export const dynamic = 'force-dynamic'
 // PUT /api/trips/[id]/days/[dayId]
 export async function PUT(request: NextRequest, { params }: { params: { id: string; dayId: string } }) {
     try {
+        const body = await request.json()
         const day = getDayById(params.dayId)
         if (!day || day.tripId !== params.id) return NextResponse.json({ error: '天不存在' }, { status: 404 })
 
-        const body = await request.json()
+        if (body.routeChains !== undefined) return NextResponse.json({ error: '请通过 chains/[chainId] 接口修改路线安排' }, { status: 400 })
         if (body.emoji !== undefined && (typeof body.emoji !== 'string' || body.emoji.length > 32)) {
             return NextResponse.json({ error: '图标格式无效' }, { status: 400 })
         }
@@ -23,10 +24,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         }
 
         upsertTripDay(updated)
-        return NextResponse.json(updated)
+        return NextResponse.json(getDayById(params.dayId))
     } catch (error) {
         console.error('更新天失败:', error)
-        return NextResponse.json({ error: '更新天失败' }, { status: 500 })
+        return NextResponse.json({ error: error instanceof Error ? error.message : '更新天失败' }, { status: 400 })
     }
 }
 

@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import path from 'path'
 import fs from 'fs'
+import { newRouteChain } from '@/lib/trips/route-chain'
 
 const DB_PATH = process.env.SQLITE_PATH || path.join(process.cwd(), 'data', 'mapannai.db')
 
@@ -87,4 +88,16 @@ function initSchema(db: Database.Database) {
             }
         })()
     }
+    if (!cols.some(c => c.name === 'route_chains')) {
+        db.transaction(() => {
+            db.exec("ALTER TABLE trip_days ADD COLUMN route_chains TEXT NOT NULL DEFAULT '[]'")
+            const days = db.prepare('SELECT id, chains FROM trip_days').all() as { id: string; chains: string }[]
+            const update = db.prepare('UPDATE trip_days SET route_chains = ? WHERE id = ?')
+            for (const day of days) {
+                const routes = (JSON.parse(day.chains || '[]') as string[][]).map(newRouteChain)
+                update.run(JSON.stringify(routes), day.id)
+            }
+        })()
+    }
+
 }

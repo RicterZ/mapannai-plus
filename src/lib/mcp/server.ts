@@ -44,6 +44,14 @@ function createMcpServer(): McpServer {
 
 ## 核心概念
 
+### 路线安排（后台支持，前端展示待设计）
+- 每日 \`routeChains\` 是完整路线；兼容 \`chains\` 仅是 marker ID 顺序投影。路线使用稳定 \`id\`，每次地点访问 \`stops\` 有独立 \`id\` 和 \`markerId\`。
+- \`stops\`：\`startTime\`（当天当地 HH:mm）、\`durationMinutes\`（用户计划停留分钟数）、\`note\`。不要改全局地点来保存一次访问的安排。
+- \`legs\`：有方向的相邻访问 \`fromStopId\` / \`toStopId\`、\`mode\`、独立线路/车次号 \`serviceNumber\`（地铁2号线、公交101、G123、NH920、船班号），以及同样的时间/时长/note；不要把车次号写进 note。
+- 使用 \`update_day_chain\`，优先 \`chainId\`，\`stops\` / \`legs\` 支持局部修改；省略保留、null清除时间/时长/车次号/备注，\`remove:true\` 清除一段交通安排。新建路段必须给 mode。时间不会自动排程，计划时长与寻路结果分开。
+- 地点访问的安排跟随访问ID；修改访问顺序后只有仍然有方向相邻的交通安排保留，不把安排搬到另一条路线。删除路线保留地点。
+
+
 旅行的 \`markerIds\` 是尚未分配日期的地点，区别于每日成员。\`assign_marker_to_trip\` 收藏到旅行，\`assign_marker_to_day\` 分配日期后自动移出该旅行待分配列表，不自动建链。
 
 
@@ -58,7 +66,7 @@ function createMcpServer(): McpServer {
 1. \`create_trip\` — 创建旅行，指定名称和日期范围，自动生成每天的 TripDay。
 2. \`plan_trip_day\` — 对每一天批量创建地点 marker 并加入当天行程，自动生成行程链。
 3. 已有标记可使用 \`create_day_chain\`，按标记 ID 创建行程链，无需重新创建地点。
-4. 修改已有路线的地点或顺序用 \`update_day_chain\`，删除路线用 \`delete_day_chain\`；先读取最新 \`get_trip_detail\`，按当天 \`chains\` 数组从 0 开始的索引定位。删除会使后续索引前移，但保留地点与当天成员。\`reorder_day_markers\` 只调整当天地点列表，不修改路线。
+4. 修改已有路线的地点或顺序用 \`update_day_chain\`，删除路线用 \`delete_day_chain\`；先读取最新 \`get_trip_detail\`，优先按 \`routeChains[].id\`（chainId）定位；旧 chainIndex 为从0开始的索引。删除会使后续索引前移，但保留地点与当天成员。\`reorder_day_markers\` 只调整当天地点列表，不修改路线。
 
 ### 地图服务选择
 - 地图渲染引擎由部署环境的 \`MAP_RENDERER\` 选择 OpenStreetMap/MapLibre 或高德 JS API 2.0。

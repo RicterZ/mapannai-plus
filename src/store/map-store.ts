@@ -3,6 +3,8 @@ import { devtools } from 'zustand/middleware'
 import { Marker, MarkerCoordinates, MarkerIconType, MapInteractionState } from '@/types/marker'
 import { Trip, TripDay, ActiveView } from '@/types/trip'
 import { v4 as uuidv4 } from 'uuid'
+import { removeRouteMarker } from '@/lib/trips/route-chain'
+import type { RouteChainPatch } from '@/lib/trips/route-chain-schema'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
 
 interface MapStore {
@@ -113,6 +115,7 @@ interface MapStore {
     addMarkerToDay: (tripId: string, dayId: string, markerId: string) => Promise<void>
     removeMarkerFromDay: (tripId: string, dayId: string, markerId: string) => Promise<void>
     reorderDayMarkers: (tripId: string, dayId: string, newOrder: string[]) => Promise<void>
+    updateRouteSchedule: (tripId: string, dayId: string, chainId: string, patch: RouteChainPatch) => Promise<void>
     updateDayChains: (tripId: string, dayId: string, chains: string[][]) => Promise<void>
 }
 
@@ -395,7 +398,7 @@ export const useMapStore = create<MapStore>()(
                 set(state => ({
                     markers: state.markers.filter(marker => marker.id !== markerId),
                     trips: state.trips.map(trip => ({ ...trip, markerIds: trip.markerIds?.filter(id => id !== markerId) })),
-                    tripDays: state.tripDays.map(day => ({ ...day, markerIds: day.markerIds.filter(id => id !== markerId), chains: day.chains.map(chain => chain.filter(id => id !== markerId)).filter(chain => chain.length > 0) })),
+                    tripDays: state.tripDays.map(day => ({ ...day, markerIds: day.markerIds.filter(id => id !== markerId), chains: day.chains.map(chain => chain.filter(id => id !== markerId)).filter(chain => chain.length > 0), routeChains: day.routeChains && removeRouteMarker(day.routeChains, markerId) })),
                     interactionState: {
                         ...state.interactionState,
                         selectedMarkerId: state.interactionState.selectedMarkerId === markerId
@@ -897,7 +900,7 @@ export const useMapStore = create<MapStore>()(
                 set(state => ({
                     tripDays: state.tripDays.map(d =>
                         d.id === dayId
-                            ? { ...d, markerIds: d.markerIds.filter(id => id !== markerId), chains: d.chains.map(chain => chain.filter(id => id !== markerId)).filter(chain => chain.length > 0) }
+                            ? { ...d, markerIds: d.markerIds.filter(id => id !== markerId), chains: d.chains.map(chain => chain.filter(id => id !== markerId)).filter(chain => chain.length > 0), routeChains: d.routeChains && removeRouteMarker(d.routeChains, markerId) }
                             : d
                     ),
                 }), false, 'removeMarkerFromDay-optimistic')
@@ -936,6 +939,15 @@ export const useMapStore = create<MapStore>()(
                 }), false, 'reorderDayMarkers')
             },
 
+            updateRouteSchedule: async (tripId, dayId, chainId, patch) => {
+                const response = await fetchWithAuth(`/api/trips/${tripId}/days/${dayId}/chains/${chainId}`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch),
+                })
+                const result = await response.json()
+                if (!response.ok) throw new Error(result.error || '保存安排失败')
+                set(state => ({ tripDays: state.tripDays.map(day => day.id === dayId ? result as TripDay : day) }), false, 'updateRouteSchedule')
+            },
+
             updateDayChains: async (tripId, dayId, chains) => {
                 const previous = get().tripDays.find(d => d.id === dayId)?.chains ?? []
                 // Optimistic update
@@ -952,6 +964,8 @@ export const useMapStore = create<MapStore>()(
                     body: JSON.stringify({ chains }),
                 })
                 if (!response.ok) throw new Error('更新链路失败')
+                const updatedDay: TripDay = await response.json()
+                set(state => ({ tripDays: state.tripDays.map(day => day.id === dayId ? updatedDay : day) }), false, 'updateDayChains-confirmed')
                 const assignedIds = new Set(chains.flat())
                 set(state => ({ trips: state.trips.map(trip => trip.id === tripId ? { ...trip, markerIds: trip.markerIds?.filter(id => !assignedIds.has(id)) } : trip) }), false, 'updateDayChains-tripPool')
                 } catch (error) {

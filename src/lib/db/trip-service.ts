@@ -1,6 +1,7 @@
 import { getDb } from './index'
-import { Trip, TripDay } from '@/types/trip'
+import { Trip, TripDay, RouteChain } from '@/types/trip'
 import { exclusiveMarkerIds } from '@/lib/trip-deletion'
+import { projectChains, reconcileLegacyChains, reorderRouteStops } from '@/lib/trips/route-chain'
 import { deleteMarker, getMarkerById } from './marker-service'
 
 // ── Trip ──────────────────────────────────────────────
@@ -96,25 +97,28 @@ export function getDayById(dayId: string): TripDay | null {
     return row ? rowToDay(row) : null
 }
 
-export function upsertTripDay(day: TripDay): void {
+export function upsertTripDay(day: TripDay, explicitRoutes?: RouteChain[]): void {
     getDb().transaction(() => {
-        const trip = getTripById(day.tripId)
-        const assigned = new Set([...day.markerIds, ...(day.chains ?? []).flat()])
-        if (trip?.markerIds?.some(id => assigned.has(id))) upsertTrip({ ...trip, markerIds: trip.markerIds.filter(id => !assigned.has(id)) })
         const existing = getDayById(day.id)
+        const routes = explicitRoutes ?? reconcileLegacyChains(existing?.routeChains ?? [], day.chains ?? [])
+        const chains = projectChains(routes)
+        const trip = getTripById(day.tripId)
+        const assigned = new Set([...day.markerIds, ...chains.flat()])
+        if (trip?.markerIds?.some(id => assigned.has(id))) upsertTrip({ ...trip, markerIds: trip.markerIds.filter(id => !assigned.has(id)) })
         const used = new Set(getTripDays(day.tripId).map(day => day.colorIndex))
         let colorIndex = 0
         while (used.has(colorIndex)) colorIndex++
         day.colorIndex = existing?.colorIndex ?? colorIndex
         getDb().prepare(`
-            INSERT INTO trip_days (id, trip_id, date, title, emoji, marker_ids, chains, color_index)
-            VALUES (@id, @tripId, @date, @title, @emoji, @markerIds, @chains, @colorIndex)
+            INSERT INTO trip_days (id, trip_id, date, title, emoji, marker_ids, chains, route_chains, color_index)
+            VALUES (@id, @tripId, @date, @title, @emoji, @markerIds, @chains, @routeChains, @colorIndex)
             ON CONFLICT(id) DO UPDATE SET
                 date       = excluded.date,
                 title      = excluded.title,
                 emoji      = excluded.emoji,
                 marker_ids = excluded.marker_ids,
-                chains     = excluded.chains
+                chains     = excluded.chains,
+                route_chains = excluded.route_chains
         `).run({
             id: day.id,
             tripId: day.tripId,
@@ -123,7 +127,8 @@ export function upsertTripDay(day: TripDay): void {
             emoji: day.emoji ?? null,
             colorIndex: day.colorIndex,
             markerIds: JSON.stringify(day.markerIds),
-            chains: JSON.stringify(day.chains ?? []),
+            chains: JSON.stringify(chains),
+            routeChains: JSON.stringify(routes),
         })
     })()
 }
@@ -147,8 +152,10 @@ export function editDayChain(tripId: string, dayId: string, chainIndex: number, 
             chains: markerIds === null ? day.chains.filter((_, index) => index !== chainIndex)
                 : day.chains.map((chain, index) => index === chainIndex ? markerIds : chain),
         }
-        upsertTripDay(updated)
-        return updated
+        const routes = (day.routeChains ?? []).flatMap((route, index) => index !== chainIndex ? [route]
+            : markerIds === null ? [] : [reorderRouteStops(route, markerIds)])
+        upsertTripDay(updated, routes)
+        return getDayById(dayId)!
     })()
 }
 
@@ -209,6 +216,7 @@ function rowToDay(row: any): TripDay {
         emoji: row.emoji ?? undefined,
         colorIndex: row.color_index,
         markerIds: JSON.parse(row.marker_ids || '[]'),
-        chains: JSON.parse(row.chains || '[]'),
+        routeChains: JSON.parse(row.route_chains || '[]'),
+        chains: projectChains(JSON.parse(row.route_chains || '[]')),
     }
 }

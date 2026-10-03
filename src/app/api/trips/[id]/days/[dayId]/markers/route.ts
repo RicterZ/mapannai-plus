@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { removeRouteMarker } from '@/lib/trips/route-chain'
 import { getMarkerById } from '@/lib/db/marker-service'
 import { getDayById, upsertTripDay } from '@/lib/db/trip-service'
 
@@ -34,7 +35,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
         const day = getDayById(params.dayId)
         if (day && day.tripId === params.id) {
-            upsertTripDay({ ...day, markerIds: day.markerIds.filter(id => id !== markerId), chains: day.chains.map(chain => chain.filter(id => id !== markerId)).filter(chain => chain.length > 0) })
+            upsertTripDay({ ...day, markerIds: day.markerIds.filter(id => id !== markerId), chains: day.chains.map(chain => chain.filter(id => id !== markerId)).filter(chain => chain.length > 0) }, removeRouteMarker(day.routeChains ?? [], markerId))
         }
 
         return NextResponse.json({ success: true })

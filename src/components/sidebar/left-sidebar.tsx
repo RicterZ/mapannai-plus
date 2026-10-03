@@ -36,6 +36,8 @@ import { CreateTripModal } from '@/components/modal/create-trip-modal'
 import { routeColor, dayColor, shortAddress } from '@/lib/map/route-presentation'
 import { useRouteProgress } from '@/lib/map/route-progress'
 import { isRangeFallback, readCachedRoute, readRouteMetrics, routeCacheKey } from '@/lib/map/route-cache'
+import { StopSchedule, RouteLeg, formatPlannedDuration } from '@/components/trips/route-schedule'
+import type { TripDay, RouteChain } from '@/types/trip'
 import { Modal } from '@/components/ui/modal'
 
 interface LeftSidebarProps {
@@ -63,18 +65,6 @@ function getMarkerColor(iconType: string): string {
         transit: 'bg-blue-500/50',
     }
     return map[iconType] || 'bg-sky-500/50'
-}
-
-function RouteConnector({ distance }: { distance: number | null }) {
-    const label = distance === null ? null : distance < 1000 ? `${Math.round(distance)} m` : `${Number((distance / 1000).toFixed(1))} km`
-    return (
-        <div className="relative flex items-center justify-center py-0.5">
-            <svg aria-hidden="true" className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-            {label && <span className="absolute left-0 whitespace-nowrap text-[11px] leading-4 tabular-nums text-gray-500" aria-label={`规划距离 ${label}`}>{label}</span>}
-        </div>
-    )
 }
 
 // Ghost item rendered in DragOverlay
@@ -113,9 +103,12 @@ interface ChainItemProps {
     selected?: boolean
     onMove: (offset: number) => void
     last: boolean
+    day?: TripDay
+    route?: RouteChain
+    nextId?: string
 }
 
-function ChainItem({ id, marker, index, hasArrowAfter, distance, onRemove, onFlyTo, selected, onMove, last }: ChainItemProps) {
+function ChainItem({ id, marker, index, hasArrowAfter, distance, onRemove, onFlyTo, selected, onMove, last, day, route, nextId }: ChainItemProps) {
     const {
         attributes,
         listeners,
@@ -151,16 +144,11 @@ function ChainItem({ id, marker, index, hasArrowAfter, distance, onRemove, onFly
                     <span className="text-xs text-white">{icon.emoji}</span>
                 </div>
                 <div className="flex-1 min-w-0 py-2.5">
-                    <button
-                        className="w-full text-left"
-                        onClick={onFlyTo}
-                        title="跳转到此位置"
-                    >
-                    <div className="text-sm font-medium text-gray-800 line-clamp-2 break-words" title={marker.content.title}>{marker.content.title || '未命名标记'}</div>
-                    {marker.content.address && (
-                        <div className="text-xs text-gray-500 truncate mt-0.5" title={marker.content.address}>{shortAddress(marker.content.address)}</div>
-                    )}
-                    </button>
+                    <div className="flex items-center gap-1">
+                        <button className="route-schedule-button min-w-0 flex-1 text-left" onClick={onFlyTo} title="跳转到此位置"><div className="truncate text-sm font-medium text-gray-800" title={marker.content.title}>{marker.content.title || '未命名标记'}</div></button>
+                        <StopSchedule day={day} route={route} markerId={marker.id} editable />
+                    </div>
+                    {marker.content.address && <button className="route-schedule-button block w-full text-left" onClick={onFlyTo}><div className="mt-0.5 truncate text-xs text-gray-500" title={marker.content.address}>{shortAddress(marker.content.address)}</div></button>}
                 </div>
                 <button
                     onClick={onRemove}
@@ -173,12 +161,13 @@ function ChainItem({ id, marker, index, hasArrowAfter, distance, onRemove, onFly
                     </svg>
                 </button>
               </div>
+              {route?.stops.find(stop => stop.markerId === marker.id)?.note && <div className="truncate px-2 pb-2 text-[11px] text-gray-500" title={route.stops.find(stop => stop.markerId === marker.id)?.note}>{route.stops.find(stop => stop.markerId === marker.id)?.note}</div>}
               <div className="flex justify-end gap-1 border-t border-gray-100 px-2">
                 <button type="button" disabled={index === 0} onClick={() => onMove(-1)} className="min-h-[32px] px-2 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30">上移</button>
                 <button type="button" disabled={last} onClick={() => onMove(1)} className="min-h-[32px] px-2 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30">下移</button>
               </div>
             </div>
-            {hasArrowAfter && <RouteConnector distance={distance} />}
+            {hasArrowAfter && nextId && <RouteLeg day={day} route={route} fromId={marker.id} toId={nextId} distance={distance} editable />}
         </div>
     )
 }
@@ -453,8 +442,8 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
 
     // Split currentDayMarkers into chain groups + isolated nodes
     // 单节点链视为孤立节点（不构成连线）
-    const { chainedGroups, isolatedMarkers } = useMemo(() => {
-        if (!currentDay) return { chainedGroups: [], isolatedMarkers: [] }
+    const { chainedGroups, isolatedMarkers, chainedGroupIndices } = useMemo(() => {
+        if (!currentDay) return { chainedGroups: [], isolatedMarkers: [], chainedGroupIndices: [] }
         const chains = currentDay.chains ?? []
         const markerMap = new Map(currentDayMarkers.map(m => [m.id, m]))
 
@@ -464,7 +453,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
 
         const inValidChainSet = new Set(validGroups.flat().map(m => m.id))
         const isolatedMarkers = currentDayMarkers.filter(m => !inValidChainSet.has(m.id))
-        return { chainedGroups: validGroups, isolatedMarkers }
+        return { chainedGroups: validGroups, isolatedMarkers, chainedGroupIndices: chains.map((chain, index) => chain.some(id => markerMap.has(id)) ? index : -1).filter(index => index >= 0) }
     }, [currentDay, currentDayMarkers])
 
     // Edit mode chain groups: include single-node chains (not yet valid but in-progress)
@@ -1310,6 +1299,9 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                         selected={interactionState.selectedMarkerId === marker.id}
                                                         onMove={offset => { void handleMoveInRoute(chainIdx, marker.id, offset) }}
                                                         last={idx === chainGroup.length - 1}
+                                                        day={currentDay ?? undefined}
+                                                        route={(() => { const chain = currentDay?.routeChains?.[chainIdx]; return chain?.stops.length === chainGroup.length && chain.stops.every((stop, i) => stop.markerId === chainGroup[i].id) ? chain : undefined })()}
+                                                        nextId={chainGroup[idx + 1]?.id}
                                                     />
                                                 ))}
                                             </ChainDropContainer>
@@ -1391,11 +1383,13 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                             {!collapsedRoutes.has(chainIdx) && <div className="flex flex-col">
                                 {group.map((marker, idx) => {
                                     const icon = MARKER_ICONS[marker.content.iconType || 'location'] || MARKER_ICONS.location
+                                    const candidate = currentDay?.routeChains?.[chainedGroupIndices[chainIdx]]
+                                    const route = candidate?.stops.length === group.length && candidate.stops.every((stop, i) => stop.markerId === group[i].id) ? candidate : undefined
                                     return (
                                         <div key={marker.id}>
                                             <div data-marker-id={marker.id} className={cn('border rounded-xl bg-white overflow-hidden', interactionState.selectedMarkerId === marker.id ? 'border-blue-500 ring-1 ring-blue-200 bg-blue-50/50' : 'border-gray-200')}>
                                                 <button
-                                                    className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-blue-50 transition-colors text-left"
+                                                    className="w-full flex items-center gap-2 px-2 py-2.5 hover:bg-blue-50 transition-colors text-left"
                                                     onClick={() => handleMarkerClick(marker.id)}
                                                     aria-pressed={interactionState.selectedMarkerId === marker.id}
                                                 >
@@ -1404,14 +1398,15 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                         <span className="text-xs text-white">{icon.emoji}</span>
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="text-sm font-medium text-gray-800 line-clamp-2 break-words" title={marker.content.title}>{marker.content.title || '未命名标记'}</div>
+                                                        <div className="flex items-center gap-1.5"><div className="min-w-0 flex-1 truncate text-sm font-medium text-gray-800" title={marker.content.title}>{marker.content.title || '未命名标记'}</div><span className="ml-auto shrink-0 text-[11px] tabular-nums text-gray-500">{(() => { const stop = route?.stops.find(item => item.markerId === marker.id); return stop && <>{stop.startTime}{stop.startTime && stop.durationMinutes !== undefined && ' · '}{stop.durationMinutes !== undefined && formatPlannedDuration(stop.durationMinutes)}</> })()}</span></div>
                                                         {marker.content.address && (
                                                             <div className="text-xs text-gray-500 truncate mt-0.5" title={marker.content.address}>{shortAddress(marker.content.address)}</div>
                                                         )}
                                                     </div>
                                                 </button>
+                                                {route?.stops.find(stop => stop.markerId === marker.id)?.note && <div className="truncate px-2 pb-2 text-[11px] text-gray-500" title={route?.stops.find(stop => stop.markerId === marker.id)?.note}>{route?.stops.find(stop => stop.markerId === marker.id)?.note}</div>}
                                             </div>
-                                            {idx < group.length - 1 && <RouteConnector distance={segmentDistance(marker, group[idx + 1])} />}
+                                            {idx < group.length - 1 && <RouteLeg day={currentDay ?? undefined} route={route} fromId={marker.id} toId={group[idx + 1].id} distance={segmentDistance(marker, group[idx + 1])} editable={false} />}
                                         </div>
                                     )
                                 })}

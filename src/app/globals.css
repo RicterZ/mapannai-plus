@@ -571,3 +571,11 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
         border-radius: 20px 20px 0 0;
     }
 }
+
+/* Schedule rows stay compact even inside the mobile sidebar. */
+@media (pointer: coarse) {
+    .left-sidebar .route-schedule-button {
+        min-height: 0;
+        min-width: 0;
+    }
+}

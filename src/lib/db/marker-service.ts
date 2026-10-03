@@ -1,3 +1,5 @@
+import { projectChains, removeRouteMarker } from '@/lib/trips/route-chain'
+import type { RouteChain } from '@/types/trip'
 /**
  * Marker Service — SQLite-backed marker storage
  *
@@ -168,13 +170,14 @@ export function deleteMarker(id: string): void {
             const ids: string[] = JSON.parse(trip.marker_ids)
             if (ids.includes(id)) db.prepare('UPDATE trips SET marker_ids = ? WHERE id = ?').run(JSON.stringify(ids.filter(markerId => markerId !== id)), trip.id)
         }
-        const days = db.prepare('SELECT id, marker_ids, chains FROM trip_days').all() as { id: string; marker_ids: string; chains: string }[]
-        const update = db.prepare('UPDATE trip_days SET marker_ids = ?, chains = ? WHERE id = ?')
+        const days = db.prepare('SELECT id, marker_ids, chains, route_chains FROM trip_days').all() as { id: string; marker_ids: string; chains: string; route_chains: string }[]
+        const update = db.prepare('UPDATE trip_days SET marker_ids = ?, chains = ?, route_chains = ? WHERE id = ?')
         for (const day of days) {
             const markerIds: string[] = JSON.parse(day.marker_ids)
             const chains: string[][] = JSON.parse(day.chains)
             if (!markerIds.includes(id) && !chains.some(chain => chain.includes(id))) continue
-            update.run(JSON.stringify(markerIds.filter(markerId => markerId !== id)), JSON.stringify(chains.map(chain => chain.filter(markerId => markerId !== id)).filter(chain => chain.length > 0)), day.id)
+            const routes = removeRouteMarker(JSON.parse(day.route_chains) as RouteChain[], id)
+            update.run(JSON.stringify(markerIds.filter(markerId => markerId !== id)), JSON.stringify(projectChains(routes)), JSON.stringify(routes), day.id)
         }
     })()
 }
