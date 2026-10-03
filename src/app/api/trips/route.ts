@@ -32,7 +32,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json()
-        const { name, description, startDate, endDate } = body
+        const { name, startDate, endDate } = body
 
         if (!name?.trim()) return NextResponse.json({ error: '旅行名称不能为空' }, { status: 400 })
         if (!startDate || !endDate) return NextResponse.json({ error: '请提供开始和结束日期' }, { status: 400 })
@@ -44,7 +44,6 @@ export async function POST(request: NextRequest) {
         const trip: Trip = {
             id: tripId,
             name: name.trim(),
-            description: description?.trim(),
             startDate,
             endDate,
             createdAt: now,

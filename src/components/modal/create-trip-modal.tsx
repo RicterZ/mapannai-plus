@@ -15,7 +15,6 @@ interface CreateTripModalProps {
 export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalProps) => {
     const { createTrip, setActiveView } = useMapStore()
     const [name, setName] = useState('')
-    const [description, setDescription] = useState('')
     const [startDate, setStartDate] = useState('')
     const [duration, setDuration] = useState<string>('3')
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -36,7 +35,7 @@ export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalP
 
         setIsSubmitting(true)
         try {
-            const trip = await createTrip({ name: name.trim(), description: description.trim() || undefined, startDate, endDate })
+            const trip = await createTrip({ name: name.trim(), startDate, endDate })
             toast.success(`旅行「${trip.name}」已创建`)
             setActiveView('trip', trip.id, null)
             onCreated?.(trip.id)
@@ -49,7 +48,7 @@ export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalP
     }
 
     const handleClose = () => {
-        setName(''); setDescription(''); setStartDate(''); setDuration('3')
+        setName(''); setStartDate(''); setDuration('3')
         onClose()
     }
 
@@ -83,16 +82,6 @@ export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalP
                             value={name}
                             onChange={e => setName(e.target.value)}
                             placeholder="例如：东京2024春"
-                            className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 h-10"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1">备注（选填）</label>
-                        <input
-                            type="text"
-                            value={description}
-                            onChange={e => setDescription(e.target.value)}
-                            placeholder="一句话描述这次旅行"
                             className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 h-10"
                         />
                     </div>

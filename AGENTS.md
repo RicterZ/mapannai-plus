@@ -98,6 +98,8 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 - `TripDay.colorIndex` 是持久化每日色号；日期变更、其他天删除、视图切换不应造成颜色漂移。地图、侧栏、标签使用统一色彩函数，避免相邻天都落入同一色系。
 - 地点内容主要是 Tiptap HTML；不要把历史 `markdownContent` 命名误认为仅支持纯 Markdown。
 
+- 旅行层级的 `Trip.description` 已停用：创建表单、Web API、数据返回和 MCP 工具不再读写/暴露。SQLite 旧列只保留兼容，更新其他旅行字段不覆盖历史值；地点富文本和路线访问/交通备注继续使用。此变更不需要新增环境变量。
+
 ## 路线游览与交通安排
 
 - `TripDay.routeChains` 为权威路线结构，持久化在 SQLite `route_chains` JSON；旧库事务迁移，为路线和每次地点访问生成稳定 ID。`chains` 保持 `string[][]` 格式，仅是 stops 的 marker ID 顺序兼容投影，两者由服务层同一事务更新，不能各自修改。

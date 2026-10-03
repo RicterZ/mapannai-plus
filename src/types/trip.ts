@@ -1,7 +1,6 @@
 export interface Trip {
   id: string           // "trip_${uuid}"
   name: string         // "东京2024"
-  description?: string
   startDate: string    // ISO date "2024-03-01"
   endDate: string      // ISO date "2024-03-07"
   coverImage?: string

@@ -46,7 +46,6 @@ export function registerTripTools(server: McpServer) {
                     return {
                         id: trip.id,
                         name: trip.name,
-                        description: trip.description,
                         startDate: trip.startDate,
                         endDate: trip.endDate,
                         dayCount: tripDays.length,
@@ -80,15 +79,14 @@ export function registerTripTools(server: McpServer) {
             name: z.string().describe('旅行名称，例如「东京2024春」'),
             startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('开始日期 YYYY-MM-DD'),
             endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('结束日期 YYYY-MM-DD'),
-            description: z.string().optional().describe('旅行备注'),
         },
-        async ({ name, startDate, endDate, description }) => {
+        async ({ name, startDate, endDate }) => {
             if (startDate > endDate) throw new Error('开始日期不能晚于结束日期')
             const now = new Date().toISOString()
             const tripId = `trip_${uuidv4()}`
 
             const trip: Trip = {
-                id: tripId, name, description, startDate, endDate,
+                id: tripId, name, startDate, endDate,
                 createdAt: now, updatedAt: now,
             }
 

@@ -17,12 +17,11 @@ export function getTripById(id: string): Trip | null {
 
 export function upsertTrip(trip: Trip): void {
     getDb().prepare(`
-        INSERT INTO trips (id, name, description, start_date, end_date, cover_image, emoji, marker_ids, created_at, updated_at)
-        VALUES (@id, @name, @description, @startDate, @endDate, @coverImage, @emoji, @markerIds, @createdAt, @updatedAt)
+        INSERT INTO trips (id, name, start_date, end_date, cover_image, emoji, marker_ids, created_at, updated_at)
+        VALUES (@id, @name, @startDate, @endDate, @coverImage, @emoji, @markerIds, @createdAt, @updatedAt)
         ON CONFLICT(id) DO UPDATE SET
             marker_ids  = excluded.marker_ids,
             name        = excluded.name,
-            description = excluded.description,
             start_date  = excluded.start_date,
             end_date    = excluded.end_date,
             cover_image = excluded.cover_image,
@@ -32,7 +31,6 @@ export function upsertTrip(trip: Trip): void {
         markerIds: JSON.stringify(trip.markerIds ?? getTripById(trip.id)?.markerIds ?? []),
         id: trip.id,
         name: trip.name,
-        description: trip.description ?? null,
         startDate: trip.startDate,
         endDate: trip.endDate,
         coverImage: trip.coverImage ?? null,
@@ -197,7 +195,6 @@ function rowToTrip(row: any): Trip {
         markerIds: JSON.parse(row.marker_ids || '[]'),
         id: row.id,
         name: row.name,
-        description: row.description ?? undefined,
         startDate: row.start_date,
         endDate: row.end_date,
         coverImage: row.cover_image ?? undefined,

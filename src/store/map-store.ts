@@ -117,7 +117,7 @@ interface MapStore {
     // ── Trip actions ───────────────────────────────
     loadTripsFromDataset: () => Promise<void>
     setActiveView: (mode: ActiveView['mode'], tripId?: string | null, dayId?: string | null, options?: { focusFirstMarker?: boolean }) => void
-    createTrip: (data: { name: string; description?: string; startDate: string; endDate: string }) => Promise<Trip>
+    createTrip: (data: { name: string; startDate: string; endDate: string }) => Promise<Trip>
     updateTrip: (tripId: string, data: Partial<Trip>) => Promise<void>
     deleteTrip: (tripId: string, deleteExclusiveMarkers?: boolean) => Promise<void>
     createTripDay: (tripId: string, data: { date: string; title?: string }) => Promise<TripDay>

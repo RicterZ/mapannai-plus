@@ -25,6 +25,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
         const body = await request.json()
         // Membership changes use the dedicated markers endpoint.
+        delete body.description // Retired trip-level notes; ignore legacy clients.
         delete body.markerIds
         if (body.startDate !== undefined && body.startDate !== trip.startDate) {
             const startDate = body.startDate
