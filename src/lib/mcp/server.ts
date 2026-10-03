@@ -49,7 +49,7 @@ function createMcpServer(): McpServer {
 - \`stops\`：\`startTime\`（当天当地 HH:mm）、\`durationMinutes\`（用户计划停留分钟数）、\`note\`。不要改全局地点来保存一次访问的安排。
 - \`legs\`：有方向的相邻访问 \`fromStopId\` / \`toStopId\`、\`mode\`、独立线路/车次号 \`serviceNumber\`（地铁2号线、公交101、G123、NH920、船班号），以及同样的时间/时长/note；不要把车次号写进 note。
 - 使用 \`update_day_chain\`，优先 \`chainId\`，\`stops\` / \`legs\` 支持局部修改；省略保留、null清除时间/时长/车次号/备注，\`remove:true\` 清除一段交通安排。新建路段必须给 mode。时间不会自动排程，计划时长与寻路结果分开。
-- 地点访问的安排跟随访问ID；修改访问顺序后只有仍然有方向相邻的交通安排保留，不把安排搬到另一条路线。删除路线保留地点。
+- 地点访问的安排跟随访问ID；修改访问顺序后只展示仍然有方向相邻的交通安排；暂时断开的边存入 inactiveLegs，移回同一有向相邻访问时恢复，反向边不继承。移除地点或明确清除安排才删除，不把安排搬到另一条路线。删除路线保留地点。
 
 
 旅行的 \`markerIds\` 是尚未分配日期的地点，区别于每日成员。\`assign_marker_to_trip\` 收藏到旅行，\`assign_marker_to_day\` 分配日期后自动移出该旅行待分配列表，不自动建链。

@@ -7,6 +7,18 @@ import { removeRouteMarker } from '@/lib/trips/route-chain'
 import type { RouteChainPatch } from '@/lib/trips/route-chain-schema'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
 
+// Preserve the order of rapid up/down and drag writes for the same day.
+const chainWriteQueues = new Map<string, Promise<Response>>()
+async function writeDayChains(dayId: string, url: string, chains: string[][]): Promise<Response> {
+    const previous = chainWriteQueues.get(dayId)
+    const request = (previous ? previous.catch(() => undefined) : Promise.resolve()).then(() => fetchWithAuth(url, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chains }),
+    }))
+    chainWriteQueues.set(dayId, request)
+    try { return await request }
+    finally { if (chainWriteQueues.get(dayId) === request) chainWriteQueues.delete(dayId) }
+}
+
 interface MapStore {
     // State
     markers: Marker[]
@@ -958,14 +970,10 @@ export const useMapStore = create<MapStore>()(
                 }), false, 'updateDayChains-optimistic')
 
                 try {
-                const response = await fetchWithAuth(`/api/trips/${tripId}/days/${dayId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chains }),
-                })
+                const response = await writeDayChains(dayId, `/api/trips/${tripId}/days/${dayId}`, chains)
                 if (!response.ok) throw new Error('更新链路失败')
                 const updatedDay: TripDay = await response.json()
-                set(state => ({ tripDays: state.tripDays.map(day => day.id === dayId ? updatedDay : day) }), false, 'updateDayChains-confirmed')
+                set(state => ({ tripDays: state.tripDays.map(day => day.id === dayId && day.chains === chains ? updatedDay : day) }), false, 'updateDayChains-confirmed')
                 const assignedIds = new Set(chains.flat())
                 set(state => ({ trips: state.trips.map(trip => trip.id === tripId ? { ...trip, markerIds: trip.markerIds?.filter(id => !assignedIds.has(id)) } : trip) }), false, 'updateDayChains-tripPool')
                 } catch (error) {

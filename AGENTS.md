@@ -101,12 +101,12 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 ## 路线游览与交通安排
 
 - `TripDay.routeChains` 为权威路线结构，持久化在 SQLite `route_chains` JSON；旧库事务迁移，为路线和每次地点访问生成稳定 ID。`chains` 保持 `string[][]` 格式，仅是 stops 的 marker ID 顺序兼容投影，两者由服务层同一事务更新，不能各自修改。
-- `RouteChain={id,stops,legs}`。`ChainStop={id,markerId,startTime?,durationMinutes?,note?}`；`ChainLeg={fromStopId,toStopId,mode,serviceNumber?,startTime?,durationMinutes?,note?}`。共用 `Schedule` 类型，不使用运行时 class。安排属于路线中的一次访问或有方向的相邻路段，不属于全局 Marker。
+- `RouteChain={id,stops,legs,inactiveLegs?}`。`ChainStop={id,markerId,startTime?,durationMinutes?,note?}`；`ChainLeg={fromStopId,toStopId,mode,serviceNumber?,startTime?,durationMinutes?,note?}`。共用 `Schedule` 类型，不使用运行时 class。安排属于路线中的一次访问或有方向的相邻路段，不属于全局 Marker。
 - `serviceNumber` 是独立字符串字段，涵盖地铁线路、公交号、火车车次、航班号、船班号；不能塞进 note。`note` 是补充纯文本。mode 支持 walking/cycling/driving/taxi/bus/subway/train/flight/ferry/other。
 - startTime 为所属行程日当地钟表时间 HH:mm；durationMinutes 为非负整数计划分钟数，可为0；省略未知值，不自动推算下一站，不作跨时区转换，不覆盖寻路缓存中的 distance/duration。侧栏展示和编辑安排，不改变两种地图 renderer 的路径选择；交通方式为用户计划，不用作寻路模式。
 - API：`POST /api/trips/[id]/days/[dayId]/chains` 用 markerIds 创建路线；`GET/PATCH/DELETE .../chains/[chainId]` 读取、局部修改、删除。PATCH 接收可选完整 markerIds 顺序、stops/legs 局部修改列表；字段省略保留，null清除可选安排字段，空白 serviceNumber/note 清除。leg remove=true清除交通记录，不能同时修改其他字段。严校验字段、时间、访问归属、方向相邻、重复地点/修改项；失败整次回滚。
 - 服务 `src/lib/db/route-chain-service.ts` 和 schema `src/lib/trips/route-chain-schema.ts` 由 Web/MCP 共用。create_day_chain 返回 routeChain；update_day_chain 支持 chainId 或旧 chainIndex（二选一）、stops/legs；delete_day_chain 同样兼容。get_trip_detail 返回完整 routeChains。修改删除不创建或删除全局地点。
-- 旧 chains 写入先匹配原样路线，再识别无歧义的修改；安排跟随同一路线访问ID，仍有方向相邻的交通才保留。存在多个候选且可能串用安排时拒绝旧写入，要求 chainId；不把不确定的安排迁移到其他路线。一般标题、日期、当天成员更新保留全部安排。
+- 旧 chains 写入先匹配原样路线，再识别无歧义的修改；安排跟随同一路线访问ID，仍有方向相邻的交通才展示，暂时断开的同路线有向边保存在 `inactiveLegs`，移回原方向相邻时恢复；反向边独立，不能继承原方向。删除地点/路线和明确清除安排才删除对应记录。存在多个候选且可能串用安排时拒绝旧写入，要求 chainId；不把不确定的安排迁移到其他路线。一般标题、日期、当天成员更新保留全部安排。
 - 从日期移除或全局删除 marker 时同时清理所有相关 stops/legs，保留其他访问安排；日期顺移保留钟表时间与时长。新结构允许历史单点/空链迁移，但新建与重排路线仍要求至少两个不重复地点，暂不开放同一路线重复访问同一 marker。
 - 验证：`npx tsx scripts/test-route-chain-schedules.ts` 使用隔离旧库测试迁移、ID持久化、Web/MCP安排写入与清除、错误回滚、旧客户端兼容、路线/地点删除与相邻交通清理；不可使用生产数据做写入测试。
 
@@ -197,8 +197,9 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 ## 路线安排前端
 
 - 正式侧栏复用 `src/components/trips/route-schedule.tsx`。地点时间与计划时长放在右上角，交通信息在浅灰虚线容器内，距离靠左，时间靠右；上下沿用原有蓝色折角箭头并居中。整小时显示1小时/2小时，90分钟仍显示90分钟，编辑和存储使用分钟。
-- 安排编辑统一由已有“编辑模式”控制，使用紧凑弹窗，不增加铅笔按钮。交通方式、线路/车次号和备注分开输入；可清除交通安排，字段留空清除对应值。保存采用服务端返回的完整 TripDay，旧 chains 重排也刷新权威 routeChains，不能让访问 ID 或安排残留在旧顺序。
-- 未设置交通安排时不推测步行等方式：浏览模式有距离就只展示距离，无距离时只展示一支居中箭头，不显示空虚线框；编辑模式显示紧凑“交通安排”入口。已填交通但无距离时仍展示交通信息，不填0km或虚构距离。
+- 编辑态地点卡片顶部对齐拖拽、序号、图标、标题和时间；长标题最多两行，地址紧跟标题；编辑模式下未填时间和时长的地点右上角使用灰色钟表图标 + `--:--` 时间占位，不使用“设时间”等行动文案；只有浏览模式不显示空占位，已有时间/时长沿用同一位置和字号。移除、上下移统一放底部32px操作栏。移动端紧凑按钮覆盖需使用不低于通用 `button:not([role="switch"])` 的选择器优先级，实测 coarse pointer 的高度，不只看桌面截图。
+- 安排编辑统一由已有“编辑模式”控制，使用紧凑弹窗，不增加铅笔按钮。交通方式、线路/车次号和备注分开输入；可清除交通安排，字段留空清除对应值。保存采用服务端返回的完整 TripDay，旧 chains 重排也刷新权威 routeChains，不能让访问 ID 或安排残留在旧顺序。快速重排按日期串行写入，过时响应不覆盖较新的乐观顺序。
+- 未设置交通安排时不推测步行等方式：浏览模式有距离就只展示距离，无距离时只展示一支居中箭头，不显示空虚线框；编辑模式显示水平居中的“无交通安排”入口，有距离时距离仍靠左且不影响文案居中。已填交通但无距离时仍展示交通信息，不填0km或虚构距离。
 - 开发环境 `/dev/route-designs` 使用正式侧栏和组件配合模拟数据，展示已设置/未设置安排的状态；生产环境返回404。测试写入由浏览器mock或独立SQLite承接，不操作线上数据。无新增环境变量。
 
 ## 验证与交付

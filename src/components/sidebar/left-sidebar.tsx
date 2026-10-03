@@ -128,43 +128,25 @@ function ChainItem({ id, marker, index, hasArrowAfter, distance, onRemove, onFly
     return (
         <div ref={setNodeRef} style={style} className={cn(isSortableDragging && 'opacity-40')}>
             <div data-marker-id={marker.id} className={cn('border rounded-xl bg-white overflow-hidden select-none', selected ? 'border-blue-500 ring-1 ring-blue-200 bg-blue-50/50' : 'border-gray-200')}>
-              <div className="flex items-center gap-1.5">
-                <button
-                    {...attributes}
-                    {...listeners}
-                    className="w-8 min-h-[44px] flex items-center justify-center text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-none flex-shrink-0"
-                    aria-label="拖拽排序"
-                >
-                    <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M7 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm6-8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0z" />
-                    </svg>
+              <div className="flex items-start gap-1.5 px-2 pt-2.5 pb-2">
+                <button {...attributes} {...listeners} className="route-drag-handle flex h-6 w-4 shrink-0 items-center justify-center text-gray-400 cursor-grab active:cursor-grabbing touch-none" aria-label="拖拽排序">
+                    <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M7 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm6-8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0z" /></svg>
                 </button>
-                <span className="text-xs font-bold text-gray-400 w-4 flex-shrink-0">{index + 1}</span>
-                <div className={cn('w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0', getMarkerColor(marker.content.iconType || 'location'))}>
-                    <span className="text-xs text-white">{icon.emoji}</span>
-                </div>
-                <div className="flex-1 min-w-0 py-2.5">
-                    <div className="flex items-center gap-1">
-                        <button className="route-schedule-button min-w-0 flex-1 text-left" onClick={onFlyTo} title="跳转到此位置"><div className="truncate text-sm font-medium text-gray-800" title={marker.content.title}>{marker.content.title || '未命名标记'}</div></button>
-                        <StopSchedule day={day} route={route} markerId={marker.id} editable />
+                <span className="flex h-6 w-3 shrink-0 items-center text-xs font-bold text-gray-400">{index + 1}</span>
+                <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full', getMarkerColor(marker.content.iconType || 'location'))}><span className="text-xs text-white">{icon.emoji}</span></div>
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-start gap-1.5">
+                        <button className="route-schedule-button min-w-0 flex-1 text-left" onClick={onFlyTo} title="跳转到此位置"><div className="line-clamp-2 break-words text-sm font-medium leading-6 text-gray-800" title={marker.content.title}>{marker.content.title || '未命名标记'}</div></button>
+                        <div className="flex h-6 shrink-0 items-center"><StopSchedule day={day} route={route} markerId={marker.id} editable /></div>
                     </div>
-                    {marker.content.address && <button className="route-schedule-button block w-full text-left" onClick={onFlyTo}><div className="mt-0.5 truncate text-xs text-gray-500" title={marker.content.address}>{shortAddress(marker.content.address)}</div></button>}
+                    {marker.content.address && <button className="route-schedule-button mt-0.5 block w-full text-left" onClick={onFlyTo}><div className="truncate text-[11px] leading-4 text-gray-500" title={marker.content.address}>{shortAddress(marker.content.address)}</div></button>}
                 </div>
-                <button
-                    onClick={onRemove}
-                    className="w-9 min-h-[44px] flex items-center justify-center text-gray-400 hover:text-red-500 transition-colors flex-shrink-0"
-                    title="从该路线移除"
-                    aria-label={`从路线移除${marker.content.title || '地点'}`}
-                >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
               </div>
               {route?.stops.find(stop => stop.markerId === marker.id)?.note && <div className="truncate px-2 pb-2 text-[11px] text-gray-500" title={route.stops.find(stop => stop.markerId === marker.id)?.note}>{route.stops.find(stop => stop.markerId === marker.id)?.note}</div>}
-              <div className="flex justify-end gap-1 border-t border-gray-100 px-2">
-                <button type="button" disabled={index === 0} onClick={() => onMove(-1)} className="min-h-[32px] px-2 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30">上移</button>
-                <button type="button" disabled={last} onClick={() => onMove(1)} className="min-h-[32px] px-2 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30">下移</button>
+              <div className="flex items-center justify-end gap-1 border-t border-gray-100 px-2">
+                <button type="button" onClick={onRemove} className="route-item-action mr-auto px-2 text-xs text-gray-400 hover:text-red-500" aria-label={`从路线移除${marker.content.title || '地点'}`}>移除</button>
+                <button type="button" disabled={index === 0} onClick={() => onMove(-1)} className="route-item-action px-2 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30">上移</button>
+                <button type="button" disabled={last} onClick={() => onMove(1)} className="route-item-action px-2 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30">下移</button>
               </div>
             </div>
             {hasArrowAfter && nextId && <RouteLeg day={day} route={route} fromId={marker.id} toId={nextId} distance={distance} editable />}

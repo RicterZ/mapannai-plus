@@ -25,7 +25,11 @@ export function RouteDesigns() {
     const [ready, setReady] = useState(false)
     const [edit, setEdit] = useState(false)
     useEffect(() => {
-        useMapStore.setState({ markers, trips: [{ id: day.tripId, name: '东京散步', startDate: day.date, endDate: day.date, createdAt: day.date, updatedAt: day.date }], tripDays: [structuredClone(day)], tripsLoaded: true, activeView: { mode: 'day', tripId: day.tripId, dayId: day.id }, leftSidebar: { isOpen: true } })
+        const longNames = new URLSearchParams(window.location.search).has('long')
+        const fixtureMarkers = longNames ? markers.map((marker, index) => ({ ...marker, content: { ...marker.content, title: ['呼和浩特白塔国际机场', '呼和浩特东站希尔顿欢朋酒店', '内蒙古博物院'][index], address: ['内蒙古自治区呼和浩特市赛罕区空港大道', '呼和浩特市新城区', '呼和浩特市新城区新华东街'][index] } })) : markers
+        const fixtureDay = structuredClone(day)
+        if (longNames) fixtureDay.routeChains!.forEach(chain => chain.stops.forEach(stop => { delete stop.startTime; delete stop.durationMinutes; delete stop.note }))
+        useMapStore.setState({ markers: fixtureMarkers, trips: [{ id: day.tripId, name: '东京散步', startDate: day.date, endDate: day.date, createdAt: day.date, updatedAt: day.date }], tripDays: [fixtureDay], tripsLoaded: true, activeView: { mode: 'day', tripId: day.tripId, dayId: day.id }, leftSidebar: { isOpen: true } })
         setReady(true)
     }, [])
     const emptyRoute = { ...route, legs: [] }

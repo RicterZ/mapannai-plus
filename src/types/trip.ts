@@ -55,5 +55,6 @@ export interface ChainLeg extends Schedule {
 export interface RouteChain {
   id: string
   stops: ChainStop[]
-  legs: ChainLeg[] // Only manually defined directed adjacent legs
+  legs: ChainLeg[] // Active manually defined directed adjacent legs
+  inactiveLegs?: ChainLeg[] // Same-route directed edges temporarily disconnected by reordering
 }

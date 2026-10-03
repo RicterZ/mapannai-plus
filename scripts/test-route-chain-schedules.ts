@@ -1,3 +1,4 @@
+import { removeRouteMarker } from '../src/lib/trips/route-chain'
 import assert from 'node:assert/strict'
 import Database from 'better-sqlite3'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -102,12 +103,25 @@ async function main() {
         updateRouteChain('trip', 'day', route.id, { markerIds: ['c', 'b', 'a', 'd'] })
         saved = getDayById('day')!.routeChains!.find(item => item.id === route.id)!
         assert.equal(saved.legs.length, 0, 'reverse direction is not inherited')
-        // Return to original order; removed settings are not resurrected.
+        assert.equal(saved.inactiveLegs?.length, 1, 'disconnected original direction is stored')
+        updateRouteChain('trip', 'day', route.id, { legs: [{ fromStopId: b.id, toStopId: a.id, mode: 'taxi', serviceNumber: 'reverse-only' }] })
+        // Reconnect original directed edges: restore their own plans, never reverse plans.
         updateRouteChain('trip', 'day', route.id, { markerIds: ['a', 'b', 'c'] })
-        assert.equal(getDayById('day')!.routeChains!.find(item => item.id === route.id)!.legs.length, 0)
+        assert.equal(getDayById('day')!.routeChains!.find(item => item.id === route.id)!.legs.length, 1)
+        assert.equal(getDayById('day')!.routeChains!.find(item => item.id === route.id)!.legs.find(leg => leg.fromStopId === a.id && leg.toStopId === b.id)!.serviceNumber, beforeInvalid.routeChains!.find(item => item.id === route.id)!.legs.find(leg => leg.fromStopId === a.id && leg.toStopId === b.id)!.serviceNumber)
+        saved = getDayById('day')!.routeChains!.find(item => item.id === route.id)!
+        assert.equal(saved.legs[0].serviceNumber, undefined, 'reverse service not assigned to original direction')
+        assert.equal(saved.inactiveLegs?.[0].serviceNumber, 'reverse-only')
+        assert.equal(removeRouteMarker([saved], 'a')[0].inactiveLegs?.length, 0, 'removing an endpoint deletes its stored edges')
+        editDayChain('trip', 'day', getDayById('day')!.routeChains!.findIndex(item => item.id === route.id), ['c', 'b', 'a'])
+        assert.equal(getDayById('day')!.routeChains!.find(item => item.id === route.id)!.legs[0].serviceNumber, 'reverse-only', 'legacy reorder restores correct reversed edge')
+        editDayChain('trip', 'day', getDayById('day')!.routeChains!.findIndex(item => item.id === route.id), ['a', 'b', 'c'])
         updateRouteChain('trip', 'day', route.id, { legs: [{ fromStopId: a.id, toStopId: b.id, mode: 'bus', serviceNumber: '101' }] })
         updateRouteChain('trip', 'day', route.id, { legs: [{ fromStopId: a.id, toStopId: b.id, remove: true }] })
-        assert.equal(getDayById('day')!.routeChains!.find(item => item.id === route.id)!.legs.length, 0)
+        assert.equal(getDayById('day')!.routeChains!.find(item => item.id === route.id)!.legs.some(leg => leg.fromStopId === a.id && leg.toStopId === b.id), false)
+        updateRouteChain('trip', 'day', route.id, { markerIds: ['c', 'b', 'a'] })
+        updateRouteChain('trip', 'day', route.id, { markerIds: ['a', 'b', 'c'] })
+        assert.equal(getDayById('day')!.routeChains!.find(item => item.id === route.id)!.legs.some(leg => leg.fromStopId === a.id && leg.toStopId === b.id), false, 'explicitly cleared edge cannot return')
         moveTripStartDate(getTripById('trip')!, '2026-11-01')
         assert.equal(getDayById('day')!.date, '2026-11-01')
         assert.equal(getDayById('day')!.routeChains!.find(item => item.id === route.id)!.stops[0].durationMinutes, 0)

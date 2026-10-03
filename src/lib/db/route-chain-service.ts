@@ -48,6 +48,7 @@ export function updateRouteChain(tripId: string, dayId: string, chainId: string,
         let updated = patch.markerIds ? reorderRouteStops(route, patch.markerIds) : route
         const stops = updated.stops.map(stop => ({ ...stop }))
         const legs = updated.legs.map(leg => ({ ...leg }))
+        let inactiveLegs = updated.inactiveLegs ?? []
         const seenStops = new Set<string>(), seenLegs = new Set<string>()
         for (const change of patch.stops ?? []) {
             if (seenStops.has(change.stopId)) throw new Error('同一次访问不能重复修改')
@@ -62,6 +63,7 @@ export function updateRouteChain(tripId: string, dayId: string, chainId: string,
             seenLegs.add(pair)
             const fromIndex = stops.findIndex(stop => stop.id === change.fromStopId)
             if (fromIndex < 0 || stops[fromIndex + 1]?.id !== change.toStopId) throw new Error('交通路段必须是当前路线中有方向的相邻访问')
+            inactiveLegs = inactiveLegs.filter(leg => leg.fromStopId !== change.fromStopId || leg.toStopId !== change.toStopId)
             const index = legs.findIndex(leg => leg.fromStopId === change.fromStopId && leg.toStopId === change.toStopId)
             if (change.remove) {
                 if ([...scheduleKeys, 'mode', 'serviceNumber'].some(key => (change as Record<string, unknown>)[key] !== undefined)) throw new Error('清除路段时不能同时修改字段')
@@ -74,7 +76,7 @@ export function updateRouteChain(tripId: string, dayId: string, chainId: string,
             if (index < 0) legs.push(leg)
             else legs[index] = leg
         }
-        updated = { ...updated, stops, legs }
+        updated = { ...updated, stops, legs, inactiveLegs: inactiveLegs.length ? inactiveLegs : undefined }
         const routes = day.routeChains!.map(item => item.id === chainId ? updated : item)
         const markerIds = [...day.markerIds, ...stops.map(stop => stop.markerId).filter(id => !day.markerIds.includes(id))]
         upsertTripDay({ ...day, markerIds }, routes)

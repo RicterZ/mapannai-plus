@@ -18,12 +18,18 @@ export function reorderRouteStops(route: RouteChain, markerIds: string[]): Route
         const index = available.findIndex(stop => stop.markerId === markerId)
         return index < 0 ? { id: `stop_${randomUUID()}`, markerId } : available.splice(index, 1)[0]
     })
-    return { ...route, stops, legs: retainAdjacentLegs(stops, route.legs) }
+    const stopIds = new Set(stops.map(stop => stop.id))
+    const edges = [...route.legs, ...(route.inactiveLegs ?? [])].filter(leg => stopIds.has(leg.fromStopId) && stopIds.has(leg.toStopId))
+    const legs = retainAdjacentLegs(stops, edges)
+    const active = new Set(legs)
+    const inactiveLegs = edges.filter(leg => !active.has(leg))
+    return { ...route, stops, legs, inactiveLegs: inactiveLegs.length ? inactiveLegs : undefined }
 }
 export function removeRouteMarker(routes: RouteChain[], markerId: string): RouteChain[] {
     return routes.map(route => {
         const stops = route.stops.filter(stop => stop.markerId !== markerId)
-        return { ...route, stops, legs: retainAdjacentLegs(stops, route.legs) }
+        const stopIds = new Set(stops.map(stop => stop.id))
+        return { ...route, stops, legs: retainAdjacentLegs(stops, route.legs), inactiveLegs: route.inactiveLegs?.filter(leg => stopIds.has(leg.fromStopId) && stopIds.has(leg.toStopId)) }
     }).filter(route => route.stops.length > 0)
 }
 
@@ -44,7 +50,7 @@ export function reconcileLegacyChains(previous: RouteChain[], chains: string[][]
             const best = Math.max(0, ...candidates.map(candidate => candidate.overlap))
             const winners = candidates.filter(candidate => candidate.overlap === best && best > 0)
             if (winners.length === 1) route = winners[0].item
-            else if (winners.some(({ item }) => item.legs.length || item.stops.some(stop => stop.startTime !== undefined || stop.durationMinutes !== undefined || stop.note !== undefined))) {
+            else if (winners.some(({ item }) => (item.legs.length || item.inactiveLegs?.length) || item.stops.some(stop => stop.startTime !== undefined || stop.durationMinutes !== undefined || stop.note !== undefined))) {
                 throw new Error('旧版路线修改无法确定安排归属，请按 chainId 修改路线')
             }
             if (route) used.add(route.id)
