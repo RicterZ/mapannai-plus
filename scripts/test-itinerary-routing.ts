@@ -46,7 +46,7 @@ async function main() {
         }
         assert.equal(url.hostname, 'restapi.amap.com', 'no real third-party request')
         if (url.pathname.includes('/geocode/regeo')) return Response.json({ status: '1', regeocode: { addressComponent: { citycode: url.searchParams.get('location')?.startsWith('117') ? '022' : '010' } } })
-        if (url.pathname.includes('/transit/')) return Response.json({ status: '1', route: { transits: responseMode === 'empty' ? [] : [{ distance: '2200', duration: '900', segments: [{ walking: { steps: [{ polyline: '116.4,39.9;116.401,39.901' }] }, bus: { buslines: [{ polyline: '116.401,39.901;116.402,39.902' }] } }, { railway: { departure_stop: { location: '116.402,39.902' }, via_stops: [{ location: '116.403,39.903' }], arrival_stop: { location: '116.404,39.904' } } }] }] } })
+        if (url.pathname.includes('/transit/')) return Response.json({ status: '1', route: { transits: responseMode === 'empty' ? [] : [{ distance: '2200', duration: '900', segments: [{ walking: { steps: [{ polyline: '116.4,39.9;116.401,39.901' }] }, bus: { buslines: [{ polyline: '116.401,39.901;116.402,39.902' }] } }, { railway: { departure_stop: { location: '116.402 39.902' }, via_stops: [{ location: '116.403 39.903' }], arrival_stop: { location: '116.404 39.904' } } }] }] } })
         const route = { paths: responseMode === 'empty' ? [] : [{ distance: '200', duration: '120', steps: [{ polyline: '116.4,39.9;116.401,39.901' }] }] }
         return Response.json(url.pathname.includes('/v4/') ? { errcode: 0, data: route } : { status: '1', route })
     }
@@ -83,7 +83,7 @@ async function main() {
         assert(requests.at(-1)!.pathname === '/v4/direction/bicycling')
         r = await api({ origin, destination, transportMode: 'train' })
         assert.equal(r.status, 200); assert.equal(r.data.distance, 2200)
-        assert.equal(r.data.path.length, 7, 'walking + bus + railway shape')
+        assert.equal(r.data.path.length, 7, 'walking + bus + railway space-separated station coordinates')
         assert(requests.at(-1)!.pathname.endsWith('/transit/integrated'))
         assert.equal(requests.at(-1)!.searchParams.get('city'), '010')
         assert.equal(requests.at(-1)!.searchParams.get('cityd'), '010')

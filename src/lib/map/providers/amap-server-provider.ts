@@ -5,7 +5,8 @@ import type { MapProvider, MapProviderConfig, MapSearchResult, MapCoordinates, P
 
 function text(value: unknown): string { return typeof value === 'string' ? value : '' }
 function coordinates(location: string): MapCoordinates {
-    const [lng, lat] = location.split(',').map(Number)
+    // AMap railway station locations use a space; POI/road polylines use commas.
+    const [lng, lat] = location.trim().split(/[,\s]+/).map(Number)
     if (!Number.isFinite(lng) || !Number.isFinite(lat)) throw new Error('高德返回无效坐标')
     return gcj02ToWgs84(lng, lat)
 }
