@@ -346,7 +346,6 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                     filter={['==', ['get', 'schematic'], false]}
                 />
 
-                <Layer id="schematic-connection-lines-layer" type="line" paint={{ 'line-color': ['get', 'color'], 'line-width': 4, 'line-dasharray': [2, 2], 'line-opacity': 0.65 }} layout={{ 'line-join': 'round', 'line-cap': 'round' }} filter={['==', ['get', 'schematic'], true]} />
 
                 {/* 高亮白色描边 */}
                 <Layer
@@ -366,6 +365,30 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                     filter={highlightedLineIds.length > 0 ? [
                         'in', ['get', 'id'], ['literal', highlightedLineIds]
                     ] : ['literal', false]}
+                />
+
+                {/* 虚线使用同实线的缩放/高亮规则，并位于高亮描边上方。 */}
+                <Layer
+                    id="schematic-connection-lines-layer"
+                    type="line"
+                    paint={{
+                        'line-color': ['get', 'color'],
+                        'line-width': [
+                            'interpolate', ['linear'], ['zoom'],
+                            10, ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 4, 3],
+                            15, ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 6, 4],
+                            20, ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 8, 5],
+                        ],
+                        'line-dasharray': [2, 2],
+                        'line-opacity': [
+                            'case',
+                            ['in', ['get', 'id'], ['literal', highlightedLineIds]], 1,
+                            ['>', ['length', ['literal', highlightedLineIds]], 0], 0.25,
+                            0.8,
+                        ],
+                    }}
+                    layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+                    filter={['==', ['get', 'schematic'], true]}
                 />
 
                 {/* 高亮连接线 */}
