@@ -1,5 +1,7 @@
 'use client'
 
+import type { PlaceReferences } from '@/types/place-references'
+
 import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react'
 import { toast } from 'sonner'
 
@@ -55,6 +57,8 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     const fromDisplay = useCallback((c: { longitude: number; latitude: number }) => fromMapCoordinates(c, basemap), [basemap])
     const mapStyle = useMemo(() => createBasemapStyle(typeof window !== 'undefined' ? window.location.origin : ''), [basemap])
     // 存储地点名称，用于更新 popup title
+    const draftPlaceReferences = useRef<PlaceReferences | undefined>(undefined)
+    const placeLookupEpoch = useRef(0)
     const [currentPlaceName, setCurrentPlaceName] = useState<string | undefined>(undefined)
     
     // 存储地点地址，用于显示在 popup 中
@@ -429,6 +433,8 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     const handleFabResultClick = useCallback((result: SearchResult) => {
         selectedSearchRef.current = searchResultKey(result)
         setSelectedSearchKey(selectedSearchRef.current)
+        placeLookupEpoch.current++ // Cancel nearby detail results from an older manual click.
+        draftPlaceReferences.current = result.placeReferences
         setCurrentPlaceName(result.name)
         setCurrentPlaceAddress(result.address)
         selectMarker(null)
@@ -536,6 +542,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
 
     // 通过后端API获取地点信息
     const getPlaceIdAsync = useCallback(async (coordinates: { latitude: number; longitude: number }) => {
+        const epoch = ++placeLookupEpoch.current
         try {
             const response = await fetchWithAuth('/api/places', {
                 method: 'POST',
@@ -555,7 +562,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             
             const result = await response.json()
             
-            if (result.success && result.data) {
+            if (epoch === placeLookupEpoch.current && result.success && result.data) {
                 const placeInfo = result.data
                 setCurrentPlaceName(placeInfo.name)
                 setCurrentPlaceAddress(placeInfo.address)
@@ -612,6 +619,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                 useMapStore.getState().setHighlightedDay(null)
                 // 仅在开关开启时才在新位置重新打开 popup
                 if (addMarkerEnabled) {
+                    draftPlaceReferences.current = undefined
                     setCurrentPlaceName(undefined)
                     setCurrentPlaceAddress(undefined)
                     openPopup(coordinates)
@@ -634,6 +642,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
 
             // 无 popup、无 sidebar：在点击位置打开新标记 popup
             selectMarker(null)
+            draftPlaceReferences.current = undefined
             setCurrentPlaceName(undefined)
             setCurrentPlaceAddress(undefined)
             openPopup(coordinates)
@@ -645,6 +654,8 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     }, [isPopupOpen, isSidebarOpen, openPopup, closePopup, closeSidebar, selectMarker, selectedMarkerId, addMarkerEnabled, fromDisplay, getPlaceIdAsync])
 
     const handleMarkerClick = useCallback((markerId: string) => {
+        placeLookupEpoch.current++
+        draftPlaceReferences.current = undefined
         selectedSearchRef.current = null
         setSelectedSearchKey(null)
         try {
@@ -693,7 +704,8 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             closePopup()
             
             // 打开新增弹窗而不是直接添加marker，传递地点名称
-            openAddMarkerModal(popupCoordinates, placeName)
+            placeLookupEpoch.current++
+            openAddMarkerModal(popupCoordinates, placeName, draftPlaceReferences.current)
         } catch (err) {
             console.error('Add marker error:', err)
         }
@@ -717,6 +729,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         name: string
         iconType: MarkerIconType
         address?: string
+        placeReferences?: PlaceReferences
     }) => {
         try {
             const { activeView: view } = useMapStore.getState()
@@ -1134,6 +1147,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                 onSave={handleSaveNewMarker}
                 placeName={addMarkerModal.placeName || undefined}
                 placeAddress={currentPlaceAddress}
+                placeReferences={addMarkerModal.placeReferences}
             />
 
             {/* 编辑标记弹窗 */}

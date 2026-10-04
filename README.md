@@ -141,6 +141,8 @@ Remove `headers` if `API_TOKEN` is unset. Follow your client's settings for its 
 
 Once connected, your assistant can search and save places, create trips, organize daily visits, and build routes from existing places. Clients supporting prompts can read `workflow` for the operating guide. Include a city in place names and specify the country for overseas searches; ask the assistant to confirm search results before saving the itinerary.
 
+Official POI identities from search can stay with saved places across clients; older places remain usable with coordinates. See the [client API contract](docs/place-references.md) for iOS integration.
+
 ## Local development
 
 Use Node.js 20 and npm. From the project directory:

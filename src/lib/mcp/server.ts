@@ -55,6 +55,7 @@ function createMcpServer(): McpServer {
 旅行的 \`markerIds\` 是尚未分配日期的地点，区别于每日成员。\`assign_marker_to_trip\` 收藏到旅行，\`assign_marker_to_day\` 分配日期后自动移出该旅行待分配列表，不自动建链。
 
 
+- 平台 POI 引用保存在 \`placeReferences\`，只使用正式搜索结果或用户明确提供的引用，不编造、不从名称/坐标推断。创建工具自动保存正式搜索结果引用；\`update_marker\` 可按平台合并调用方声明的引用，服务端只校验结构，不验证真实性。
 - **Marker**：地图上的地点标记，包含坐标、标题、图标类型、富文本内容（HTML）。内容字段（\`content\` / \`markdownContent\`）存储 Tiptap 富文本编辑器输出的 HTML，支持标题（h1/h2/h3）、加粗、斜体、下划线、无序/有序列表、引用块、图片。通过 MCP 写入时请传入合法 HTML，例如：\`<h2>浅草寺</h2><p>东京最古老的寺庙。</p><ul><li>开放时间：6:00–17:00</li></ul>\`。
 - **Trip**：一次旅行，包含名称、日期范围，创建时自动按天生成 TripDay。
 - **TripDay**：旅行中的某一天，包含当天的 marker 列表和行程链（chains）。

@@ -1,3 +1,4 @@
+import type { PlaceReferences } from './place-references'
 // 通用地图接口定义
 export interface MapCoordinates {
     latitude: number
@@ -25,6 +26,7 @@ export interface MapMarker {
 }
 
 export interface MapSearchResult {
+    placeReferences?: PlaceReferences
     name: string
     coordinates: MapCoordinates
     address?: string

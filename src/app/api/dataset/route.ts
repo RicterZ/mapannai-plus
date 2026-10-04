@@ -1,3 +1,4 @@
+import { PlaceReferencesValidationError } from '@/lib/places/place-references'
 import { NextRequest, NextResponse } from 'next/server'
 import {
     getAllMarkers,
@@ -61,6 +62,7 @@ export async function POST(request: NextRequest) {
             { headers: NO_CACHE }
         )
     } catch (error) {
+        if (error instanceof PlaceReferencesValidationError) return NextResponse.json({ error: error.message }, { status: 400 })
         console.error('保存标记失败:', error)
         return NextResponse.json(
             { error: '保存标记失败', details: error instanceof Error ? error.message : 'Unknown error' },

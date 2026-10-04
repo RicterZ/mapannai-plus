@@ -1,5 +1,7 @@
 'use client'
 
+import type { PlaceReferences } from '@/types/place-references'
+
 import { useDialogFocus } from '@/lib/ui/use-dialog-focus'
 
 import { useState, useEffect } from 'react'
@@ -9,19 +11,21 @@ import { IconSelector } from '@/components/ui/icon-selector'
 
 interface AddMarkerModalProps {
     coordinates: MarkerCoordinates
+    placeReferences?: PlaceReferences
     isOpen: boolean
     onClose: () => void
     onSave: (data: {
         coordinates: MarkerCoordinates
         name: string
         iconType: MarkerIconType
+        placeReferences?: PlaceReferences
         address?: string
     }) => void
     placeName?: string  // 添加地点名称参数
     placeAddress?: string  // 添加地址参数
 }
 
-export const AddMarkerModal = ({ coordinates, isOpen, onClose, onSave, placeName, placeAddress }: AddMarkerModalProps) => {
+export const AddMarkerModal = ({ coordinates, isOpen, onClose, onSave, placeName, placeAddress, placeReferences }: AddMarkerModalProps) => {
     const [name, setName] = useState('')
     const [iconType, setIconType] = useState<MarkerIconType>('location')
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -50,6 +54,7 @@ export const AddMarkerModal = ({ coordinates, isOpen, onClose, onSave, placeName
                 name: name.trim(),
                 iconType,
                 address: placeAddress,
+                placeReferences,
             })
 
             toast.success('标记已创建')

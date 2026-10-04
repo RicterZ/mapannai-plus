@@ -1,3 +1,4 @@
+import type { PlaceReferences } from '@/types/place-references'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { Marker, MarkerCoordinates, MarkerIconType, MapInteractionState } from '@/types/marker'
@@ -31,6 +32,7 @@ interface MapStore {
         isOpen: boolean
         coordinates: MarkerCoordinates | null
         placeName: string | null
+        placeReferences?: PlaceReferences
     }
 
     // 编辑弹窗状态
@@ -61,6 +63,7 @@ interface MapStore {
         name: string
         iconType: MarkerIconType
         address?: string
+        placeReferences?: PlaceReferences
         onSynced?: (realMarkerId: string) => void
     }) => Promise<string>
     updateMarker: (markerId: string, updates: Partial<Marker>) => void
@@ -79,7 +82,7 @@ interface MapStore {
     closePopup: () => void
 
     // 新增弹窗 actions
-    openAddMarkerModal: (coordinates: MarkerCoordinates, placeName?: string) => void
+    openAddMarkerModal: (coordinates: MarkerCoordinates, placeName?: string, placeReferences?: PlaceReferences) => void
     closeAddMarkerModal: () => void
 
     // 编辑弹窗 actions
@@ -231,6 +234,7 @@ export const useMapStore = create<MapStore>()(
                     const now = new Date()
                     const tempMarker: Marker = {
                         id: tempMarkerId,
+                        placeReferences: data.placeReferences ?? null,
                         coordinates: data.coordinates,
                         content: {
                             id: tempMarkerId,
@@ -268,6 +272,7 @@ export const useMapStore = create<MapStore>()(
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
+                                    placeReferences: data.placeReferences,
                                     coordinates: data.coordinates,
                                     title: data.name,
                                     iconType: data.iconType,
@@ -349,11 +354,15 @@ export const useMapStore = create<MapStore>()(
 
             updateMarker: (markerId, updates) => {
                 set(state => ({
-                    markers: state.markers.map(marker =>
-                        marker.id === markerId
-                            ? { ...marker, ...updates, content: { ...marker.content, updatedAt: new Date() } }
-                            : marker
-                    ),
+                    markers: state.markers.map(marker => {
+                        if (marker.id !== markerId) return marker
+                        const moved = updates.coordinates && (
+                            Math.round(updates.coordinates.latitude * 1e6) !== Math.round(marker.coordinates.latitude * 1e6) ||
+                            Math.round(updates.coordinates.longitude * 1e6) !== Math.round(marker.coordinates.longitude * 1e6)
+                        )
+                        return { ...marker, ...updates, placeReferences: moved ? null : marker.placeReferences,
+                            content: { ...marker.content, updatedAt: new Date() } }
+                    }),
                 }), false, 'updateMarker')
 
                 // 异步更新到 Dataset
@@ -459,11 +468,12 @@ export const useMapStore = create<MapStore>()(
             },
 
             // 新增弹窗 actions
-            openAddMarkerModal: (coordinates, placeName) => {
+            openAddMarkerModal: (coordinates, placeName, placeReferences) => {
                 set({
                     addMarkerModal: {
                         isOpen: true,
                         coordinates,
+                        placeReferences,
                         placeName: placeName || null,
                     },
                     interactionState: {
@@ -603,7 +613,8 @@ export const useMapStore = create<MapStore>()(
             saveMarkerToDataset: async (marker) => {
                 set({ isLoading: true })
                 try {
-                    await saveMarkerToDataset(marker)
+                    const result = await saveMarkerToDataset(marker)
+                    if (result?.data) set(state => ({ markers: state.markers.map(m => m.id === marker.id ? { ...m, placeReferences: result.data.properties.placeReferences ?? null } : m) }))
                 } catch (error) {
                     console.error('保存到 Dataset 失败:', error)
                     throw error
@@ -659,6 +670,7 @@ export const useMapStore = create<MapStore>()(
 
                                     return {
                                         id: markerId,
+                                        placeReferences: properties.placeReferences ?? null,
                                         coordinates: {
                                             latitude: coordinates[1],
                                             longitude: coordinates[0],

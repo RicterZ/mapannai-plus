@@ -64,6 +64,9 @@ function initSchema(db: Database.Database) {
         );
     `)
 
+    const markerCols = db.prepare('PRAGMA table_info(markers)').all() as { name: string }[]
+    if (!markerCols.some(c => c.name === 'place_references')) db.exec('ALTER TABLE markers ADD COLUMN place_references TEXT')
+
     const tripCols = db.prepare('PRAGMA table_info(trips)').all() as { name: string }[]
     if (!tripCols.some(c => c.name === 'marker_ids')) db.exec("ALTER TABLE trips ADD COLUMN marker_ids TEXT NOT NULL DEFAULT '[]'")
 

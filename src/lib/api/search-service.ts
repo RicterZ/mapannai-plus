@@ -1,8 +1,10 @@
+import type { PlaceReferences } from '@/types/place-references'
 // 搜索服务 - 统一使用 /api/search 端点
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import type { MapSearchOptions } from '@/types/map-provider'
 
 export interface SearchResult {
+    placeReferences?: PlaceReferences
     id: string
     name: string
     coordinates: {

@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
             name: result.name,
             coordinates: result.coordinates,
             address: result.address || '',
+            placeReferences: result.placeReferences,
             placeId: result.placeId || '',
             rating: result.rating || 0,
             types: result.types || [],

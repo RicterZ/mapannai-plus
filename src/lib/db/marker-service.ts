@@ -1,3 +1,4 @@
+import { parsePlaceReferences, mergePlaceReferences, PlaceReferencesValidationError } from '@/lib/places/place-references'
 import { projectChains, removeRouteMarker } from '@/lib/trips/route-chain'
 import type { RouteChain } from '@/types/trip'
 /**
@@ -50,6 +51,7 @@ function rowToFeature(row: any): GeoJSONFeature {
             coordinates: [row.longitude, row.latitude],
         },
         properties: {
+            placeReferences: row.place_references ? mergePlaceReferences(null, parsePlaceReferences(JSON.parse(row.place_references))) : null,
             iconType: row.icon_type,
             markdownContent: row.markdown_content,
             headerImage: row.header_image ?? null,
@@ -124,40 +126,49 @@ export function upsertMarker(
     latitude: number,
     properties: Record<string, any>
 ): GeoJSONFeature {
+    const patch = properties.placeReferences === undefined ? undefined : parsePlaceReferences(properties.placeReferences)
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || Math.abs(longitude) > 180 || Math.abs(latitude) > 90) throw new PlaceReferencesValidationError('需要有效 WGS-84 坐标')
     const now = new Date().toISOString()
     const meta = properties.metadata || {}
 
     const db = getDb()
-    db.prepare(`
-        INSERT INTO markers
-            (id, longitude, latitude, title, address, header_image, icon_type, markdown_content, description, created_at, updated_at)
-        VALUES
-            (@id, @longitude, @latitude, @title, @address, @headerImage, @iconType, @markdownContent, @description, @createdAt, @updatedAt)
-        ON CONFLICT(id) DO UPDATE SET
-            longitude        = excluded.longitude,
-            latitude         = excluded.latitude,
-            title            = excluded.title,
-            address          = excluded.address,
-            header_image     = excluded.header_image,
-            icon_type        = excluded.icon_type,
-            markdown_content = excluded.markdown_content,
-            description      = excluded.description,
-            updated_at       = excluded.updated_at
-    `).run({
-        id,
-        longitude,
-        latitude,
-        title: meta.title ?? properties.title ?? null,
-        address: properties.address ?? null,
-        headerImage: properties.headerImage ?? null,
-        iconType: properties.iconType ?? 'location',
-        markdownContent: properties.markdownContent ?? '',
-        description: meta.description ?? properties.description ?? null,
-        createdAt: meta.createdAt ?? now,
-        updatedAt: meta.updatedAt ?? now,
-    })
+    return db.transaction(() => {
+        const existing = getMarkerById(id)
+        const moved = existing && generateCoordinateHash(...existing.geometry.coordinates) !== generateCoordinateHash(longitude, latitude)
+        const references = mergePlaceReferences(moved ? null : existing?.properties.placeReferences ?? null, patch)
+        db.prepare(`
+            INSERT INTO markers
+                (id, longitude, latitude, title, address, header_image, icon_type, markdown_content, description, created_at, updated_at, place_references)
+            VALUES
+                (@id, @longitude, @latitude, @title, @address, @headerImage, @iconType, @markdownContent, @description, @createdAt, @updatedAt, @placeReferences)
+            ON CONFLICT(id) DO UPDATE SET
+                place_references = excluded.place_references,
+                longitude        = excluded.longitude,
+                latitude         = excluded.latitude,
+                title            = excluded.title,
+                address          = excluded.address,
+                header_image     = excluded.header_image,
+                icon_type        = excluded.icon_type,
+                markdown_content = excluded.markdown_content,
+                description      = excluded.description,
+                updated_at       = excluded.updated_at
+        `).run({
+            placeReferences: references ? JSON.stringify(references) : null,
+            id,
+            longitude,
+            latitude,
+            title: meta.title ?? properties.title ?? null,
+            address: properties.address ?? null,
+            headerImage: properties.headerImage ?? null,
+            iconType: properties.iconType ?? 'location',
+            markdownContent: properties.markdownContent ?? '',
+            description: meta.description ?? properties.description ?? null,
+            createdAt: meta.createdAt ?? now,
+            updatedAt: meta.updatedAt ?? now,
+        })
 
-    return getMarkerById(id)!
+        return getMarkerById(id)!
+    }).immediate()
 }
 
 /** Delete a marker by ID. No-op if it doesn't exist. */
@@ -180,4 +191,43 @@ export function deleteMarker(id: string): void {
             update.run(JSON.stringify(markerIds.filter(markerId => markerId !== id)), JSON.stringify(projectChains(routes)), JSON.stringify(routes), day.id)
         }
     })()
+}
+
+/** Patch editable fields and resolve current coordinates inside the write transaction. */
+export function updateMarkerFields(id: string, body: Record<string, any>): GeoJSONFeature | null {
+    // Validate before any write, including when the marker is missing.
+    const patch = body.placeReferences === undefined ? undefined : parsePlaceReferences(body.placeReferences)
+    return getDb().transaction(() => {
+        const feature = getMarkerById(id)
+        if (!feature) return null
+        const properties = { ...feature.properties }
+        delete properties.placeReferences // Stored state is not an explicit patch from the caller.
+        if (patch !== undefined) properties.placeReferences = patch
+        for (const field of ['address', 'headerImage', 'markdownContent', 'iconType']) {
+            if (body[field] !== undefined) properties[field] = body[field]
+        }
+        properties.metadata = { ...properties.metadata, updatedAt: new Date().toISOString() }
+        if (body.title !== undefined) properties.metadata.title = body.title
+        const coords = body.coordinates === undefined ? {
+            longitude: feature.geometry.coordinates[0], latitude: feature.geometry.coordinates[1],
+        } : body.coordinates
+        return upsertMarker(id, coords?.longitude, coords?.latitude, properties)
+    }).immediate()
+}
+
+/** Public Marker shape, shared by all CRUD endpoints. */
+export function featureToMarker(feature: GeoJSONFeature) {
+    const props = feature.properties
+    const meta = props.metadata || {}
+    return {
+        id: feature.id,
+        coordinates: { longitude: feature.geometry.coordinates[0], latitude: feature.geometry.coordinates[1] },
+        placeReferences: props.placeReferences ?? null,
+        content: {
+            id: feature.id, title: meta.title || '未命名标记', address: props.address || undefined,
+            headerImage: props.headerImage || undefined, iconType: props.iconType,
+            markdownContent: props.markdownContent || '', next: props.next || [],
+            createdAt: meta.createdAt, updatedAt: meta.updatedAt,
+        },
+    }
 }

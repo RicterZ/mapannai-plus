@@ -1,3 +1,5 @@
+import { placeReferencesPatchSchema } from '@/lib/places/place-references'
+import type { PlaceReferences } from '@/types/place-references'
 /**
  * MCP Marker Tools
  * Marker CRUD operations exposed as MCP tools
@@ -11,12 +13,13 @@ import {
     getAllMarkers,
     getMarkerById,
     upsertMarker,
+    updateMarkerFields,
     deleteMarker,
     findNearbyMarker,
     generateCoordinateHash,
 } from '@/lib/db/marker-service'
 
-async function searchPlaceCoordinates(name: string, country: string = 'CN', provider?: 'google' | 'amap'): Promise<{ latitude: number; longitude: number; address?: string }> {
+async function searchPlaceCoordinates(name: string, country: string = 'CN', provider?: 'google' | 'amap'): Promise<{ latitude: number; longitude: number; address?: string; placeReferences?: PlaceReferences }> {
   const googleProvider = mapProviderFactory.createServiceProvider('search', provider)
   const results = await googleProvider.searchPlaces(name, undefined, country)
   if (!results || results.length === 0) {
@@ -25,6 +28,7 @@ async function searchPlaceCoordinates(name: string, country: string = 'CN', prov
   return {
     ...results[0].coordinates,
     address: results[0].address,
+    placeReferences: results[0].placeReferences,
   }
 }
 
@@ -42,6 +46,7 @@ export function registerMarkerTools(server: McpServer) {
           const props = f.properties || {}
           const meta = props.metadata || {}
           return {
+            placeReferences: props.placeReferences ?? null,
             id: f.id,
             coordinates: {
               latitude: f.geometry.coordinates[1],
@@ -79,7 +84,7 @@ export function registerMarkerTools(server: McpServer) {
       const results = []
       for (const place of places) {
         try {
-          const coordinates = await searchPlaceCoordinates(place.name, country, provider)
+          const { placeReferences, ...coordinates } = await searchPlaceCoordinates(place.name, country, provider)
           const coordinateHash = generateCoordinateHash(coordinates.longitude, coordinates.latitude)
           const featureId = `coord_${coordinateHash}`
 
@@ -91,6 +96,7 @@ export function registerMarkerTools(server: McpServer) {
               id: existing.id,
               name: place.name,
               status: 'existing',
+              placeReferences: existing.properties.placeReferences ?? null,
               coordinates: {
                 latitude: existing.geometry.coordinates[1],
                 longitude: existing.geometry.coordinates[0],
@@ -101,6 +107,7 @@ export function registerMarkerTools(server: McpServer) {
 
           const now = new Date()
           const properties = {
+            placeReferences,
             markdownContent: place.content || '',
             headerImage: null,
             address: coordinates.address || null,
@@ -121,6 +128,7 @@ export function registerMarkerTools(server: McpServer) {
             id: featureId,
             name: place.name,
             status: 'created',
+            placeReferences: getMarkerById(featureId)!.properties.placeReferences,
             coordinates,
           })
         } catch (err) {
@@ -143,38 +151,22 @@ export function registerMarkerTools(server: McpServer) {
     'update_marker',
     '更新地图上已有 marker 的标题、富文本内容或图标类型',
     {
+      placeReferences: placeReferencesPatchSchema.optional().describe('调用方声明的 POI 引用，服务端只校验结构、不验证真实性；省略保留，null 清空，对象按平台合并。不得编造 ID。'),
       markerId: z.string().describe('要更新的 marker ID'),
       title: z.string().optional().describe('新的标题'),
       markdownContent: z.string().optional().describe('新的 HTML 格式内容（Tiptap 富文本编辑器输出，支持标题、加粗、斜体、下划线、列表、引用、图片等）'),
       iconType: z.enum(['activity', 'location', 'hotel', 'shopping', 'food', 'landmark', 'park', 'natural', 'culture', 'transit'])
         .optional().describe('新的图标类型'),
     },
-    async ({ markerId, title, markdownContent, iconType }) => {
-      const feature = getMarkerById(markerId)
-      if (!feature) throw new Error(`未找到 marker: ${markerId}`)
-
-      const coordinates = feature.geometry.coordinates
-      const existingProps = feature.properties || {}
-      const existingMeta = existingProps.metadata || {}
-
+    async ({ markerId, title, markdownContent, iconType, placeReferences }) => {
+      const updated = updateMarkerFields(markerId, { title, markdownContent, iconType, placeReferences })
+      if (!updated) throw new Error(`未找到 marker: ${markerId}`)
       const now = new Date()
-      const updatedProperties = {
-        ...existingProps,
-        markdownContent: markdownContent !== undefined ? markdownContent : existingProps.markdownContent,
-        iconType: iconType !== undefined ? iconType : existingProps.iconType,
-        metadata: {
-          ...existingMeta,
-          title: title !== undefined ? title : existingMeta.title,
-          updatedAt: now.toISOString(),
-        },
-      }
-
-      upsertMarker(markerId, coordinates[0], coordinates[1], updatedProperties)
 
       return {
         content: [{
           type: 'text',
-          text: JSON.stringify({ success: true, id: markerId, updatedAt: now.toISOString() }, null, 2),
+          text: JSON.stringify({ success: true, id: markerId, placeReferences: updated.properties.placeReferences, updatedAt: now.toISOString() }, null, 2),
         }],
       }
     }

@@ -1,3 +1,4 @@
+import { officialPlaceReferences } from '@/lib/places/place-references'
 import { MapProvider, MapProviderConfig, MapSearchResult, MapCoordinates, PlaceDetails, RoutePoint, MapRoute, TravelMode, MapSearchOptions, MapSearchPage } from '@/types/map-provider'
 import { config } from '@/lib/config'
 import { gcj02ToWgs84, wgs84ToGcj02, isInChina } from '@/lib/coord-transform'
@@ -72,6 +73,7 @@ export class GoogleServerProvider implements MapProvider {
                     },
                     address: place.formatted_address,
                     placeId: place.place_id,
+                    placeReferences: officialPlaceReferences('google', place.place_id),
                     rating: place.rating,
                     types: place.types,
                 }
@@ -170,6 +172,7 @@ export class GoogleServerProvider implements MapProvider {
             name: detailedInfo?.name || firstResult.formatted_address || '未知地点',
             address: detailedInfo?.address || address,
             placeId: placeId,
+            placeReferences: officialPlaceReferences('google', placeId),
             coordinates: { latitude, longitude },
             phone: detailedInfo?.phone,
             website: detailedInfo?.website,

@@ -27,7 +27,8 @@ export function registerSearchTools(server: McpServer) {
         name: r.name,
         coordinates: r.coordinates,
         address: r.address || '',
-        placeId: r.placeId || '',
+        placeReferences: r.placeReferences,
+            placeId: r.placeId || '',
         rating: r.rating || null,
         types: r.types || [],
       }))

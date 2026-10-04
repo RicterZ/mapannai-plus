@@ -1,3 +1,4 @@
+import { officialPlaceReferences } from '@/lib/places/place-references'
 import { config } from '@/lib/config'
 import { gcj02ToWgs84, wgs84ToGcj02, isInChina } from '@/lib/coord-transform'
 import type { MapProvider, MapProviderConfig, MapSearchResult, MapCoordinates, PlaceDetails, RoutePoint, MapRoute, TravelMode, MapSearchOptions, MapSearchPage } from '@/types/map-provider'
@@ -12,6 +13,7 @@ function poiResult(poi: any): MapSearchResult {
     return {
         name: text(poi.name), coordinates: coordinates(poi.location),
         address: [text(poi.pname), text(poi.cityname), text(poi.adname), text(poi.address)].filter(Boolean).join(' '),
+        placeReferences: officialPlaceReferences('amap', poi.id),
         placeId: text(poi.id), types: text(poi.type).split(';').filter(Boolean),
     }
 }
@@ -68,6 +70,7 @@ export class AmapServerProvider implements MapProvider {
         return {
             name: text(poi?.name) || text(regeo.formatted_address) || '未知地点',
             address: text(regeo.formatted_address), coordinates: coords,
+            placeReferences: officialPlaceReferences('amap', poi?.id),
             placeId: text(poi?.id), phone: text(poi?.tel) || undefined,
             types: text(poi?.type).split(';').filter(Boolean),
             opening_hours: text(poi?.business?.opentime) || text(poi?.biz_ext?.open_time) || undefined,

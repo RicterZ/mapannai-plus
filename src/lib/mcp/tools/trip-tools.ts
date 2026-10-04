@@ -204,6 +204,7 @@ export function registerTripTools(server: McpServer) {
                     if (!existing) {
                         const now = new Date().toISOString()
                         upsertMarker(featureId, coordinates.longitude, coordinates.latitude, {
+                            placeReferences: searchResults[0].placeReferences,
                             markdownContent: place.content || '',
                             headerImage: null,
                             iconType: place.iconType,
@@ -224,7 +225,7 @@ export function registerTripTools(server: McpServer) {
                         upsertTripDay({ ...freshDay, markerIds: [...freshDay.markerIds, markerId] })
                     }
 
-                    results.push({ name: place.name, id: markerId, status: existing ? 'existing' : 'created', coordinates })
+                    results.push({ name: place.name, id: markerId, status: existing ? 'existing' : 'created', coordinates, placeReferences: getMarkerById(markerId)!.properties.placeReferences })
                 } catch (err) {
                     results.push({ name: place.name, id: null, status: 'error', error: err instanceof Error ? err.message : String(err) })
                 }

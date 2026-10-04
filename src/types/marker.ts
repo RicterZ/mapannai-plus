@@ -1,3 +1,4 @@
+import type { PlaceReferences } from './place-references'
 
 export interface MarkerCoordinates {
     latitude: number
@@ -46,6 +47,7 @@ export interface MarkerContent {
 }
 
 export interface Marker {
+    placeReferences?: PlaceReferences | null
     id: string
     coordinates: MarkerCoordinates
     content: MarkerContent
@@ -58,6 +60,7 @@ export interface MarkerPopupActions {
 }
 
 export interface DetailedPlaceInfo {
+    placeReferences?: PlaceReferences
     name: string
     address: string
     placeId: string
