@@ -23,7 +23,7 @@ export class AmapServerProvider implements MapProvider {
         const response = await fetch(`${config.map.amap.baseUrl}${path}?${new URLSearchParams({ ...params, key, output: 'JSON' })}`, { signal })
         if (!response.ok) throw new Error(`高德请求失败: ${response.status}`)
         const data = await response.json()
-        if (data.status !== '1') throw new Error(`高德 API 错误: ${data.info || data.infocode}`)
+        if (data.status !== '1' && data.errcode !== 0) throw new Error(`高德 API 错误: ${data.info || data.infocode}`)
         return data
     }
     async searchPlaces(query: string, mapConfig?: MapProviderConfig, country = 'CN', options?: MapSearchOptions): Promise<MapSearchResult[]> {
@@ -78,17 +78,46 @@ export class AmapServerProvider implements MapProvider {
     }
     async getDirections(origin: RoutePoint, destination: RoutePoint, mode: TravelMode = 'walking'): Promise<MapRoute> {
         if (!isInChina(origin.lng, origin.lat) || !isInChina(destination.lng, destination.lat)) throw new Error('高德路线规划仅支持中国，请选择 Google 路线后端')
-        if (mode !== 'walking' && mode !== 'driving') throw new Error('高德当前支持步行或驾车路线')
         const from = wgs84ToGcj02(origin.lng, origin.lat)
         const to = wgs84ToGcj02(destination.lng, destination.lat)
-        const data = await this.request(`/v3/direction/${mode}`, { origin: `${from.longitude},${from.latitude}`, destination: `${to.longitude},${to.latitude}` })
-        const route = data.route?.paths?.[0]
-        if (!route) throw new Error('高德返回的路径数据为空')
-        const path: RoutePoint[] = (route.steps || []).flatMap((step: any) => text(step.polyline).split(';').filter(Boolean).map(location => {
+        const params: Record<string, string> = { origin: `${from.longitude},${from.latitude}`, destination: `${to.longitude},${to.latitude}` }
+        let route: any
+        let steps: any[]
+        if (mode === 'transit') {
+            // AMap transit requires cities; resolve them only on a directions cache miss.
+            for (const [field, point] of [['city', from], ['cityd', to]] as const) {
+                const data = await this.request('/v3/geocode/regeo', { location: `${point.longitude},${point.latitude}`, extensions: 'base' })
+                const city = text(data.regeocode?.addressComponent?.citycode)
+                if (!city) throw new Error('高德公交规划无法确定城市')
+                params[field] = city
+            }
+            const data = await this.request('/v3/direction/transit/integrated', { ...params, extensions: 'all' })
+            route = data.route?.transits?.[0]
+            if (!route) throw new Error('NO_ROUTE: 高德未找到公共交通路线')
+            steps = (route.segments || []).flatMap((segment: any) => {
+                const railway = segment.railway
+                // Railway responses can have station coordinates without a track polyline.
+                const railPoints = railway?.departure_stop?.location && railway?.arrival_stop?.location
+                    ? [railway.departure_stop, ...(railway.via_stops || []), railway.arrival_stop].map(stop => stop.location).filter(Boolean).join(';') : ''
+                return [...(segment.walking?.steps || []), ...(segment.bus?.buslines?.slice(0, 1) || []),
+                    ...(railway && (railway.polyline || railPoints) ? [{ polyline: railway.polyline || railPoints }] : []),
+                    ...(segment.taxi?.polyline ? [segment.taxi] : [])]
+            })
+        } else {
+            const endpoint = mode === 'bicycling' ? '/v4/direction/bicycling' : `/v3/direction/${mode}`
+            const data = await this.request(endpoint, params)
+            route = (mode === 'bicycling' ? data.data : data.route)?.paths?.[0]
+            if (!route) throw new Error('NO_ROUTE: 高德未找到路线')
+            steps = route.steps || []
+        }
+        const path: RoutePoint[] = steps.flatMap((step: any) => text(step.polyline).split(';').filter(Boolean).map(location => {
             const c = coordinates(location)
             return { lat: c.latitude, lng: c.longitude }
         }))
-        if (path.length === 0) path.push(origin, destination)
-        return { path, distance: Number(route.distance) || 0, duration: Number(route.duration) || 0 }
+        if (path.length < 2) throw new Error('NO_ROUTE: 高德缺少路线形状')
+        const distance = Number(route.distance), duration = Number(route.duration)
+        if (!Number.isFinite(distance) || !Number.isFinite(duration)) throw new Error('高德缺少路程或耗时')
+        return { path, distance, duration }
+
     }
 }

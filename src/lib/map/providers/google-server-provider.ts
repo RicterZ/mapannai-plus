@@ -207,6 +207,7 @@ export class GoogleServerProvider implements MapProvider {
 
         const data = await response.json()
 
+        if (data.status === 'ZERO_RESULTS') throw new Error('NO_ROUTE: Google 未找到路线')
         if (data.status !== 'OK') {
             throw new Error(`Google Directions API 错误: ${data.status} - ${data.error_message || 'Unknown error'}`)
         }

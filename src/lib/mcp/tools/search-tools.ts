@@ -1,3 +1,4 @@
+import { transportModeSchema } from '@/lib/trips/route-chain-schema'
 /**
  * MCP Search & Directions Tools
  * Place search, place details, and walking directions exposed as MCP tools
@@ -54,21 +55,27 @@ export function registerSearchTools(server: McpServer) {
     }
   )
 
-  // get_walking_directions
+  const coordinates = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) })
+  const directionInputs = {
+    provider: z.enum(['google', 'amap']).optional().describe('路线后端，不填使用服务端配置'),
+    origin: coordinates.describe('WGS-84 起点坐标'),
+    destination: coordinates.describe('WGS-84 终点坐标'),
+  }
   server.tool(
-    'get_walking_directions',
-    '获取两点之间的步行路线，返回路径点、距离（米）和预计时间（秒）。',
+    'get_directions',
+    '计算两点间的行程关联路线、距离和耗时。transportMode 按已安排的交通方式映射，优先于 mode；均省略时，小于2km步行，否则驾车。飞机/轮船/其他及无可用路线返回示意连接、标明直线距离，耗时为null；不是逐路口导航。',
     {
-      provider: z.enum(['google', 'amap']).optional().describe('路线后端，不填使用服务端配置'),
-      origin: z.object({
-        lat: z.number().describe('起点纬度'),
-        lng: z.number().describe('起点经度'),
-      }).describe('起点坐标'),
-      destination: z.object({
-        lat: z.number().describe('终点纬度'),
-        lng: z.number().describe('终点经度'),
-      }).describe('终点坐标'),
+      ...directionInputs,
+      mode: z.enum(['walking', 'driving', 'bicycling', 'transit']).optional().describe('显式寻路模式；未设置交通安排时可用，省略自动按距离选择'),
+      transportMode: transportModeSchema.optional().describe('行程链路交通方式，不支持的方式返回虚线示意，不伪造道路路线'),
     },
+    async ({ origin, destination, mode, provider, transportMode }) => {
+      const result = await getSavedDirection(origin, destination, mode, provider, transportMode)
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
+    }
+  )
+  // Compatibility for existing external clients; the Web AI exposes get_directions only.
+  server.tool('get_walking_directions', '兼容旧客户端：固定步行。新调用请用 get_directions。', directionInputs,
     async ({ origin, destination, provider }) => {
       const result = await getSavedDirection(origin, destination, 'walking', provider)
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }

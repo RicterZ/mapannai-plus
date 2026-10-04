@@ -31,6 +31,8 @@ import { CSS } from '@dnd-kit/utilities'
 import { useMapStore } from '@/store/map-store'
 import { MARKER_ICONS, Marker } from '@/types/marker'
 import { cn } from '@/utils/cn'
+import { routeTransportMode, resolveRouteMode } from '@/lib/map/route-mode'
+import { calculateDistance } from '@/utils/distance'
 import { useRouteSettings, setRouteSettings } from '@/lib/map/route-settings'
 import { CreateTripModal } from '@/components/modal/create-trip-modal'
 import { routeColor, dayColor, shortAddress } from '@/lib/map/route-presentation'
@@ -271,15 +273,21 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
     const routeSettings = useRouteSettings()
     const progress = useRouteProgress()
     // The existing progress subscription rerenders after each segment is cached.
-    const segmentDistance = (from: Marker, to: Marker | undefined): number | null => {
+    const segmentDistance = (from: Marker, to: Marker | undefined, route?: RouteChain): number | null => {
         if (!routeSettings.enabled || !to) return null
-        const key = routeCacheKey(routeProvider, routeSettings.auto ? 'auto' : routeSettings.mode, {
+        const transportMode = routeTransportMode(route, from.id, to.id)
+        const origin = { lat: from.coordinates.latitude, lng: from.coordinates.longitude }
+        const destination = { lat: to.coordinates.latitude, lng: to.coordinates.longitude }
+        if (resolveRouteMode(origin, destination, transportMode) === null) return calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng)
+        const key = routeCacheKey(routeProvider, {
+            transportMode,
             fromId: from.id, toId: to.id,
             origin: { lat: from.coordinates.latitude, lng: from.coordinates.longitude },
             destination: { lat: to.coordinates.latitude, lng: to.coordinates.longitude },
         })
         const path = readCachedRoute(key)
-        if (!path || isRangeFallback(path)) return null
+        if (!path) return null
+        if (isRangeFallback(path)) return calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng)
         return readRouteMetrics(key)?.distance ?? null
     }
     const sidebarRef = useRef<HTMLDivElement>(null)
@@ -1275,7 +1283,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                         marker={marker}
                                                         index={idx}
                                                         hasArrowAfter={idx < chainGroup.length - 1}
-                                                        distance={segmentDistance(marker, chainGroup[idx + 1])}
+                                                        distance={segmentDistance(marker, chainGroup[idx + 1], currentDay?.routeChains?.[chainIdx])}
                                                         onRemove={() => handleRemoveFromChain(marker.id, chainIdx)}
                                                         onFlyTo={() => handleMarkerClick(marker.id)}
                                                         selected={interactionState.selectedMarkerId === marker.id}
@@ -1388,7 +1396,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                 </button>
                                                 {route?.stops.find(stop => stop.markerId === marker.id)?.note && <div className="truncate px-2 pb-2 text-[11px] text-gray-500" title={route?.stops.find(stop => stop.markerId === marker.id)?.note}>{route?.stops.find(stop => stop.markerId === marker.id)?.note}</div>}
                                             </div>
-                                            {idx < group.length - 1 && <RouteLeg day={currentDay ?? undefined} route={route} fromId={marker.id} toId={group[idx + 1].id} distance={segmentDistance(marker, group[idx + 1])} editable={false} />}
+                                            {idx < group.length - 1 && <RouteLeg day={currentDay ?? undefined} route={route} fromId={marker.id} toId={group[idx + 1].id} distance={segmentDistance(marker, group[idx + 1], route)} editable={false} />}
                                         </div>
                                     )
                                 })}
@@ -1497,13 +1505,6 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                         {routeSettings.enabled && (progress.calculating || progress.failed > 0) && <span role="status" aria-live="polite" className="min-w-0 flex-1 truncate text-right text-xs text-gray-500" title={progress.calculating ? `正在计算 ${progress.completed + progress.failed}/${progress.total}，虚线为示意连接` : progress.failed ? `${progress.failed} 段暂时无法规划，虚线为示意连接` : ''}>
                             {progress.calculating ? `${progress.completed + progress.failed}/${progress.total}` : progress.failed ? <button type="button" onClick={progress.retry} className="route-retry-button text-blue-600 hover:underline" aria-label={`重试 ${progress.failed} 段失败路线`}>重试 {progress.failed} 段</button> : null}
                         </span>}
-                        {routeSettings.enabled && <div className="ml-auto flex flex-shrink-0 gap-1 rounded-lg bg-gray-100 p-1" role="group" aria-label="全局寻路模式">
-                            <button type="button" role="switch" aria-label="自动选择路线模式" aria-checked={routeSettings.auto}
-                                title="两点直线距离小于 2km 使用步行，否则使用驾车"
-                                onClick={() => setRouteSettings({ ...routeSettings, auto: !routeSettings.auto })}
-                                className={cn('route-mode-button h-7 min-w-[48px] rounded-md px-3 text-xs transition-colors', routeSettings.auto ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>自动</button>
-                            {(['walking', 'driving'] as const).map(mode => <button key={mode} type="button" onClick={() => setRouteSettings({ enabled: true, mode, auto: false })} aria-pressed={!routeSettings.auto && routeSettings.mode === mode} className={cn('route-mode-button h-7 min-w-[48px] rounded-md px-3 text-xs transition-colors', !routeSettings.auto && routeSettings.mode === mode ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700')}>{mode === 'walking' ? '步行' : '驾车'}</button>)}
-                        </div>}
                         <button type="button" role="switch" aria-checked={routeSettings.enabled} aria-label="路线规划" onClick={() => setRouteSettings({ ...routeSettings, enabled: !routeSettings.enabled })} className={cn('relative w-11 h-6 flex-shrink-0 rounded-full transition-colors', routeSettings.enabled ? 'bg-blue-500' : 'bg-gray-300')}>
                             <span className={cn('absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow transition-transform', routeSettings.enabled ? 'translate-x-6' : 'translate-x-1')} />
                         </button>

@@ -1,22 +1,24 @@
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
-import { calculateDistance } from '@/utils/distance'
-import type { RouteMode, RoutePolicy } from './route-settings'
+import { resolveRouteMode } from './route-mode'
+import type { TransportMode } from '@/types/trip'
 
 export interface RouteCoordinate { lat: number; lng: number }
 export interface RouteSegment {
+    transportMode?: TransportMode
     fromId: string
     toId: string
     origin: RouteCoordinate
     destination: RouteCoordinate
 }
 export type RoutePath = RouteCoordinate[]
-export interface RouteMetrics { distance: number; duration: number }
+export interface RouteMetrics { distance: number; duration: number | null; distanceKind?: 'route' | 'straight' }
 const fallbackPaths = new WeakSet<RoutePath>()
 export function isRangeFallback(path: RoutePath | null | undefined): boolean { return !!path && fallbackPaths.has(path) }
 const metricsCache = new Map<string, RouteMetrics>()
 const cachePrefix = 'mapannai_route_v1:'
 const inFlight = new Map<string, Promise<RoutePath>>()
 const memoryCache = new Map<string, RoutePath>()
+const transitExpires = new Map<string, number>()
 const requestSpacingMs = 1200
 let requestQueue: Promise<void> = Promise.resolve()
 let nextRequestAt = 0
@@ -37,26 +39,21 @@ function enqueueRequest<T>(request: () => Promise<T>): Promise<T> {
     return queued
 }
 
-export function resolveRouteMode(policy: RoutePolicy, segment: RouteSegment): RouteMode {
-    if (policy !== 'auto') return policy
-    const metres = calculateDistance(segment.origin.lat, segment.origin.lng, segment.destination.lat, segment.destination.lng)
-    // Remove sub-micrometre rounding noise at the exact 2km boundary.
-    return Math.round(metres * 1e6) < 2000 * 1e6 ? 'walking' : 'driving'
-}
-export function routeCacheKey(provider: string, policy: RoutePolicy, segment: RouteSegment): string {
-    const mode = resolveRouteMode(policy, segment)
+export function routeCacheKey(provider: string, segment: RouteSegment): string {
+    const mode = resolveRouteMode(segment.origin, segment.destination, segment.transportMode) ?? 'schematic'
     const point = (p: RouteCoordinate) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`
     return `${cachePrefix}${provider}:${mode}:${segment.fromId}:${segment.toId}:${point(segment.origin)}:${point(segment.destination)}`
 }
 export function readCachedRoute(key: string): RoutePath | null {
     const memory = memoryCache.get(key)
-    if (memory) return memory
+    if (memory && (!key.includes(':transit:') || Date.now() < (transitExpires.get(key) ?? 0))) return memory
     try {
         const raw = localStorage.getItem(key)
         if (!raw) return null
         const stored = JSON.parse(raw)
+        if (key.includes(':transit:') && (!stored.fallback || stored.fallback === 'NO_ROUTE') && (!Number.isFinite(stored.createdAt) || Date.now() - stored.createdAt >= 3600000)) return null
         const path = Array.isArray(stored) ? stored : stored.path
-        if ((stored.fallback === 'OVER_DIRECTION_RANGE' || stored.fallback === 'UNSUPPORTED_REGION') && Array.isArray(path)) fallbackPaths.add(path)
+        if (stored.fallback && Array.isArray(path)) fallbackPaths.add(path)
         return Array.isArray(path) && path.length >= 2 && path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng)) ? path : null
     } catch { return null }
 }
@@ -67,14 +64,20 @@ export function readRouteMetrics(key: string): RouteMetrics | null {
         const raw = localStorage.getItem(`${key}:metrics`)
         if (!raw) return null
         const metrics = JSON.parse(raw)
-        return Number.isFinite(metrics.distance) && metrics.distance >= 0 && Number.isFinite(metrics.duration) && metrics.duration >= 0 ? metrics : null
+        return Number.isFinite(metrics.distance) && metrics.distance >= 0 && (metrics.duration === null || (Number.isFinite(metrics.duration) && metrics.duration >= 0)) ? metrics : null
     } catch { return null }
 }
-export async function getPlannedRoute(provider: string, policy: RoutePolicy, segment: RouteSegment): Promise<RoutePath> {
-    const mode = resolveRouteMode(policy, segment)
-    const key = routeCacheKey(provider, mode, segment)
+export async function getPlannedRoute(provider: string, segment: RouteSegment): Promise<RoutePath> {
+    const mode = resolveRouteMode(segment.origin, segment.destination, segment.transportMode)
+    const key = routeCacheKey(provider, segment)
     const cached = readCachedRoute(key)
     if (cached) return cached
+    if (mode === null) {
+        const path = [segment.origin, segment.destination]
+        fallbackPaths.add(path)
+        memoryCache.set(key, path)
+        return path
+    }
     const existing = inFlight.get(key)
     if (existing) return existing
     const promise = enqueueRequest(async () => {
@@ -82,7 +85,7 @@ export async function getPlannedRoute(provider: string, policy: RoutePolicy, seg
             const response = await fetchWithAuth('/api/directions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ origin: segment.origin, destination: segment.destination, mode }),
+                body: JSON.stringify({ origin: segment.origin, destination: segment.destination, ...(mode ? { mode } : {}), transportMode: segment.transportMode }),
             })
             const data = await response.json().catch(() => ({}))
             if (!response.ok) {
@@ -95,14 +98,15 @@ export async function getPlannedRoute(provider: string, policy: RoutePolicy, seg
             }
             const path = data.path as RoutePath
             if (!Array.isArray(path) || path.length < 2 || !path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))) throw new Error('路线数据无效')
-            if ((data.fallback === 'OVER_DIRECTION_RANGE' || data.fallback === 'UNSUPPORTED_REGION')) fallbackPaths.add(path)
+            if (data.fallback) fallbackPaths.add(path)
             memoryCache.set(key, path)
-            if (Number.isFinite(data.distance) && Number.isFinite(data.duration) && data.distance >= 0 && data.duration >= 0) {
-                const metrics = { distance: data.distance, duration: data.duration }
+            if (mode === 'transit') transitExpires.set(key, data.fallback && data.fallback !== 'NO_ROUTE' ? Infinity : Date.now() + 3600000)
+            if (Number.isFinite(data.distance) && (data.duration === null || Number.isFinite(data.duration)) && data.distance >= 0 && (data.duration === null || data.duration >= 0)) {
+                const metrics = { distance: data.distance, duration: data.duration, distanceKind: data.distanceKind }
                 metricsCache.set(key, metrics)
                 try { localStorage.setItem(`${key}:metrics`, JSON.stringify(metrics)) } catch { /* storage unavailable */ }
             }
-            try { localStorage.setItem(key, JSON.stringify(data.fallback ? { path, fallback: data.fallback } : path)) } catch { /* storage full/private mode */ }
+            try { localStorage.setItem(key, JSON.stringify(data.fallback || mode === 'transit' ? { path, fallback: data.fallback, createdAt: Date.now() } : path)) } catch { /* storage full/private mode */ }
             return path
         }
         throw new Error('路线规划请求超过频率限制')

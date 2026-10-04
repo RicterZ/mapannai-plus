@@ -547,10 +547,6 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
 
 /* Compact segmented control: avoid inheriting square sidebar button sizing. */
 @media (pointer: coarse) {
-    .left-sidebar .route-settings-bar .route-mode-button {
-        min-height: 28px;
-        min-width: 48px;
-    }
     .left-sidebar .route-settings-bar .route-retry-button {
         min-height: 28px;
     }

@@ -13,7 +13,7 @@ export async function connectPlanningTools() {
         await client.connect(clientTransport)
         const { tools } = await client.listTools()
         return {
-            tools: tools.map(tool => ({ type: 'function' as const, function: {
+            tools: tools.filter(tool => tool.name !== 'get_walking_directions').map(tool => ({ type: 'function' as const, function: {
                 name: tool.name, description: tool.description, parameters: tool.inputSchema,
             } })),
             call: (name: string, args: Record<string, unknown>, signal: AbortSignal) => client.callTool({ name, arguments: args }, undefined, { signal, timeout: 120_000 }),
@@ -22,4 +22,4 @@ export async function connectPlanningTools() {
     } catch (error) { await close(); throw error }
 }
 
-export const readOnlyTools = new Set(['list_markers', 'list_trips', 'get_trip_detail', 'search_places', 'get_place_details', 'get_walking_directions'])
+export const readOnlyTools = new Set(['list_markers', 'list_trips', 'get_trip_detail', 'search_places', 'get_place_details', 'get_directions', 'get_walking_directions'])

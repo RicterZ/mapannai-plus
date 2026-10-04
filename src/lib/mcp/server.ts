@@ -8,7 +8,7 @@
  *
  * Available tools:
  *   Markers: list_markers, create_marker, update_marker, delete_marker
- *   Search:  search_places, get_place_details, get_walking_directions
+ *   Search:  search_places, get_place_details, get_directions (legacy get_walking_directions)
  *   Trips:   list_trips, get_trip_detail, create_trip, add_day_to_trip,
  *            assign_marker_to_trip, remove_marker_from_trip, assign_marker_to_day, plan_trip_day, create_day_chain, update_day_chain, delete_day_chain, reorder_day_markers, delete_trip
  */
@@ -71,7 +71,7 @@ function createMcpServer(): McpServer {
 
 ### 地图服务选择
 - 地图渲染引擎由部署环境的 \`MAP_RENDERER\` 选择 OpenStreetMap/MapLibre 或高德 JS API 2.0。
-- \`search_places\`、\`get_place_details\`、\`get_walking_directions\`、\`create_marker\`、\`plan_trip_day\` 可分别传 \`provider: "google" | "amap"\`；省略时使用服务端的对应默认值。
+- \`search_places\`、\`get_place_details\`、\`get_directions\`、\`create_marker\`、\`plan_trip_day\` 可分别传 \`provider: "google" | "amap"\`；省略时使用服务端的对应默认值。
 - 高德地点和路线服务仅支持中国，数据库坐标统一为 WGS-84。
 
 ### 查看已有行程
@@ -121,7 +121,7 @@ function createMcpServer(): McpServer {
 | \`delete_marker\` | 删除 marker |
 | \`search_places\` | 搜索地点（确认坐标用） |
 | \`get_place_details\` | 获取地点详细信息（电话/营业时间等） |
-| \`get_walking_directions\` | 获取两点步行路线 |
+| \`get_directions\` | 按交通安排计算两点路线、距离；省略方式按2km阈值，无法规划返回虚线示意 |
 | \`list_trips\` | 列出所有旅行 |
 | \`get_trip_detail\` | 查看旅行详情 |
 | \`create_trip\` | 创建旅行（自动生成每天 TripDay） |

@@ -21,16 +21,15 @@ function priority(segment: RouteSegment, viewport: RouteViewport): [number, numb
 export function usePlannedRoutes(segments: RouteSegment[], provider: string, viewport: RouteViewport | null): { enabled: boolean; routes: Record<string, RoutePath>; failedKeys: Set<string> } {
     const settings = useRouteSettings()
     const { enabled } = settings
-    const mode = settings.auto ? 'auto' : settings.mode
-    const signature = segments.map(segment => routeCacheKey(provider, mode, segment)).join('|')
+    const signature = segments.map(segment => routeCacheKey(provider, segment)).join('|')
     const [routes, setRoutes] = useState<Record<string, RoutePath>>({})
     const [failedKeys, setFailedKeys] = useState<Set<string>>(new Set())
     const retryVersion = useRouteProgress(state => state.retryVersion)
     const failuresRef = useRef<{ scope: string; keys: Set<string> }>({ scope: '', keys: new Set() })
-    const requested = useMemo(() => new Map(segments.map(segment => [routeCacheKey(provider, mode, segment), segment])), [signature])
+    const requested = useMemo(() => new Map(segments.map(segment => [routeCacheKey(provider, segment), segment])), [signature])
     useEffect(() => {
         const report = useRouteProgress.getState().report
-        const scope = `${enabled}:${provider}:${mode}:${signature}:${retryVersion}`
+        const scope = `${enabled}:${provider}:${signature}:${retryVersion}`
         if (failuresRef.current.scope !== scope) failuresRef.current = { scope, keys: new Set() }
         const failures = failuresRef.current.keys
         setFailedKeys(new Set(failures))
@@ -56,7 +55,7 @@ export function usePlannedRoutes(segments: RouteSegment[], provider: string, vie
             for (const [key, segment] of ordered) {
                 if (cancelled) break
                 try {
-                    const path = await getPlannedRoute(provider, mode, segment)
+                    const path = await getPlannedRoute(provider, segment)
                     if (!cancelled) { setRoutes(current => ({ ...current, [key]: path })); completed++ }
                 } catch (error) {
                     if (!cancelled) { failures.add(key); failed++; setFailedKeys(new Set(failures)); console.warn('路线规划失败:', error) }
@@ -65,6 +64,6 @@ export function usePlannedRoutes(segments: RouteSegment[], provider: string, vie
             }
         })()
         return () => { cancelled = true }
-    }, [enabled, mode, provider, requested, retryVersion, viewport?.west, viewport?.east, viewport?.south, viewport?.north, viewport?.centerLat, viewport?.centerLng])
+    }, [enabled, provider, requested, retryVersion, viewport?.west, viewport?.east, viewport?.south, viewport?.north, viewport?.centerLat, viewport?.centerLng])
     return { enabled, routes, failedKeys }
 }
