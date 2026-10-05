@@ -14,7 +14,7 @@ import { SearchResultMarker, searchResultKey } from './search-result-marker'
 import { searchService, SearchResult } from '@/lib/api/search-service'
 import { mergeSearchResults, type MapSearchResult } from '@/lib/map/search-results'
 import { useMapStore } from '@/store/map-store'
-import { MarkerCoordinates } from '@/types/marker'
+import { MarkerCoordinates, MARKER_ICONS } from '@/types/marker'
 import type { BasemapProviderType } from '@/types/map-provider'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import { MapMarker } from './map-marker'
@@ -1037,10 +1037,10 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                                             className={cn("w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors text-left border-b border-gray-50 last:border-0", selectedSearchKey === searchResultKey(r) && "bg-blue-50")}
                                         >
                                             <span className="text-blue-500 flex-shrink-0">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                {r.markerId ? <span className="text-base">{MARKER_ICONS[r.iconType || 'location'].emoji}</span> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                </svg>
+                                                </svg>}
                                             </span>
                                             <div className="flex-1 min-w-0">
                                                 <div className="text-sm font-medium text-gray-900 truncate">{r.name}{r.markerId && <span className="ml-2 text-xs font-normal text-gray-400">已添加</span>}</div>
@@ -1068,10 +1068,10 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                                             className={cn("w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors text-left border-b border-gray-50 last:border-0", selectedSearchKey === searchResultKey(r) && "bg-blue-50")}
                                         >
                                             <span className="text-blue-500 flex-shrink-0">
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                {r.markerId ? <span className="text-base">{MARKER_ICONS[r.iconType || 'location'].emoji}</span> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                </svg>
+                                                </svg>}
                                             </span>
                                             <div className="flex-1 min-w-0">
                                                 <div className="text-sm font-medium text-gray-900 truncate">{r.name}{r.markerId && <span className="ml-2 text-xs font-normal text-gray-400">已添加</span>}</div>

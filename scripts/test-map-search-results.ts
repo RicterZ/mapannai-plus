@@ -12,6 +12,7 @@ assert.deepEqual(mergeSearchResults('', saved, []), [])
 const official = { id: 'official', name: '東京駅', coordinates: { longitude: 139.7671251, latitude: 35.6812361 }, placeReferences: { google: { placeId: 'official-id' } } }
 const result = mergeSearchResults('東京', saved, [official, official])
 assert.equal(result.length, 1)
+assert.equal(result[0].iconType, 'location')
 assert.equal(result[0].markerId, 'one', 'coordinate matches select saved marker even when its title did not match')
 assert.equal(result[0].placeReferences, undefined, 'search identity must not be inferred or merged into saved marker')
 const nearby = { ...official, id: 'nearby', coordinates: { longitude: 139.767127, latitude: 35.681236 } }

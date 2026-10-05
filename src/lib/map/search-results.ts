@@ -1,7 +1,7 @@
 import type { SearchResult } from '@/lib/api/search-service'
-import type { Marker } from '@/types/marker'
+import type { Marker, MarkerIconType } from '@/types/marker'
 
-export type MapSearchResult = SearchResult & { markerId?: string }
+export type MapSearchResult = SearchResult & { markerId?: string; iconType?: MarkerIconType }
 
 // Use the same six-decimal precision as saved marker coordinate identities.
 function coordinateKey(coordinates: SearchResult['coordinates']): string {
@@ -10,7 +10,7 @@ function coordinateKey(coordinates: SearchResult['coordinates']): string {
 }
 function savedResult(marker: Marker): MapSearchResult {
     return { id: marker.id, markerId: marker.id, name: marker.content.title || '未命名地点',
-        coordinates: marker.coordinates, address: marker.content.address }
+        coordinates: marker.coordinates, address: marker.content.address, iconType: marker.content.iconType || 'location' }
 }
 
 /** Saved titles match globally; provider results retain the current viewport scope. */
