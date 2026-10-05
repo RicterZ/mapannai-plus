@@ -12,6 +12,7 @@ import { isInChina } from '@/lib/coord-transform'
 import { installZoomThresholdBackdoor } from '@/lib/zoom-threshold'
 import { SearchResultMarker, searchResultKey } from './search-result-marker'
 import { searchService, SearchResult } from '@/lib/api/search-service'
+import { mergeSearchResults, type MapSearchResult } from '@/lib/map/search-results'
 import { useMapStore } from '@/store/map-store'
 import { MarkerCoordinates } from '@/types/marker'
 import type { BasemapProviderType } from '@/types/map-provider'
@@ -157,7 +158,8 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
 
     // 右下角搜索栏状态
     const [fabQuery, setFabQuery] = useState('')
-    const [fabResults, setFabResults] = useState<SearchResult[]>([])
+    const [providerResults, setProviderResults] = useState<SearchResult[]>([])
+    const [providerQuery, setProviderQuery] = useState('')
     const [selectedSearchKey, setSelectedSearchKey] = useState<string | null>(null)
     const selectedSearchRef = useRef<string | null>(null)
     const [fabQueryError, setFabQueryError] = useState('')
@@ -246,6 +248,8 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     // Day/Trip 模式仍显示所有标记，让用户可以点击「加入今天」
     // 视觉区分（高亮/置灰）由 MapMarker 组件负责
     const visibleMarkers = markers
+    const fabResults = useMemo(() => mergeSearchResults(fabQuery, markers, providerQuery === fabQuery.trim() ? providerResults : []), [fabQuery, markers, providerQuery, providerResults])
+    const searchOverlayResults = useMemo(() => fabResults.filter(result => !result.markerId), [fabResults])
 
     // 监听标记同步失败事件
     useEffect(() => {
@@ -374,20 +378,21 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         const trimmedQuery = fabQuery.trim()
         if (selectedSearchRef.current) closePopup()
         selectedSearchRef.current = null
-        setFabResults([])
+        setProviderResults([])
+        setProviderQuery(trimmedQuery)
         setSelectedSearchKey(null)
         
         // 如果查询为空，清除结果
         if (!trimmedQuery) {
-            setFabResults([])
+            setProviderResults([])
             setFabQueryError('')
             setIsSearching(false)
             return
         }
         
-        // 如果字符数少于3个，不进行搜索
+        // 少于2个字符只匹配本地地点，不请求平台
         if (trimmedQuery.length < 2) {
-            setFabResults([])
+            setProviderResults([])
             setFabQueryError('')
             setIsSearching(false)
             return
@@ -413,11 +418,11 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                 } : undefined
                 const results = await searchService.searchPlaces(trimmedQuery, 20, 'zh-CN', 'CN', { bounds: searchBounds, signal: controller.signal })
                 if (controller.signal.aborted) return
-                setFabResults(results.filter(result => Number.isFinite(result.coordinates?.longitude) && Number.isFinite(result.coordinates?.latitude) && Math.abs(result.coordinates.longitude) <= 180 && Math.abs(result.coordinates.latitude) <= 90).filter((result, index, all) => all.findIndex(item => searchResultKey(item) === searchResultKey(result)) === index))
+                setProviderResults(results)
             } catch (e) {
                 if (controller.signal.aborted) return
                 setFabQueryError(e instanceof Error ? e.message : '搜索失败，请稍后再试')
-                setFabResults([])
+                setProviderResults([])
             } finally {
                 if (!controller.signal.aborted) setIsSearching(false)
             }
@@ -430,15 +435,19 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         }
     }, [fabQuery, isAmap, closePopup])
 
-    const handleFabResultClick = useCallback((result: SearchResult) => {
+    const handleFabResultClick = useCallback((result: MapSearchResult) => {
         selectedSearchRef.current = searchResultKey(result)
         setSelectedSearchKey(selectedSearchRef.current)
         placeLookupEpoch.current++ // Cancel nearby detail results from an older manual click.
-        draftPlaceReferences.current = result.placeReferences
+        draftPlaceReferences.current = result.markerId ? undefined : result.placeReferences
         setCurrentPlaceName(result.name)
         setCurrentPlaceAddress(result.address)
-        selectMarker(null)
+        selectMarker(result.markerId ?? null)
         openPopup(result.coordinates)
+        if (result.markerId) {
+            const { tripDays, setHighlightedDay, activeView } = useMapStore.getState()
+            if (activeView.mode !== 'day') setHighlightedDay(tripDays.find(day => day.markerIds.includes(result.markerId!))?.id ?? null)
+        }
         // The same fixed zoom applies on list and map selection; no delayed popup.
         const viewport = window.visualViewport
         const visibleTop = viewport?.offsetTop ?? 0
@@ -897,7 +906,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                     routeProvider={routeProvider}
                     viewState={viewState}
                     markers={visibleMarkers}
-                    searchResults={fabResults}
+                    searchResults={searchOverlayResults}
                     selectedSearchKey={selectedSearchKey}
                     onSearchResultClick={handleFabResultClick}
                     selectedMarkerId={selectedMarkerId}
@@ -974,7 +983,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                     )
                 })}
 
-                {fabResults.map(result => <MapboxMarker
+                {searchOverlayResults.map(result => <MapboxMarker
                     key={`search:${searchResultKey(result)}`}
                     longitude={toDisplay(result.coordinates).longitude}
                     latitude={toDisplay(result.coordinates).latitude}
@@ -1034,7 +1043,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                                                 </svg>
                                             </span>
                                             <div className="flex-1 min-w-0">
-                                                <div className="text-sm font-medium text-gray-900 truncate">{r.name}</div>
+                                                <div className="text-sm font-medium text-gray-900 truncate">{r.name}{r.markerId && <span className="ml-2 text-xs font-normal text-gray-400">已添加</span>}</div>
                                                 {r.address && <div className="text-xs text-gray-400 truncate mt-0.5">{r.address}</div>}
                                             </div>
                                         </button>
@@ -1065,7 +1074,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                                                 </svg>
                                             </span>
                                             <div className="flex-1 min-w-0">
-                                                <div className="text-sm font-medium text-gray-900 truncate">{r.name}</div>
+                                                <div className="text-sm font-medium text-gray-900 truncate">{r.name}{r.markerId && <span className="ml-2 text-xs font-normal text-gray-400">已添加</span>}</div>
                                                 {r.address && <div className="text-xs text-gray-400 truncate mt-0.5">{r.address}</div>}
                                             </div>
                                         </button>
@@ -1090,10 +1099,10 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                             onChange={e => {
                                 setFabQuery(e.target.value)
                                 if (fabQueryError) setFabQueryError('')
-                                if (!e.target.value.trim()) setFabResults([])
+                                if (!e.target.value.trim()) setProviderResults([])
                             }}
                             onKeyDown={e => {
-                                if (e.key === 'Escape') { setFabQuery(''); setFabResults([]) }
+                                if (e.key === 'Escape') { setFabQuery(''); setProviderResults([]) }
                                 if (e.key === 'Enter' && fabResults.length > 0) handleFabResultClick(fabResults[0])
                             }}
                             placeholder="搜索地点…"
@@ -1101,7 +1110,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                         />
                         {fabQuery && !isSearching && (
                             <button
-                                onClick={() => { setFabQuery(''); setFabResults([]) }}
+                                onClick={() => { setFabQuery(''); setProviderResults([]) }}
                                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors"
                             >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

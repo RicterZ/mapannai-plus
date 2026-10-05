@@ -1,10 +1,10 @@
 'use client'
 
 import React from 'react'
-import type { SearchResult } from '@/lib/api/search-service'
+import type { MapSearchResult as SearchResult } from '@/lib/map/search-results'
 
 export function searchResultKey(result: SearchResult): string {
-    return result.placeId || `${result.name}:${result.coordinates.longitude},${result.coordinates.latitude}`
+    return result.markerId ? `marker:${result.markerId}` : result.placeId || `${result.name}:${result.coordinates.longitude},${result.coordinates.latitude}`
 }
 
 /** Temporary search overlays stay separate from saved markers and trip membership. */
