@@ -257,18 +257,8 @@ export class GoogleServerProvider implements MapProvider {
                 })
             }
 
-            // 如果仍然没有路径点，至少返回起点和终点
-            if (path.length === 0) {
-                path.push({
-                    lat: leg.start_location.lat,
-                    lng: leg.start_location.lng
-                })
-                path.push({
-                    lat: leg.end_location.lat,
-                    lng: leg.end_location.lng
-                })
-            }
         }
+        if (path.length < 2) throw new Error('NO_ROUTE: Google 缺少路线形状')
 
         return {
             path: path.map(p => { const c = gcj02ToWgs84(p.lng, p.lat); return { lat: c.latitude, lng: c.longitude } }),

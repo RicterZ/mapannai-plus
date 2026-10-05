@@ -3,7 +3,7 @@ import type { MapRoute, RoutePoint, TravelMode } from '@/types/map-provider'
 
 export function directionCacheKey(provider: string, mode: TravelMode, origin: RoutePoint, destination: RoutePoint): string {
     const point = (value: RoutePoint) => `${value.lat.toFixed(6)},${value.lng.toFixed(6)}`
-    return `v1:${provider}:${mode}:${point(origin)}:${point(destination)}`
+    return `${mode === 'transit' ? 'v2' : 'v1'}:${provider}:${mode}:${point(origin)}:${point(destination)}`
 }
 
 export function getCachedDirection(key: string): MapRoute | null {

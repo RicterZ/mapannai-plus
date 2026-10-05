@@ -97,11 +97,10 @@ export class AmapServerProvider implements MapProvider {
             if (!route) throw new Error('NO_ROUTE: 高德未找到公共交通路线')
             steps = (route.segments || []).flatMap((segment: any) => {
                 const railway = segment.railway
-                // Railway responses can have station coordinates without a track polyline.
-                const railPoints = railway?.departure_stop?.location && railway?.arrival_stop?.location
-                    ? [railway.departure_stop, ...(railway.via_stops || []), railway.arrival_stop].map(stop => stop.location).filter(Boolean).join(';') : ''
+                // Station identities do not describe the railway track geometry.
+                if (railway?.departure_stop && !text(railway.polyline)) throw new Error('NO_ROUTE: 高德铁路缺少路线形状')
                 return [...(segment.walking?.steps || []), ...(segment.bus?.buslines?.slice(0, 1) || []),
-                    ...(railway && (railway.polyline || railPoints) ? [{ polyline: railway.polyline || railPoints }] : []),
+                    ...(railway?.polyline ? [{ polyline: railway.polyline }] : []),
                     ...(segment.taxi?.polyline ? [segment.taxi] : [])]
             })
         } else {

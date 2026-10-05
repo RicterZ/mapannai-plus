@@ -34,7 +34,7 @@ async function main() {
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: (key: string) => local.get(key) ?? null, setItem: (key: string, value: string) => local.set(key, value) } })
     const previousFetch = globalThis.fetch
     const requests: URL[] = []
-    let responseMode: 'normal' | 'empty' | 'qps' | 'range' | 'missing-distance' = 'normal'
+    let responseMode: 'normal' | 'empty' | 'qps' | 'range' | 'missing-distance' | 'station-only' | 'missing-shape' = 'normal'
     globalThis.fetch = async (input, init) => {
         if (String(input) === '/api/directions') return POST(new NextRequest('http://localhost/api/directions', { ...init, signal: init?.signal ?? undefined }))
         const url = new URL(String(input)); requests.push(url)
@@ -42,11 +42,11 @@ async function main() {
         if (responseMode === 'range') return Response.json({ status: '0', info: 'OVER_DIRECTION_RANGE' })
         if (url.hostname === 'maps.googleapis.com') {
             if (responseMode === 'empty') return Response.json({ status: 'ZERO_RESULTS' })
-            return Response.json({ status: 'OK', routes: [{ legs: [{ distance: responseMode === 'missing-distance' ? undefined : { value: 2500 }, duration: { value: 600 }, start_location: { lat: 39.9, lng: 116.4 }, end_location: { lat: 39.901, lng: 116.401 }, steps: [] }] }] })
+            return Response.json({ status: 'OK', routes: [{ legs: [{ distance: responseMode === 'missing-distance' ? undefined : { value: 2500 }, duration: { value: 600 }, start_location: { lat: 39.9, lng: 116.4 }, end_location: { lat: 39.901, lng: 116.401 }, steps: responseMode === 'missing-shape' ? [] : [{ polyline: { points: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' } }] }] }] })
         }
         assert.equal(url.hostname, 'restapi.amap.com', 'no real third-party request')
         if (url.pathname.includes('/geocode/regeo')) return Response.json({ status: '1', regeocode: { addressComponent: { citycode: url.searchParams.get('location')?.startsWith('117') ? '022' : '010' } } })
-        if (url.pathname.includes('/transit/')) return Response.json({ status: '1', route: { transits: responseMode === 'empty' ? [] : [{ distance: '2200', duration: '900', segments: [{ walking: { steps: [{ polyline: '116.4,39.9;116.401,39.901' }] }, bus: { buslines: [{ polyline: '116.401,39.901;116.402,39.902' }] } }, { railway: { departure_stop: { location: '116.402 39.902' }, via_stops: [{ location: '116.403 39.903' }], arrival_stop: { location: '116.404 39.904' } } }] }] } })
+        if (url.pathname.includes('/transit/')) return Response.json({ status: '1', route: { transits: responseMode === 'empty' ? [] : [{ distance: '2200', duration: '900', segments: [{ walking: { steps: [{ polyline: '116.4,39.9;116.401,39.901' }] }, bus: { buslines: [{ polyline: '116.401,39.901;116.402,39.902' }] } }, { railway: { polyline: responseMode === 'station-only' ? undefined : '116.402,39.902;116.403,39.903;116.404,39.904', departure_stop: { location: '116.402 39.902' }, via_stops: [{ location: '116.403 39.903' }], arrival_stop: { location: '116.404 39.904' } } }] }] } })
         const route = { paths: responseMode === 'empty' ? [] : [{ distance: '200', duration: '120', steps: [{ polyline: '116.4,39.9;116.401,39.901' }] }] }
         return Response.json(url.pathname.includes('/v4/') ? { errcode: 0, data: route } : { status: '1', route })
     }
@@ -86,7 +86,7 @@ async function main() {
         assert(requests.at(-1)!.pathname === '/v4/direction/bicycling')
         r = await api({ origin, destination, transportMode: 'train' })
         assert.equal(r.status, 200); assert.equal(r.data.distance, 2200)
-        assert.equal(r.data.path.length, 7, 'walking + bus + railway space-separated station coordinates')
+        assert.equal(r.data.path.length, 7, 'walking + bus + official railway polyline')
         assert(requests.at(-1)!.pathname.endsWith('/transit/integrated'))
         assert.equal(requests.at(-1)!.searchParams.get('city'), '010')
         assert.equal(requests.at(-1)!.searchParams.get('cityd'), '010')
@@ -105,6 +105,15 @@ async function main() {
         assert.equal((await api({ origin: { lat: 91, lng: 0 }, destination })).status, 400)
         const schematic = await getPlannedRoute('amap', { ...segment, transportMode: 'flight' })
         assert(isRangeFallback(schematic)); assert.equal(requests.length, count)
+        responseMode = 'station-only'
+        const noTrackOrigin = { ...origin, lng: 116.45 }
+        const noTrack = await api({ origin: noTrackOrigin, destination, transportMode: 'train' })
+        assert.equal(noTrack.data.fallback, 'NO_ROUTE', 'station-only railway must not be reported as successful geometry')
+        assert.equal(noTrack.data.distance, routeDistance(noTrackOrigin, destination))
+        assert.equal(noTrack.data.duration, null)
+        assert.deepEqual(noTrack.data.path, [noTrackOrigin, destination])
+        assert(directionCacheKey('amap', 'transit', origin, destination).startsWith('v2:'))
+        assert(routeCacheKey('amap', { ...segment, transportMode: 'train' }).startsWith('mapannai_route_v2:'))
         responseMode = 'empty'
         r = await api({ origin: { ...origin, lng: 116.5 }, destination, mode: 'transit' })
         assert.equal(r.status, 200); assert.equal(r.data.fallback, 'NO_ROUTE'); assert.equal(r.data.distanceKind, undefined)
@@ -127,6 +136,10 @@ async function main() {
             assert.equal(google.distance, 2500)
             assert.equal(requests.at(-1)!.searchParams.get('mode'), mode)
         }
+        responseMode = 'missing-shape'
+        const noGoogleShape = await getSavedDirection({ ...far, lng: 117.1 }, origin, 'driving', 'google')
+        assert.equal(noGoogleShape.fallback, 'NO_ROUTE')
+        assert.equal(noGoogleShape.duration, null)
         responseMode = 'missing-distance'
         const noGoogleDistance = await getSavedDirection(far, origin, 'driving', 'google')
         assert.equal(noGoogleDistance.fallback, 'NO_ROUTE')
