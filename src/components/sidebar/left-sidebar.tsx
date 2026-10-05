@@ -286,9 +286,8 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
             destination: { lat: to.coordinates.latitude, lng: to.coordinates.longitude },
         })
         const path = readCachedRoute(key)
-        if (!path) return null
-        if (isRangeFallback(path)) return calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng)
-        return readRouteMetrics(key)?.distance ?? null
+        if (!path || isRangeFallback(path)) return calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng)
+        return readRouteMetrics(key)?.distance ?? calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng)
     }
     const sidebarRef = useRef<HTMLDivElement>(null)
     const scrollPositions = useRef(new Map<string, number>())
