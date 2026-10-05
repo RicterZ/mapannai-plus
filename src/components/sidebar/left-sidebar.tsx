@@ -31,8 +31,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useMapStore } from '@/store/map-store'
 import { MARKER_ICONS, Marker } from '@/types/marker'
 import { cn } from '@/utils/cn'
-import { routeTransportMode, resolveRouteMode } from '@/lib/map/route-mode'
-import { calculateDistance } from '@/utils/distance'
+import { routeTransportMode, routeDistance } from '@/lib/map/route-mode'
 import { useRouteSettings, setRouteSettings } from '@/lib/map/route-settings'
 import { CreateTripModal } from '@/components/modal/create-trip-modal'
 import { routeColor, dayColor, shortAddress } from '@/lib/map/route-presentation'
@@ -278,7 +277,6 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         const transportMode = routeTransportMode(route, from.id, to.id)
         const origin = { lat: from.coordinates.latitude, lng: from.coordinates.longitude }
         const destination = { lat: to.coordinates.latitude, lng: to.coordinates.longitude }
-        if (resolveRouteMode(origin, destination, transportMode) === null) return calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng)
         const key = routeCacheKey(routeProvider, {
             transportMode,
             fromId: from.id, toId: to.id,
@@ -286,8 +284,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
             destination: { lat: to.coordinates.latitude, lng: to.coordinates.longitude },
         })
         const path = readCachedRoute(key)
-        if (!path || isRangeFallback(path)) return calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng)
-        return readRouteMetrics(key)?.distance ?? calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng)
+        return routeDistance(origin, destination, path && !isRangeFallback(path) ? readRouteMetrics(key)?.distance : null)
     }
     const sidebarRef = useRef<HTMLDivElement>(null)
     const scrollPositions = useRef(new Map<string, number>())

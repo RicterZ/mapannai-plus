@@ -15,7 +15,7 @@ Web 路线规划只保留开关，不再提供全局自动/步行/驾车选择�
 
 共享映射在 `src/lib/map/route-mode.ts`。按 stop ID 和方向读取 active leg，不使用 inactiveLegs，不继承反向安排。编辑方式、清除安排、调整顺序、坐标变更后，两种地图和侧栏同步读取同一映射。车次号、备注、开始时间和用户计划时长仍为手动安排；本轮不做班次匹配、时刻表规划或根据寻路耗时改写用户时长。
 
-开启路线规划后，未取得有效规划路程（含尚在计算、请求失败、无路程缓存和虚线回退）时，距离来自坐标 Haversine 计算；成功后自动换成平台路程，不取贝塞尔显示线长度。界面只展示 `500 m`、`2.5 km` 等数值，不添加“直线”文字；API 仍用 `distanceKind` 区分计算来源，耗时为 null。
+开启路线规划后，未取得有效规划路程（含尚在计算、请求失败、无路程缓存和虚线回退）时，距离来自坐标 Haversine 计算；成功后自动换成平台路程，不取贝塞尔显示线长度。界面只展示 `500 m`、`2.5 km` 等数值，不添加“直线”文字；API 与前端共用 `routeDistance`，统一返回/显示 distance，不增加距离类型字段；回退耗时为 null。
 
 ## API
 
@@ -43,12 +43,11 @@ Web 路线规划只保留开关，不再提供全局自动/步行/驾车选择�
   "path": [{ "lat": 39.9, "lng": 116.4 }, { "lat": 39.901, "lng": 116.401 }],
   "distance": 140.15,
   "duration": null,
-  "distanceKind": "straight",
   "fallback": "UNSUPPORTED_MODE"
 }
 ```
 
-客户端看到 fallback 时用已有虚线贝塞尔显示，不把 path 中两点视为道路几何。普通寻路仍返回平台路程/耗时；distanceKind 缺失视为 route。已有 OVER_DIRECTION_RANGE、UNSUPPORTED_REGION 回退，以及新增 NO_ROUTE，均返回坐标距离和 null 耗时；旧缓存中的 null 距离读取时补算，不改原路线数据。QPS、网络及凭据错误仍为临时错误，不伪装成功、不永久缓存，可沿用重试。
+客户端看到 fallback 时用已有虚线贝塞尔显示，不把 path 中两点视为道路几何。普通寻路仍返回平台路程/耗时。已有 OVER_DIRECTION_RANGE、UNSUPPORTED_REGION 回退，以及新增 NO_ROUTE，均返回坐标距离和 null 耗时；旧缓存中的 null 距离读取时补算，不改原路线数据。QPS、网络及凭据错误仍为临时错误，不伪装成功、不永久缓存，可沿用重试。
 
 ## Provider 与缓存
 

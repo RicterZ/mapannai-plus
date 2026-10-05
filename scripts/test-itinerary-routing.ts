@@ -5,7 +5,7 @@ import path from 'node:path'
 import { NextRequest } from 'next/server'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { resolveRouteMode, routeTransportMode } from '../src/lib/map/route-mode'
+import { resolveRouteMode, routeTransportMode, routeDistance } from '../src/lib/map/route-mode'
 import { newRouteChain, reorderRouteStops } from '../src/lib/trips/route-chain'
 import { calculateDistance } from '../src/utils/distance'
 import type { TransportMode } from '../src/types/trip'
@@ -55,6 +55,9 @@ async function main() {
         return { status: response.status, data: await response.json() }
     }
     try {
+        for (const invalid of [undefined, null, NaN, Infinity, -1]) assert.equal(routeDistance(origin, destination, invalid), calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng))
+        assert.equal(routeDistance(origin, destination, 285075), 285075)
+        assert.equal(routeDistance(origin, destination, 0), 0)
         assert.equal(resolveRouteMode(origin, destination), 'walking')
         assert.equal(resolveRouteMode(origin, far), 'driving')
         const boundary = { lat: 2000 / 6371000 * 180 / Math.PI, lng: 0 }
@@ -93,7 +96,7 @@ async function main() {
         for (const transportMode of ['flight', 'ferry', 'other']) {
             r = await api({ origin, destination: far, transportMode })
             assert.equal(r.status, 200); assert.equal(r.data.fallback, 'UNSUPPORTED_MODE')
-            assert.equal(r.data.distanceKind, 'straight'); assert.equal(r.data.duration, null)
+            assert.equal(r.data.distanceKind, undefined); assert.equal(r.data.duration, null)
             assert.equal(r.data.distance, calculateDistance(origin.lat, origin.lng, far.lat, far.lng))
             assert.equal(requests.length, count, 'unsupported mode never contacts provider')
         }
@@ -104,14 +107,14 @@ async function main() {
         assert(isRangeFallback(schematic)); assert.equal(requests.length, count)
         responseMode = 'empty'
         r = await api({ origin: { ...origin, lng: 116.5 }, destination, mode: 'transit' })
-        assert.equal(r.status, 200); assert.equal(r.data.fallback, 'NO_ROUTE'); assert.equal(r.data.distanceKind, 'straight')
+        assert.equal(r.status, 200); assert.equal(r.data.fallback, 'NO_ROUTE'); assert.equal(r.data.distanceKind, undefined)
         responseMode = 'qps'
         const temporaryOrigin = { ...origin, lng: 116.6 }
         assert.equal((await api({ origin: temporaryOrigin, destination, mode: 'walking' })).status, 500)
         assert.equal(getCachedDirection(directionCacheKey('amap', 'walking', temporaryOrigin, destination)), null, 'temporary failures not persisted')
         responseMode = 'range'
         r = await api({ origin: temporaryOrigin, destination, mode: 'driving' })
-        assert.equal(r.data.fallback, 'OVER_DIRECTION_RANGE'); assert.equal(r.data.distanceKind, 'straight'); assert.equal(r.data.duration, null)
+        assert.equal(r.data.fallback, 'OVER_DIRECTION_RANGE'); assert.equal(r.data.distanceKind, undefined); assert.equal(r.data.duration, null)
         const afterRange = requests.length
         await api({ origin: temporaryOrigin, destination, mode: 'driving' }); assert.equal(requests.length, afterRange)
         responseMode = 'normal'
@@ -123,9 +126,9 @@ async function main() {
         responseMode = 'empty'
         assert.equal((await getSavedDirection(far, destination, 'transit', 'google')).fallback, 'NO_ROUTE')
         responseMode = 'normal'
-        // Older permanent fallback rows now expose a clearly labelled direct distance.
+        // Older permanent fallback rows use the shared coordinate distance rule.
         cacheDirection(directionCacheKey('amap', 'driving', far, destination), { path: [far, destination], distance: null, duration: null, fallback: 'UNSUPPORTED_REGION' })
-        assert.equal((await getSavedDirection(far, destination, 'driving', 'amap')).distanceKind, 'straight')
+        assert.equal((await getSavedDirection(far, destination, 'driving', 'amap')).distance, routeDistance(far, destination))
         const transitKey = directionCacheKey('amap', 'transit', origin, destination)
         getDb().prepare("UPDATE direction_cache SET created_at = '2000-01-01T00:00:00.000Z' WHERE cache_key = ?").run(transitKey)
         assert.equal(getCachedDirection(transitKey), null, 'public transit cache expires')
@@ -136,7 +139,7 @@ async function main() {
             const result = await bridge.call('get_directions', { origin, destination, transportMode: 'ferry' }, new AbortController().signal)
             assert(!result.isError)
             const json = JSON.parse((result.content as Array<{ text: string }>)[0].text)
-            assert.equal(json.fallback, 'UNSUPPORTED_MODE'); assert.equal(json.distanceKind, 'straight')
+            assert.equal(json.fallback, 'UNSUPPORTED_MODE'); assert.equal(json.distanceKind, undefined)
             const old = await bridge.call('get_walking_directions', { origin, destination }, new AbortController().signal)
             assert(!old.isError, 'old public MCP entry remains callable')
         } finally { await bridge.close() }

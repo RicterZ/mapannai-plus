@@ -11,7 +11,7 @@ export interface RouteSegment {
     destination: RouteCoordinate
 }
 export type RoutePath = RouteCoordinate[]
-export interface RouteMetrics { distance: number; duration: number | null; distanceKind?: 'route' | 'straight' }
+export interface RouteMetrics { distance: number; duration: number | null }
 const fallbackPaths = new WeakSet<RoutePath>()
 export function isRangeFallback(path: RoutePath | null | undefined): boolean { return !!path && fallbackPaths.has(path) }
 const metricsCache = new Map<string, RouteMetrics>()
@@ -102,7 +102,7 @@ export async function getPlannedRoute(provider: string, segment: RouteSegment): 
             memoryCache.set(key, path)
             if (mode === 'transit') transitExpires.set(key, data.fallback && data.fallback !== 'NO_ROUTE' ? Infinity : Date.now() + 3600000)
             if (Number.isFinite(data.distance) && (data.duration === null || Number.isFinite(data.duration)) && data.distance >= 0 && (data.duration === null || data.duration >= 0)) {
-                const metrics = { distance: data.distance, duration: data.duration, distanceKind: data.distanceKind }
+                const metrics = { distance: data.distance, duration: data.duration }
                 metricsCache.set(key, metrics)
                 try { localStorage.setItem(`${key}:metrics`, JSON.stringify(metrics)) } catch { /* storage unavailable */ }
             }

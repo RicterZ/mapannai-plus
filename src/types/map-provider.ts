@@ -91,7 +91,6 @@ export interface MapRoute {
     distance: number | null
     duration: number | null
     fallback?: 'OVER_DIRECTION_RANGE' | 'UNSUPPORTED_REGION' | 'UNSUPPORTED_MODE' | 'NO_ROUTE'
-    distanceKind?: 'route' | 'straight'
     distanceText?: string
     durationText?: string
 }

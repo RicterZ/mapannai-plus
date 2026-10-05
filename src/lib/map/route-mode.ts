@@ -23,3 +23,9 @@ export function routeTransportMode(route: RouteChain | undefined, fromId: string
     if (!from || to?.markerId !== toId) return undefined
     return route?.legs.find(leg => leg.fromStopId === from.id && leg.toStopId === to.id)?.mode
 }
+
+/** One distance rule for API responses and UI before/after planning. */
+export function routeDistance(origin: RoutePoint, destination: RoutePoint, plannedDistance?: number | null): number {
+    return typeof plannedDistance === 'number' && Number.isFinite(plannedDistance) && plannedDistance >= 0
+        ? plannedDistance : calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng)
+}
