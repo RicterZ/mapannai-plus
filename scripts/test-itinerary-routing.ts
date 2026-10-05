@@ -34,7 +34,7 @@ async function main() {
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: (key: string) => local.get(key) ?? null, setItem: (key: string, value: string) => local.set(key, value) } })
     const previousFetch = globalThis.fetch
     const requests: URL[] = []
-    let responseMode: 'normal' | 'empty' | 'qps' | 'range' = 'normal'
+    let responseMode: 'normal' | 'empty' | 'qps' | 'range' | 'missing-distance' = 'normal'
     globalThis.fetch = async (input, init) => {
         if (String(input) === '/api/directions') return POST(new NextRequest('http://localhost/api/directions', { ...init, signal: init?.signal ?? undefined }))
         const url = new URL(String(input)); requests.push(url)
@@ -42,7 +42,7 @@ async function main() {
         if (responseMode === 'range') return Response.json({ status: '0', info: 'OVER_DIRECTION_RANGE' })
         if (url.hostname === 'maps.googleapis.com') {
             if (responseMode === 'empty') return Response.json({ status: 'ZERO_RESULTS' })
-            return Response.json({ status: 'OK', routes: [{ legs: [{ distance: { value: 2500 }, duration: { value: 600 }, start_location: { lat: 39.9, lng: 116.4 }, end_location: { lat: 39.901, lng: 116.401 }, steps: [] }] }] })
+            return Response.json({ status: 'OK', routes: [{ legs: [{ distance: responseMode === 'missing-distance' ? undefined : { value: 2500 }, duration: { value: 600 }, start_location: { lat: 39.9, lng: 116.4 }, end_location: { lat: 39.901, lng: 116.401 }, steps: [] }] }] })
         }
         assert.equal(url.hostname, 'restapi.amap.com', 'no real third-party request')
         if (url.pathname.includes('/geocode/regeo')) return Response.json({ status: '1', regeocode: { addressComponent: { citycode: url.searchParams.get('location')?.startsWith('117') ? '022' : '010' } } })
@@ -110,7 +110,11 @@ async function main() {
         assert.equal(r.status, 200); assert.equal(r.data.fallback, 'NO_ROUTE'); assert.equal(r.data.distanceKind, undefined)
         responseMode = 'qps'
         const temporaryOrigin = { ...origin, lng: 116.6 }
-        assert.equal((await api({ origin: temporaryOrigin, destination, mode: 'walking' })).status, 500)
+        const failure = await api({ origin: temporaryOrigin, destination, mode: 'walking' })
+        assert.equal(failure.status, 500)
+        assert.equal(failure.data.fallback, 'PLANNING_FAILED')
+        assert.equal(failure.data.distance, routeDistance(temporaryOrigin, destination))
+        assert.equal(failure.data.duration, null)
         assert.equal(getCachedDirection(directionCacheKey('amap', 'walking', temporaryOrigin, destination)), null, 'temporary failures not persisted')
         responseMode = 'range'
         r = await api({ origin: temporaryOrigin, destination, mode: 'driving' })
@@ -123,9 +127,20 @@ async function main() {
             assert.equal(google.distance, 2500)
             assert.equal(requests.at(-1)!.searchParams.get('mode'), mode)
         }
+        responseMode = 'missing-distance'
+        const noGoogleDistance = await getSavedDirection(far, origin, 'driving', 'google')
+        assert.equal(noGoogleDistance.fallback, 'NO_ROUTE')
+        assert.equal(noGoogleDistance.distance, routeDistance(far, origin))
+        assert.equal(noGoogleDistance.duration, null)
         responseMode = 'empty'
         assert.equal((await getSavedDirection(far, destination, 'transit', 'google')).fallback, 'NO_ROUTE')
         responseMode = 'normal'
+        // A cached route without usable distance must be explicitly marked as fallback.
+        cacheDirection(directionCacheKey('amap', 'walking', far, origin), { path: [far, origin], distance: null, duration: 100 })
+        const missingDistance = await getSavedDirection(far, origin, 'walking', 'amap')
+        assert.equal(missingDistance.fallback, 'NO_ROUTE')
+        assert.equal(missingDistance.distance, routeDistance(far, origin))
+        assert.equal(missingDistance.duration, null)
         // Older permanent fallback rows use the shared coordinate distance rule.
         cacheDirection(directionCacheKey('amap', 'driving', far, destination), { path: [far, destination], distance: null, duration: null, fallback: 'UNSUPPORTED_REGION' })
         assert.equal((await getSavedDirection(far, destination, 'driving', 'amap')).distance, routeDistance(far, destination))
@@ -142,6 +157,13 @@ async function main() {
             assert.equal(json.fallback, 'UNSUPPORTED_MODE'); assert.equal(json.distanceKind, undefined)
             const old = await bridge.call('get_walking_directions', { origin, destination }, new AbortController().signal)
             assert(!old.isError, 'old public MCP entry remains callable')
+            responseMode = 'qps'
+            const failed = await bridge.call('get_directions', { origin: { ...origin, lng: 116.7 }, destination, mode: 'walking' }, new AbortController().signal)
+            assert(failed.isError)
+            const failedData = JSON.parse((failed.content as Array<{ text: string }>)[0].text)
+            assert.equal(failedData.fallback, 'PLANNING_FAILED')
+            assert.equal(failedData.distance, routeDistance({ ...origin, lng: 116.7 }, destination))
+            responseMode = 'normal'
         } finally { await bridge.close() }
         const day = { id: 'test-day', tripId: 'test-trip', date: '2026-10-05', markerIds: ['a', 'b', 'c'], chains: [['a', 'b', 'c']], routeChains: [route] }
         useMapStore.setState({ tripDays: [day] })

@@ -117,7 +117,8 @@ export class AmapServerProvider implements MapProvider {
         }))
         if (path.length < 2) throw new Error('NO_ROUTE: 高德缺少路线形状')
         const distance = Number(route.distance), duration = Number(route.duration)
-        if (!Number.isFinite(distance) || !Number.isFinite(duration)) throw new Error('高德缺少路程或耗时')
+        if (route.distance === null || route.distance === undefined || route.distance === '' || !Number.isFinite(distance) || distance < 0) throw new Error('NO_ROUTE: 高德缺少有效路程')
+        if (!Number.isFinite(duration)) throw new Error('高德缺少耗时')
         return { path, distance, duration }
 
     }

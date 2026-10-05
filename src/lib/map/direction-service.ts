@@ -6,7 +6,10 @@ import type { MapRoute, RoutePoint, TravelMode } from '@/types/map-provider'
 
 function withRouteDistance(route: MapRoute, origin: RoutePoint, destination: RoutePoint): MapRoute {
     const { distanceKind: _legacyKind, ...result } = route as MapRoute & { distanceKind?: string }
-    return { ...result, distance: routeDistance(origin, destination, route.fallback ? null : route.distance), duration: route.fallback ? null : route.duration }
+    const validDistance = typeof route.distance === 'number' && Number.isFinite(route.distance) && route.distance >= 0
+    const validPath = Array.isArray(route.path) && route.path.length >= 2 && route.path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))
+    const fallback = route.fallback || (!validDistance || !validPath ? 'NO_ROUTE' : undefined)
+    return { ...result, ...(fallback ? { fallback, path: [origin, destination] } : {}), distance: routeDistance(origin, destination, fallback ? null : route.distance), duration: fallback ? null : route.duration }
 }
 
 const inFlight = new Map<string, Promise<MapRoute>>()
@@ -30,11 +33,10 @@ export async function getSavedDirection(origin: RoutePoint, destination: RoutePo
             const fallback = /\bNO_ROUTE\b/.test(error.message) ? 'NO_ROUTE'
                 : provider === 'amap' && /\bOVER_DIRECTION_RANGE\b/.test(error.message) ? 'OVER_DIRECTION_RANGE'
                 : provider === 'amap' && error.message === '高德路线规划仅支持中国，请选择 Google 路线后端' ? 'UNSUPPORTED_REGION' : null
-            if (!fallback) throw error
+            if (!fallback) return withRouteDistance({ path: [origin, destination], distance: null, duration: null, fallback: 'PLANNING_FAILED', error: error.message }, origin, destination)
             // No invented travel metrics: this is an association, not a navigable route.
             route = { path: [origin, destination], distance: null, duration: null, fallback }
         }
-        if (route.path.length < 2 || !route.path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))) throw new Error('路线数据无效')
         route = withRouteDistance(route, origin, destination)
         cacheDirection(key, route)
         return route

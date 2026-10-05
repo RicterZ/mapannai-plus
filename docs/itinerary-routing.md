@@ -47,7 +47,7 @@ Web 路线规划只保留开关，不再提供全局自动/步行/驾车选择�
 }
 ```
 
-客户端看到 fallback 时用已有虚线贝塞尔显示，不把 path 中两点视为道路几何。普通寻路仍返回平台路程/耗时。已有 OVER_DIRECTION_RANGE、UNSUPPORTED_REGION 回退，以及新增 NO_ROUTE，均返回坐标距离和 null 耗时；旧缓存中的 null 距离读取时补算，不改原路线数据。QPS、网络及凭据错误仍为临时错误，不伪装成功、不永久缓存，可沿用重试。
+客户端看到 fallback 时用已有虚线贝塞尔显示，不把 path 中两点视为道路几何。普通寻路仍返回平台路程/耗时。已有 OVER_DIRECTION_RANGE、UNSUPPORTED_REGION 回退，以及新增 NO_ROUTE，均返回坐标距离和 null 耗时；旧缓存中的 null 距离读取时补算，不改原路线数据。缺少有效规划距离或路径也返回 NO_ROUTE。QPS、网络及凭据错误返回 HTTP 500，并附带 fallback: PLANNING_FAILED、两点 path、坐标 distance、null duration 和原有 error；不写入缓存，Web 保留重试，MCP 返回相同结果并标记 isError。所有按坐标补算的服务端结果均带 fallback，成功取得有效规划路程时省略 fallback。
 
 ## Provider 与缓存
 

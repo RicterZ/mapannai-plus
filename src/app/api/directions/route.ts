@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
         if (mode !== undefined && !['walking', 'driving', 'bicycling', 'transit'].includes(mode)) return NextResponse.json({ error: '路线模式无效' }, { status: 400 })
         if (transportMode !== undefined && !transportModeSchema.safeParse(transportMode).success) return NextResponse.json({ error: '交通方式无效' }, { status: 400 })
         const result = await getSavedDirection(origin, destination, mode, undefined, transportMode)
-        return NextResponse.json(result)
+        return NextResponse.json(result.fallback === 'PLANNING_FAILED' ? { ...result, success: false } : result, { status: result.fallback === 'PLANNING_FAILED' ? 500 : 200 })
     } catch (error) {
         return NextResponse.json({ success: false, error: error instanceof Error ? error.message : '地图服务请求失败' }, { status: 500 })
     }

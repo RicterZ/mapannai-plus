@@ -272,8 +272,8 @@ export class GoogleServerProvider implements MapProvider {
 
         return {
             path: path.map(p => { const c = gcj02ToWgs84(p.lng, p.lat); return { lat: c.latitude, lng: c.longitude } }),
-            distance: leg.distance?.value || 0,
-            duration: leg.duration?.value || 0
+            distance: leg.distance?.value ?? null,
+            duration: leg.duration?.value ?? null
         }
     }
 }

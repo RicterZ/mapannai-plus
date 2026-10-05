@@ -90,7 +90,8 @@ export interface MapRoute {
     path: RoutePoint[]
     distance: number | null
     duration: number | null
-    fallback?: 'OVER_DIRECTION_RANGE' | 'UNSUPPORTED_REGION' | 'UNSUPPORTED_MODE' | 'NO_ROUTE'
+    fallback?: 'OVER_DIRECTION_RANGE' | 'UNSUPPORTED_REGION' | 'UNSUPPORTED_MODE' | 'NO_ROUTE' | 'PLANNING_FAILED'
+    error?: string
     distanceText?: string
     durationText?: string
 }

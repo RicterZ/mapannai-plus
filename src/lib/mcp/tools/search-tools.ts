@@ -63,7 +63,7 @@ export function registerSearchTools(server: McpServer) {
   }
   server.tool(
     'get_directions',
-    '计算两点间的行程关联路线、距离和耗时。transportMode 按已安排的交通方式映射，优先于 mode；均省略时，小于2km步行，否则驾车。飞机/轮船/其他及无可用路线返回示意连接、标明直线距离，耗时为null；不是逐路口导航。',
+    '计算两点间的行程关联路线、距离和耗时。transportMode 按已安排的交通方式映射，优先于 mode；均省略时，小于2km步行，否则驾车。飞机/轮船/其他及无可用路线返回示意连接、按坐标计算距离并返回fallback，耗时为null；不是逐路口导航。',
     {
       ...directionInputs,
       mode: z.enum(['walking', 'driving', 'bicycling', 'transit']).optional().describe('显式寻路模式；未设置交通安排时可用，省略自动按距离选择'),
@@ -71,14 +71,14 @@ export function registerSearchTools(server: McpServer) {
     },
     async ({ origin, destination, mode, provider, transportMode }) => {
       const result = await getSavedDirection(origin, destination, mode, provider, transportMode)
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
+      return { ...(result.fallback === 'PLANNING_FAILED' ? { isError: true } : {}), content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
     }
   )
   // Compatibility for existing external clients; the Web AI exposes get_directions only.
   server.tool('get_walking_directions', '兼容旧客户端：固定步行。新调用请用 get_directions。', directionInputs,
     async ({ origin, destination, provider }) => {
       const result = await getSavedDirection(origin, destination, 'walking', provider)
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
+      return { ...(result.fallback === 'PLANNING_FAILED' ? { isError: true } : {}), content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
     }
   )
 }
