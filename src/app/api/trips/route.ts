@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 import { getAllTrips, upsertTrip, getAllTripDays, upsertTripDay } from '@/lib/db/trip-service'
+import { tripDestinationSchema } from '@/lib/trips/destination'
 import { Trip, TripDay } from '@/types/trip'
 
 export const dynamic = 'force-dynamic'
@@ -38,12 +39,16 @@ export async function POST(request: NextRequest) {
         if (!startDate || !endDate) return NextResponse.json({ error: '请提供开始和结束日期' }, { status: 400 })
         if (startDate > endDate) return NextResponse.json({ error: '开始日期不能晚于结束日期' }, { status: 400 })
 
+        const destination = body.destination == null ? null : tripDestinationSchema.safeParse(body.destination)
+        if (destination && !destination.success) return NextResponse.json({ error: '目的地信息无效' }, { status: 400 })
+
         const now = new Date().toISOString()
         const tripId = `trip_${uuidv4()}`
 
         const trip: Trip = {
             id: tripId,
             name: name.trim(),
+            destination: destination?.data ?? null,
             startDate,
             endDate,
             createdAt: now,

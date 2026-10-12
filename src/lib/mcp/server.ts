@@ -69,6 +69,9 @@ function createMcpServer(): McpServer {
 3. 已有标记可使用 \`create_day_chain\`，按标记 ID 创建行程链，无需重新创建地点。
 4. 修改已有路线的地点或顺序用 \`update_day_chain\`，删除路线用 \`delete_day_chain\`；先读取最新 \`get_trip_detail\`，优先按 \`routeChains[].id\`（chainId）定位；旧 chainIndex 为从0开始的索引。删除会使后续索引前移，但保留地点与当天成员。\`reorder_day_markers\` 只调整当天地点列表，不修改路线。
 
+### 旅行目的地
+- 创建旅行前可用 \`search_destinations\` 搜索目标省市，并将选中结果作为 \`create_trip.destination\` 传入；只保存名称与 WGS-84 中心坐标，不创建全局地点。不得编造城市坐标。
+
 ### 地图服务选择
 - 地图渲染引擎由部署环境的 \`MAP_RENDERER\` 选择 OpenStreetMap/MapLibre 或高德 JS API 2.0。
 - \`search_places\`、\`get_place_details\`、\`get_directions\`、\`create_marker\`、\`plan_trip_day\` 可分别传 \`provider: "google" | "amap"\`；省略时境内优先高德、失败回退 Google，境外使用 Google；跨境路线始终不寻路，仅返回两点距离与虚线回退。

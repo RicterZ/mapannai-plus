@@ -28,8 +28,9 @@ export class GoogleServerProvider implements MapProvider {
                 const bounds = options.bounds
                 const latitude = (bounds.south + bounds.north) / 2
                 const longitude = (bounds.west + bounds.east) / 2
-                const center = (country || 'CN').toUpperCase() === 'CN' ? wgs84ToGcj02(longitude, latitude) : { longitude, latitude }
+                const center = wgs84ToGcj02(longitude, latitude)
                 const radius = Math.min(50000, Math.max(500, Math.hypot((bounds.north - bounds.south) * 55500, (bounds.east - bounds.west) * 55500 * Math.cos(latitude * Math.PI / 180))))
+                if (!isInChina(longitude, latitude)) params.delete('region')
                 params.set('location', `${center.latitude},${center.longitude}`)
                 params.set('radius', String(Math.round(radius)))
             }
@@ -60,11 +61,10 @@ export class GoogleServerProvider implements MapProvider {
             }
 
             // 转换结果格式，中国境内坐标从 GCJ-02 转为 WGS-84
-            const isChina = (country || 'CN').toUpperCase() === 'CN'
             const results: MapSearchResult[] = (data.results || []).map((place: any) => {
                 const gcjLng = place.geometry.location.lng
                 const gcjLat = place.geometry.location.lat
-                const coords = isChina ? gcj02ToWgs84(gcjLng, gcjLat) : { longitude: gcjLng, latitude: gcjLat }
+                const coords = gcj02ToWgs84(gcjLng, gcjLat)
                 return {
                     name: place.name,
                     coordinates: {

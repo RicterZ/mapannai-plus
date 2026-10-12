@@ -1,5 +1,7 @@
 'use client'
 
+import { destinationSearchBounds } from '@/lib/trips/destination'
+
 import type { PlaceReferences } from '@/types/place-references'
 
 import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react'
@@ -354,6 +356,21 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         if (marker) flyMap({ center: [marker.coordinates.longitude, marker.coordinates.latitude], zoom: config.app.defaultZoom, duration: 1000 })
     }, [mapInitialized, dataLoaded, tripsLoaded, trips, tripDays, markers, flyMap])
 
+    const activeDestination = activeView.mode !== 'overview'
+        ? trips.find(trip => trip.id === activeView.tripId)?.destination : null
+    const destinationKey = activeDestination ? `${activeView.tripId}:${activeDestination.longitude}:${activeDestination.latitude}` : null
+    const lastDestinationRef = useRef<string | null>(null)
+    useEffect(() => {
+        if (!destinationKey || !activeDestination) { lastDestinationRef.current = null; return }
+        if (!mapInitialized || lastDestinationRef.current === destinationKey || activeView.focusFirstMarker === false) return
+        lastDestinationRef.current = destinationKey
+        if (activeView.mode === 'day') {
+            const day = tripDays.find(day => day.id === activeView.dayId)
+            if (day?.chains.some(chain => markers.some(marker => marker.id === chain[0]))) return
+        }
+        flyMap({ center: [activeDestination.longitude, activeDestination.latitude], zoom: 11, duration: 1000 })
+    }, [destinationKey, activeDestination, mapInitialized, activeView.mode, activeView.dayId, activeView.focusFirstMarker, tripDays, markers, flyMap])
+
     const lastFocusedDayRef = useRef<string | null>(null)
     useEffect(() => {
         if (activeView.mode !== 'day' || !activeView.dayId) {
@@ -416,7 +433,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                     south: Math.max(-90, bounds.south - (bounds.north - bounds.south) * 0.2),
                     north: Math.min(90, bounds.north + (bounds.north - bounds.south) * 0.2),
                 } : undefined
-                const results = await searchService.searchPlaces(trimmedQuery, 20, 'zh-CN', 'CN', { bounds: searchBounds, signal: controller.signal })
+                const results = await searchService.searchPlaces(trimmedQuery, 20, 'zh-CN', 'CN', { bounds: activeDestination ? destinationSearchBounds(activeDestination) : searchBounds, signal: controller.signal })
                 if (controller.signal.aborted) return
                 setProviderResults(results)
             } catch (e) {
@@ -433,7 +450,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             clearTimeout(searchTimeout)
             controller.abort()
         }
-    }, [fabQuery, isAmap, closePopup])
+    }, [destinationKey, fabQuery, isAmap, closePopup])
 
     const handleFabResultClick = useCallback((result: MapSearchResult) => {
         selectedSearchRef.current = searchResultKey(result)

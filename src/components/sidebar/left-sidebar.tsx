@@ -871,7 +871,8 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                         </h2>
                     )}
                     {displayMode === 'trip' && currentTrip && (
-                        <div className="relative">
+                        <div className="relative min-w-0">
+                            {currentTrip.destination && <p className="text-xs text-gray-500 truncate" title={currentTrip.destination.name}>{currentTrip.destination.name}</p>}
                             <button
                                 type="button"
                                 className={cn('text-xs text-gray-500', addMarkerEnabled && 'hover:text-blue-600 cursor-pointer')}

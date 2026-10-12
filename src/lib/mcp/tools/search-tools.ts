@@ -1,3 +1,4 @@
+import { searchDestinations } from '@/lib/map/destination-service'
 import { transportModeSchema } from '@/lib/trips/route-chain-schema'
 /**
  * MCP Search & Directions Tools
@@ -10,6 +11,13 @@ import { getSavedDirection } from '@/lib/map/direction-service'
 import { mapProviderFactory } from '@/lib/map/providers'
 
 export function registerSearchTools(server: McpServer) {
+  server.tool(
+    'search_destinations',
+    '搜索旅行目标省市，返回名称及 WGS-84 中心坐标，可直接用作 create_trip 的 destination。不受当前地图范围限制。',
+    { query: z.string().trim().min(1).max(200).describe('省市名称，例如东京、重庆、巴黎、济南、天津、大理') },
+    async ({ query }) => ({ content: [{ type: 'text', text: JSON.stringify(await searchDestinations(query)) }] })
+  )
+
   // search_places
   server.tool(
     'search_places',

@@ -1,3 +1,4 @@
+import { tripDestinationSchema } from '@/lib/trips/destination'
 /**
  * MCP Trip Tools
  * Trip and TripDay management exposed as MCP tools
@@ -46,6 +47,7 @@ export function registerTripTools(server: McpServer) {
                     return {
                         id: trip.id,
                         name: trip.name,
+                        destination: trip.destination,
                         startDate: trip.startDate,
                         endDate: trip.endDate,
                         dayCount: tripDays.length,
@@ -76,17 +78,18 @@ export function registerTripTools(server: McpServer) {
         'create_trip',
         '创建一次新旅行，并根据日期范围自动生成每天的行程（TripDay）',
         {
+            destination: tripDestinationSchema.optional().describe('目标省市名称和 WGS-84 中心坐标，须使用搜索返回的真实坐标'),
             name: z.string().describe('旅行名称，例如「东京2024春」'),
             startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('开始日期 YYYY-MM-DD'),
             endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('结束日期 YYYY-MM-DD'),
         },
-        async ({ name, startDate, endDate }) => {
+        async ({ name, startDate, endDate, destination }) => {
             if (startDate > endDate) throw new Error('开始日期不能晚于结束日期')
             const now = new Date().toISOString()
             const tripId = `trip_${uuidv4()}`
 
             const trip: Trip = {
-                id: tripId, name, startDate, endDate,
+                id: tripId, name, startDate, endDate, destination,
                 createdAt: now, updatedAt: now,
             }
 

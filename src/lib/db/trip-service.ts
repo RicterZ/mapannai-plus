@@ -1,4 +1,5 @@
 import { getDb } from './index'
+import { tripDestinationSchema } from '@/lib/trips/destination'
 import { Trip, TripDay, RouteChain } from '@/types/trip'
 import { exclusiveMarkerIds } from '@/lib/trip-deletion'
 import { projectChains, reconcileLegacyChains, reorderRouteStops } from '@/lib/trips/route-chain'
@@ -16,11 +17,13 @@ export function getTripById(id: string): Trip | null {
 }
 
 export function upsertTrip(trip: Trip): void {
+    const destination = trip.destination === undefined ? getTripById(trip.id)?.destination ?? null : trip.destination
     getDb().prepare(`
-        INSERT INTO trips (id, name, start_date, end_date, cover_image, emoji, marker_ids, created_at, updated_at)
-        VALUES (@id, @name, @startDate, @endDate, @coverImage, @emoji, @markerIds, @createdAt, @updatedAt)
+        INSERT INTO trips (id, name, start_date, end_date, cover_image, emoji, marker_ids, destination, created_at, updated_at)
+        VALUES (@id, @name, @startDate, @endDate, @coverImage, @emoji, @markerIds, @destination, @createdAt, @updatedAt)
         ON CONFLICT(id) DO UPDATE SET
             marker_ids  = excluded.marker_ids,
+            destination = excluded.destination,
             name        = excluded.name,
             start_date  = excluded.start_date,
             end_date    = excluded.end_date,
@@ -28,6 +31,7 @@ export function upsertTrip(trip: Trip): void {
             emoji       = excluded.emoji,
             updated_at  = excluded.updated_at
     `).run({
+        destination: destination === null ? null : JSON.stringify(tripDestinationSchema.parse(destination)),
         markerIds: JSON.stringify(trip.markerIds ?? getTripById(trip.id)?.markerIds ?? []),
         id: trip.id,
         name: trip.name,
@@ -192,6 +196,7 @@ export function removeTripDayAndCloseGap(tripId: string, dayId: string, deleteEx
 
 function rowToTrip(row: any): Trip {
     return {
+        destination: row.destination ? JSON.parse(row.destination) : null,
         markerIds: JSON.parse(row.marker_ids || '[]'),
         id: row.id,
         name: row.name,

@@ -2,6 +2,8 @@
 
 import { useDialogFocus } from '@/lib/ui/use-dialog-focus'
 
+import { DestinationPicker } from '@/components/trips/destination-picker'
+import type { TripDestination } from '@/types/trip'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useMapStore } from '@/store/map-store'
@@ -14,6 +16,7 @@ interface CreateTripModalProps {
 
 export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalProps) => {
     const { createTrip, setActiveView } = useMapStore()
+    const [destination, setDestination] = useState<TripDestination | null>(null)
     const [name, setName] = useState('')
     const [startDate, setStartDate] = useState('')
     const [duration, setDuration] = useState<string>('3')
@@ -30,12 +33,13 @@ export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalP
 
     const handleSave = async () => {
         if (!name.trim()) { toast.error('请输入旅行名称'); return }
+        if (!destination) { toast.error('请选择目的地省市'); return }
         if (!startDate) { toast.error('请选择开始日期'); return }
         if (!durationNum || durationNum < 1) { toast.error('请输入行程天数'); return }
 
         setIsSubmitting(true)
         try {
-            const trip = await createTrip({ name: name.trim(), startDate, endDate })
+            const trip = await createTrip({ name: name.trim(), startDate, endDate, destination })
             toast.success(`旅行「${trip.name}」已创建`)
             setActiveView('trip', trip.id, null)
             onCreated?.(trip.id)
@@ -48,7 +52,7 @@ export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalP
     }
 
     const handleClose = () => {
-        setName(''); setStartDate(''); setDuration('3')
+        setName(''); setStartDate(''); setDuration('3'); setDestination(null)
         onClose()
     }
 
@@ -85,6 +89,7 @@ export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalP
                             className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 h-10"
                         />
                     </div>
+                    <DestinationPicker value={destination} onChange={setDestination} />
                     <div className="grid grid-cols-2 gap-2">
                         <div>
                             <label className="block text-xs font-semibold text-gray-700 mb-1">开始日期 *</label>

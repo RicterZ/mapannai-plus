@@ -90,6 +90,10 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 
 - 数据库默认 `./data/mapannai.db`，可通过 `SQLITE_PATH` 指定。Docker 默认数据目录 `/app/data`，需要持久化挂载。
 - schema 初始化 / 迁移入口是 `src/lib/db/index.ts`。新增字段需兼容现有数据库，优先非破坏性迁移。
+- `Trip.destination` 为可空 `{name,latitude,longitude}`，只保存所选省市名称与 WGS-84 中心坐标，不保存行政区边界、POI 引用或创建 Marker。SQLite 可空 destination JSON TEXT 运行时非破坏性迁移；旧旅行返回 null，旧客户端/省略字段更新保留目的地，显式 null 清除。
+- 网页创建旅行必选搜索返回的省市，选中后名称只在输入框显示，不增加“已选择”重复提示；`GET /api/destinations?q=...` 不受当前地图范围或国家限制，优先高德行政地理编码，无结果/失败回退 Google；MCP `search_destinations` 复用服务，`create_trip.destination` 可选以兼容旧客户端。公共严格 schema 见 `src/lib/trips/destination.ts`，Web/MCP/DB 共用；不可编造中心坐标。
+- 进入旅行以目的地中心定位，两种 renderer 共用 flyMap；已有日期路线首点仍优先，点击路线保留镜头。旅行与每日视图搜索使用目的地中心周围约30km偏好范围，不随地图拖动变化；旧旅行/总览仍按可见范围扩展20%。中心范围不是行政区约束，Google 搜索仍为位置偏好。
+- 验证：`npx tsx scripts/test-trip-destination.ts` 使用独立旧 SQLite 与 HTTP mock，验证六城市、回退/取消、迁移、Web/MCP保存校验、旧写入保留和日期顺移。
 - `Trip.markerIds` 是旅行待分配地点列表（旧数据默认空），仅保存尚未属于该旅行任何日期的地点。同一地点可以在另一旅行待分配或已排日期；保存每日成员或链时事务性移除该旅行待分配归属。旅行详情在日期列表下方显示“未分配日期”，编辑模式可拖到日期或点击“分配”；不自动创建链。旅行总览新建地点自动加入待分配列表，已有地点弹窗可“加入旅行”；从旅行列表移除不删除地点。全局独立地点和旅行地点数量、删除独占地点统计均包含旅行待分配归属。
 - `TripDay.markerIds` 表示当天地点成员；`chains: string[][]` 表示各链的访问顺序。成员关系和路线顺序不能混为一谈。
 - 一个 marker 可以属于多个路线，列表应显示全部路线归属。删除地点或从某天移除时维护相关 chains，不能留下悬空引用。
@@ -128,7 +132,7 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 - JS 地图使用 `AMAP_JS_KEY` 和配套 `AMAP_JS_SECURITY_CODE`；服务端使用独立的 Web 服务 Key `AMAP_API_KEY`。Google 使用 `GOOGLE_API_KEY`。其他变量详见 `env.example`。
 - 内部 DB、服务合约、路由缓存统一为 **WGS-84**，高德接口 / 渲染边界进行 **GCJ-02** 转换，避免双重偏移。Google 境内坐标按现有 provider 转换约定处理。
 - `isInChina` 是历史兼容的矩形坐标判断，不是精确国境、行政区或服务覆盖判断。改动转换逻辑前检查中国边界和海外地点的实际行为。
-- 网页搜索使用当前可见范围，每侧扩展 20%；高德使用 polygon 搜索，泛词酒店 / 高铁站等映射为 POI 类型；Google 使用中心点与半径偏好。MCP 无范围名称搜索保留原行为。
+- 网页总览与无目的地的旧旅行搜索使用当前可见范围，每侧扩展 20%；有目的地的旅行/每日视图改用固定中心范围；高德使用 polygon 搜索，泛词酒店 / 高铁站等映射为 POI 类型；Google 使用中心点与半径偏好。MCP 无范围名称搜索保留原行为。
 - 搜索分页：`GET /api/search` 使用 `page=1..100`、`pageSize=1..25`，返回 `page/pageSize/hasMore/nextPage`，高德返回可用 `total`；Google 后续页附带上一页 `nextPageToken` 作为 `pageToken`，以实际返回的 `pageSize` 为准。无分页参数保留旧 `limit`（默认5、最多20）的数组接口。分页范围/关键词保持同一快照；客户端取消和去重，不因加载更多移动镜头。MCP原有首批名称搜索兼容，不能静默分页并增加搜索费用。
 - 高德地点服务主要面向中国，海外地点服务自动选择 Google。不要把没有搜索结果一概解释为权限或政策，先检查请求参数和返回值。
 
