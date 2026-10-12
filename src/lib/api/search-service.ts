@@ -1,3 +1,6 @@
+import { destinationSearchBounds } from '@/lib/trips/destination'
+import { mergeSearchResults } from '@/lib/map/search-results'
+import type { TripDestination } from '@/types/trip'
 import type { PlaceReferences } from '@/types/place-references'
 // 搜索服务 - 统一使用 /api/search 端点
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
@@ -70,3 +73,12 @@ export class MapSearchService implements SearchService {
 
 // 单例实例
 export const searchService = new MapSearchService()
+
+/** Query separate local scopes; a single bounding box could span several countries. */
+export async function searchDestinationPlaces(query: string, destinations: TripDestination[], signal?: AbortSignal): Promise<SearchResult[]> {
+    const results = await Promise.all(destinations.map(destination =>
+        searchService.searchPlaces(query, 20, 'zh-CN', 'CN', { bounds: destinationSearchBounds(destination), signal })
+    ))
+    signal?.throwIfAborted()
+    return mergeSearchResults(query, [], results.flat())
+}

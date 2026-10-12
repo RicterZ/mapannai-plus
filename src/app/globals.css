@@ -585,3 +585,11 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
     min-width: 44px;
     min-height: 32px;
 }
+
+/* Keep destination tags compact within the shared mobile dialog button rules. */
+.dialog-card button.destination-tag-remove:not([role="switch"]) {
+    min-height: 32px;
+    min-width: 32px;
+    height: 32px;
+    padding: 0;
+}

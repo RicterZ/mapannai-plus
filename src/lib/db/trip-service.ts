@@ -1,5 +1,5 @@
 import { getDb } from './index'
-import { tripDestinationSchema } from '@/lib/trips/destination'
+import { tripDestinationsSchema, tripDestinations } from '@/lib/trips/destination'
 import { Trip, TripDay, RouteChain } from '@/types/trip'
 import { exclusiveMarkerIds } from '@/lib/trip-deletion'
 import { projectChains, reconcileLegacyChains, reorderRouteStops } from '@/lib/trips/route-chain'
@@ -17,7 +17,9 @@ export function getTripById(id: string): Trip | null {
 }
 
 export function upsertTrip(trip: Trip): void {
-    const destination = trip.destination === undefined ? getTripById(trip.id)?.destination ?? null : trip.destination
+    const destinations = tripDestinationsSchema.parse(
+        trip.destinations !== undefined || trip.destination !== undefined ? tripDestinations(trip) : tripDestinations(getTripById(trip.id))
+    )
     getDb().prepare(`
         INSERT INTO trips (id, name, start_date, end_date, cover_image, emoji, marker_ids, destination, created_at, updated_at)
         VALUES (@id, @name, @startDate, @endDate, @coverImage, @emoji, @markerIds, @destination, @createdAt, @updatedAt)
@@ -31,7 +33,7 @@ export function upsertTrip(trip: Trip): void {
             emoji       = excluded.emoji,
             updated_at  = excluded.updated_at
     `).run({
-        destination: destination === null ? null : JSON.stringify(tripDestinationSchema.parse(destination)),
+        destination: JSON.stringify(destinations),
         markerIds: JSON.stringify(trip.markerIds ?? getTripById(trip.id)?.markerIds ?? []),
         id: trip.id,
         name: trip.name,
@@ -195,8 +197,11 @@ export function removeTripDayAndCloseGap(tripId: string, dayId: string, deleteEx
 // ── Row mappers ───────────────────────────────────────
 
 function rowToTrip(row: any): Trip {
+    const stored = row.destination ? JSON.parse(row.destination) : null
+    const destinations = Array.isArray(stored) ? stored : stored ? [stored] : []
     return {
-        destination: row.destination ? JSON.parse(row.destination) : null,
+        destinations,
+        destination: destinations[0] ?? null,
         markerIds: JSON.parse(row.marker_ids || '[]'),
         id: row.id,
         name: row.name,

@@ -9,7 +9,8 @@ export interface Trip {
   name: string         // "东京2024"
   startDate: string    // ISO date "2024-03-01"
   endDate: string      // ISO date "2024-03-07"
-  destination?: TripDestination | null // WGS-84 center of the selected province/city
+  destinations?: TripDestination[] // Ordered WGS-84 province/city centers
+  destination?: TripDestination | null // First destination for legacy clients
   coverImage?: string
   emoji?: string       // 旅行图标，默认 ✈️
   markerIds?: string[]  // Places saved to this trip but not assigned to a day

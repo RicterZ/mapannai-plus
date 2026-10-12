@@ -1,4 +1,4 @@
-import { tripDestinationSchema } from '@/lib/trips/destination'
+import { parseTripDestinations } from '@/lib/trips/destination'
 import { NextRequest, NextResponse } from 'next/server'
 import { getTripById, upsertTrip, deleteTrip, getTripDays, moveTripStartDate } from '@/lib/db/trip-service'
 
@@ -25,11 +25,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         if (!trip) return NextResponse.json({ error: '旅行不存在' }, { status: 404 })
 
         const body = await request.json()
-        if (body.destination != null) {
-            const result = tripDestinationSchema.safeParse(body.destination)
-            if (!result.success) return NextResponse.json({ error: '目的地信息无效' }, { status: 400 })
-            body.destination = result.data
-        }
+        try {
+            const destinations = parseTripDestinations(body)
+            if (destinations !== undefined) {
+                body.destinations = destinations
+                body.destination = destinations[0] ?? null
+            }
+        } catch { return NextResponse.json({ error: '目的地信息无效' }, { status: 400 }) }
         // Membership changes use the dedicated markers endpoint.
         delete body.description // Retired trip-level notes; ignore legacy clients.
         delete body.markerIds

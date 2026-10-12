@@ -16,7 +16,7 @@ interface CreateTripModalProps {
 
 export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalProps) => {
     const { createTrip, setActiveView } = useMapStore()
-    const [destination, setDestination] = useState<TripDestination | null>(null)
+    const [destinations, setDestinations] = useState<TripDestination[]>([])
     const [name, setName] = useState('')
     const [startDate, setStartDate] = useState('')
     const [duration, setDuration] = useState<string>('3')
@@ -33,13 +33,13 @@ export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalP
 
     const handleSave = async () => {
         if (!name.trim()) { toast.error('请输入旅行名称'); return }
-        if (!destination) { toast.error('请选择目的地省市'); return }
+        if (!destinations.length) { toast.error('请选择目的地省市'); return }
         if (!startDate) { toast.error('请选择开始日期'); return }
         if (!durationNum || durationNum < 1) { toast.error('请输入行程天数'); return }
 
         setIsSubmitting(true)
         try {
-            const trip = await createTrip({ name: name.trim(), startDate, endDate, destination })
+            const trip = await createTrip({ name: name.trim(), startDate, endDate, destinations })
             toast.success(`旅行「${trip.name}」已创建`)
             setActiveView('trip', trip.id, null)
             onCreated?.(trip.id)
@@ -52,7 +52,7 @@ export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalP
     }
 
     const handleClose = () => {
-        setName(''); setStartDate(''); setDuration('3'); setDestination(null)
+        setName(''); setStartDate(''); setDuration('3'); setDestinations([])
         onClose()
     }
 
@@ -89,7 +89,7 @@ export const CreateTripModal = ({ isOpen, onClose, onCreated }: CreateTripModalP
                             className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 h-10"
                         />
                     </div>
-                    <DestinationPicker value={destination} onChange={setDestination} />
+                    <DestinationPicker value={destinations} onChange={setDestinations} />
                     <div className="grid grid-cols-2 gap-2">
                         <div>
                             <label className="block text-xs font-semibold text-gray-700 mb-1">开始日期 *</label>

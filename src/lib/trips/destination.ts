@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { TripDestination } from '@/types/trip'
+import type { Trip, TripDestination } from '@/types/trip'
 import type { MapSearchBounds } from '@/types/map-provider'
 
 export const tripDestinationSchema = z.object({
@@ -18,4 +18,24 @@ export function destinationSearchBounds(center: TripDestination): MapSearchBound
         south: Math.max(-90, center.latitude - latitudeRadius),
         north: Math.min(90, center.latitude + latitudeRadius),
     }
+}
+
+export const tripDestinationsSchema = z.array(tripDestinationSchema).max(20).superRefine((values, ctx) => {
+    const seen = new Set<string>()
+    for (const value of values) {
+        const key = `${value.latitude.toFixed(6)}:${value.longitude.toFixed(6)}`
+        if (seen.has(key)) ctx.addIssue({ code: 'custom', message: '目的地不能重复' })
+        seen.add(key)
+    }
+})
+
+export function tripDestinations(trip?: Pick<Trip, 'destinations' | 'destination'> | null): TripDestination[] {
+    return trip?.destinations ?? (trip?.destination ? [trip.destination] : [])
+}
+
+/** Normalize new lists and old single-destination writes at the API boundary. */
+export function parseTripDestinations(body: { destinations?: unknown; destination?: unknown }): TripDestination[] | undefined {
+    if (body.destinations !== undefined) return tripDestinationsSchema.parse(body.destinations)
+    if (body.destination !== undefined) return body.destination === null ? [] : [tripDestinationSchema.parse(body.destination)]
+    return undefined
 }

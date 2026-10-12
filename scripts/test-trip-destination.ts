@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import Database from 'better-sqlite3'
 import { NextRequest } from 'next/server'
-import { destinationSearchBounds, tripDestinationSchema } from '../src/lib/trips/destination'
+import { destinationSearchBounds, tripDestinationSchema, tripDestinationsSchema, tripDestinations } from '../src/lib/trips/destination'
 
 const temp = mkdtempSync(path.join(tmpdir(), 'mapannai-destinations-'))
 process.env.SQLITE_PATH = path.join(temp, 'test.db')
@@ -24,6 +24,7 @@ async function main() {
     const { getTripById, upsertTrip } = await import('../src/lib/db/trip-service')
     const { connectPlanningTools } = await import('../src/lib/ai/mcp-tools')
     const { searchDestinations } = await import('../src/lib/map/destination-service')
+    const { searchDestinationPlaces } = await import('../src/lib/api/search-service')
     const { GoogleServerProvider } = await import('../src/lib/map/providers/google-server-provider')
     const originalFetch = globalThis.fetch
     const requests: URL[] = []
@@ -102,8 +103,62 @@ async function main() {
             const data = JSON.parse((created.content as Array<{ text: string }>)[0].text)
             assert.deepEqual(data.destination, tokyo)
         } finally { await bridge.close() }
+        const paris = { name: '巴黎', latitude: 48.8566, longitude: 2.3522 }
+        const destinations = [tokyo, paris]
+        const multiResponse = await POST(new NextRequest('http://localhost/api/trips', { method: 'POST', body: JSON.stringify({ name: 'Tokyo + Paris', startDate: '2026-12-01', endDate: '2026-12-03', destinations }) }))
+        assert.equal(multiResponse.status, 200)
+        const multi = await multiResponse.json()
+        assert.deepEqual(multi.destinations, destinations)
+        assert.deepEqual(multi.destination, tokyo, 'old clients see first destination')
+        assert.deepEqual(getTripById(multi.id)?.destinations, destinations)
+        await PUT(new NextRequest('http://localhost', { method: 'PUT', body: JSON.stringify({ name: 'Renamed multi', startDate: '2027-01-01' }) }), { params: { id: multi.id } })
+        assert.deepEqual(getTripById(multi.id)?.destinations, destinations, 'date changes preserve entire list')
+        const serviceTrip = getTripById(multi.id)!
+        delete serviceTrip.destinations; delete serviceTrip.destination
+        upsertTrip(serviceTrip)
+        assert.deepEqual(getTripById(multi.id)?.destinations, destinations, 'old service omitting fields preserves entire list')
+        const remove = await PUT(new NextRequest('http://localhost', { method: 'PUT', body: JSON.stringify({ destinations: [paris] }) }), { params: { id: multi.id } })
+        assert.equal(remove.status, 200); assert.deepEqual(getTripById(multi.id)?.destinations, [paris])
+        for (const invalid of [[tokyo, tokyo], [tokyo, { name: 'Bad', latitude: 91, longitude: 0 }], null, Array.from({ length: 21 }, (_, i) => ({ name: `city ${i}`, latitude: i, longitude: i }))]) {
+            const failed = await PUT(new NextRequest('http://localhost', { method: 'PUT', body: JSON.stringify({ destinations: invalid }) }), { params: { id: multi.id } })
+            assert.equal(failed.status, 400); assert.deepEqual(getTripById(multi.id)?.destinations, [paris])
+        }
+        await PUT(new NextRequest('http://localhost', { method: 'PUT', body: JSON.stringify({ destination: tokyo }) }), { params: { id: multi.id } })
+        assert.deepEqual(getTripById(multi.id)?.destinations, [tokyo], 'legacy single writes normalize to a one-item list')
+        await PUT(new NextRequest('http://localhost', { method: 'PUT', body: JSON.stringify({ destinations: [] }) }), { params: { id: multi.id } })
+        assert.deepEqual(getTripById(multi.id)?.destinations, []); assert.equal(getTripById(multi.id)?.destination, null)
+        getDb().prepare('UPDATE trips SET destination = ? WHERE id = ?').run(JSON.stringify(tokyo), 'old')
+        assert.deepEqual(getTripById('old')?.destinations, [tokyo], 'existing object JSON loads as one destination')
+        assert.deepEqual(tripDestinations({ destination: tokyo }), [tokyo], 'old client state normalizes without reload')
+        assert(!tripDestinationsSchema.safeParse([tokyo, tokyo]).success)
+        const multiBridge = await connectPlanningTools()
+        try {
+            const created = await multiBridge.call('create_trip', { name: 'MCP multi', startDate: '2026-12-01', endDate: '2026-12-01', destinations }, new AbortController().signal)
+            assert(!created.isError)
+            assert.deepEqual(JSON.parse((created.content as Array<{ text: string }>)[0].text).destinations, destinations)
+        } finally { await multiBridge.close() }
+        const searchCalls: URL[] = []
+        globalThis.fetch = async (input, init) => {
+            const url = new URL(String(input), 'http://localhost'); searchCalls.push(url)
+            const bounds = JSON.parse(url.searchParams.get('bounds')!)
+            assert.equal(init?.signal, searchAbort.signal)
+            const isTokyo = bounds.west > 100
+            return Response.json({ success: true, data: [
+                { id: 'shared', name: 'Shared', placeId: 'shared', coordinates: { longitude: 10, latitude: 10 } },
+                { id: isTokyo ? 't' : 'p', name: isTokyo ? 'Tokyo cafe' : 'Paris cafe', coordinates: { longitude: isTokyo ? 139.7 : 2.35, latitude: isTokyo ? 35.69 : 48.85 } },
+            ] })
+        }
+        const searchAbort = new AbortController()
+        const merged = await searchDestinationPlaces('cafe', destinations, searchAbort.signal)
+        assert.equal(searchCalls.length, 2, 'one local scope per destination')
+        assert.equal(merged.length, 3, 'overlapping results deduplicated')
+        assert(merged.some(item => item.name === 'Tokyo cafe')); assert(merged.some(item => item.name === 'Paris cafe'))
+        globalThis.fetch = async () => Response.json({ error: 'mock failure' }, { status: 500 })
+        await assert.rejects(searchDestinationPlaces('cafe', destinations), 'partial failures never pretend to cover all destinations')
+        globalThis.fetch = async () => Response.json({ success: true, data: [] })
+        await assert.rejects(searchDestinationPlaces('cafe', destinations, AbortSignal.abort()))
         assert(tripDestinationSchema.safeParse(tokyo).success)
-        console.log('Trip destinations passed: six city lookups with HTTP mocks, fallback/cancellation, old DB migration, API/MCP persistence/validation, legacy preservation, date shifts, search center and overseas coordinates.')
+        console.log('Trip destinations passed: six city lookups with HTTP mocks, fallback/cancellation, old DB migration, API/MCP persistence/validation, legacy preservation, date shifts, search center and overseas coordinates; multi-destination CRUD/MCP, legacy object/list compatibility, merged search scopes/dedup/errors/abort.')
     } finally {
         globalThis.fetch = originalFetch
         getDb().close(); rmSync(temp, { recursive: true, force: true })

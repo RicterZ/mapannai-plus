@@ -1,6 +1,6 @@
 'use client'
 
-import { destinationSearchBounds } from '@/lib/trips/destination'
+import { tripDestinations } from '@/lib/trips/destination'
 
 import type { PlaceReferences } from '@/types/place-references'
 
@@ -13,7 +13,7 @@ import { config } from '@/lib/config'
 import { isInChina } from '@/lib/coord-transform'
 import { installZoomThresholdBackdoor } from '@/lib/zoom-threshold'
 import { SearchResultMarker, searchResultKey } from './search-result-marker'
-import { searchService, SearchResult } from '@/lib/api/search-service'
+import { searchService, searchDestinationPlaces, SearchResult } from '@/lib/api/search-service'
 import { mergeSearchResults, type MapSearchResult } from '@/lib/map/search-results'
 import { useMapStore } from '@/store/map-store'
 import { MarkerCoordinates, MARKER_ICONS } from '@/types/marker'
@@ -356,9 +356,10 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         if (marker) flyMap({ center: [marker.coordinates.longitude, marker.coordinates.latitude], zoom: config.app.defaultZoom, duration: 1000 })
     }, [mapInitialized, dataLoaded, tripsLoaded, trips, tripDays, markers, flyMap])
 
-    const activeDestination = activeView.mode !== 'overview'
-        ? trips.find(trip => trip.id === activeView.tripId)?.destination : null
-    const destinationKey = activeDestination ? `${activeView.tripId}:${activeDestination.longitude}:${activeDestination.latitude}` : null
+    const activeDestinations = activeView.mode !== 'overview'
+        ? tripDestinations(trips.find(trip => trip.id === activeView.tripId)) : []
+    const activeDestination = activeDestinations[0]
+    const destinationKey = activeDestinations.length ? `${activeView.tripId}:${activeDestinations.map(item => `${item.longitude}:${item.latitude}`).join('|')}` : null
     const lastDestinationRef = useRef<string | null>(null)
     useEffect(() => {
         if (!destinationKey || !activeDestination) { lastDestinationRef.current = null; return }
@@ -433,7 +434,9 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                     south: Math.max(-90, bounds.south - (bounds.north - bounds.south) * 0.2),
                     north: Math.min(90, bounds.north + (bounds.north - bounds.south) * 0.2),
                 } : undefined
-                const results = await searchService.searchPlaces(trimmedQuery, 20, 'zh-CN', 'CN', { bounds: activeDestination ? destinationSearchBounds(activeDestination) : searchBounds, signal: controller.signal })
+                const results = activeDestinations.length
+                    ? await searchDestinationPlaces(trimmedQuery, activeDestinations, controller.signal)
+                    : await searchService.searchPlaces(trimmedQuery, 20, 'zh-CN', 'CN', { bounds: searchBounds, signal: controller.signal })
                 if (controller.signal.aborted) return
                 setProviderResults(results)
             } catch (e) {

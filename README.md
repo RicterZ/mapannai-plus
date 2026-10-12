@@ -9,11 +9,11 @@ MapAnNai Plus is a self-hosted place collection and travel itinerary editor. Sav
 ## Features
 
 - **Save places and travel notes**: Add places by clicking the map or searching. Use ten icon categories for food, accommodation, shopping, sights, and more. Rich text notes support lists, links, and images.
-- **Plan each day**: Select a destination province or city when creating a trip; its center anchors the map and searches within the trip. Create a trip with automatically generated days, shift its dates, add or remove days, and reuse saved places across your itinerary. When deleting a trip or day, optionally remove places belonging to only one trip and one day; places shared across trips or days are kept.
+- **Plan each day**: Select one or more destination provinces or cities when creating a trip, with removable tags inside the input. Their centers anchor the map and searches within the trip. Create a trip with automatically generated days, shift its dates, add or remove days, and reuse saved places across your itinerary. When deleting a trip or day, optionally remove places belonging to only one trip and one day; places shared across trips or days are kept.
 - **Arrange visits your way**: Save places to a trip before choosing a date, then drag them onto a day when ready. Create multiple routes within a day and drag places to change their visit order. A place can belong to several routes.
 - **See the whole plan on a map**: Switch between all places, a trip overview, and individual days. Colors distinguish days; selecting a place or route brings up its itinerary.
 - **Choose how routes look**: Connect places with curves or enable route planning based on each segment’s transport arrangement: walking, cycling, driving, or public transit. Unarranged segments choose walking or driving by distance; unsupported segments retain dashed curves and show the distance between their endpoints. Lines show place relationships and visit order; a place's external navigation action opens directions separately.
-- **Search nearby places**: Search saved place titles alongside platform results around the trip destination, or the current map area in overview and older trips without a destination. Matching coordinates show the saved place, ready to select and locate. New results appear in both the list and on the map before you save them.
+- **Search nearby places**: Search saved place titles alongside platform results around each trip destination and merge the results, or the current map area in overview and older trips without a destination. Matching coordinates show the saved place, ready to select and locate. New results appear in both the list and on the map before you save them.
 - **Plan with an AI assistant**: Configure your AI API in the web app and use multi-turn chat to create trips, find places, and arrange routes, with conversation history saved in the current browser. You can also connect an external assistant through MCP to edit the same itineraries, including changing existing routes and deleting routes while keeping their places. AI tools can also save visit times, planned durations, transport modes, dedicated line/service numbers, and notes; these details appear in daily routes and can be changed in edit mode, with transport information shown separately from place cards.
 - **Use it across devices**: The web app works on desktop and mobile and can be installed as a PWA. A [native iOS client](https://github.com/RicterZ/mapannai-ios) is also available; see its repository for installation and setup.
 - **Keep your data on your server**: Places, trips, and route caches are stored locally on the server. Access can be protected with a token; image uploads optionally use Tencent Cloud COS.
@@ -25,7 +25,7 @@ MapAnNai Plus is a self-hosted place collection and travel itinerary editor. Sav
 ## Plan your first trip
 
 1. Search or click the map to save places, with icons, notes, and photos.
-2. Create a trip, select its destination province or city and dates, and add saved places to each day.
+2. Create a trip, select one or more destination provinces or cities and its dates, and add saved places to each day.
 3. Build one or more routes for a day and drag places into visit order.
 4. Review the trip on the map and open it on your phone while traveling.
 

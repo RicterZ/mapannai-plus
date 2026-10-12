@@ -1,5 +1,7 @@
 'use client'
 
+import { tripDestinations } from '@/lib/trips/destination'
+
 import { exclusiveMarkerIds } from '@/lib/trip-deletion'
 
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
@@ -872,7 +874,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     )}
                     {displayMode === 'trip' && currentTrip && (
                         <div className="relative min-w-0">
-                            {currentTrip.destination && <p className="text-xs text-gray-500 truncate" title={currentTrip.destination.name}>{currentTrip.destination.name}</p>}
+                            {tripDestinations(currentTrip).length > 0 && <p className="text-xs text-gray-500 truncate" title={tripDestinations(currentTrip).map(item => item.name).join(' · ')}>{tripDestinations(currentTrip).map(item => item.name).join(' · ')}</p>}
                             <button
                                 type="button"
                                 className={cn('text-xs text-gray-500', addMarkerEnabled && 'hover:text-blue-600 cursor-pointer')}
