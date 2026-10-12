@@ -68,6 +68,7 @@ function googleNamespace(maps: any): SDKMapNamespace {
             this.native = new maps.Map(container, {
                 center: latLng(options.center), zoom: options.zoom, styles: travelMapStyles,
                 disableDefaultUI: true, clickableIcons: false, gestureHandling: 'greedy',
+                draggableCursor: 'default', draggingCursor: 'grabbing',
                 disableDoubleClickZoom: true, heading: 0, tilt: 0, isFractionalZoomEnabled: true,
             })
             this.projection = new maps.OverlayView()
