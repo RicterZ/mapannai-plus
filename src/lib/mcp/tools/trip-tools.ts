@@ -173,7 +173,7 @@ export function registerTripTools(server: McpServer) {
         {
             tripId: z.string().describe('旅行 ID'),
             dayId: z.string().describe('天 ID'),
-            provider: z.enum(['google', 'amap']).optional().describe('地点搜索后端，不填使用服务端配置'),
+            provider: z.enum(['google', 'amap']).optional().describe('地点搜索后端，不填按区域自动选择，境内高德优先并回退 Google'),
             country: z.string().optional().default('CN').describe('限定搜索国家代码，默认 CN（中国）。规划其他国家时必须修改，例如 JP（日本）、KR（韩国）、US（美国）。填错会导致同名地点定位到错误国家。'),
             places: z.array(z.object({
                 name: z.string().describe('地点名称，必须包含城市/区域名，例如「京都 金阁寺」「大阪 心斋桥」，避免只写地点简称'),

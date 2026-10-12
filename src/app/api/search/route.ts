@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { mapProviderFactory } from '@/lib/map/providers'
+import { searchServiceProvider } from '@/lib/map/providers/map-provider-factory'
 import { parseSearchPagination } from '@/lib/map/search-pagination'
 import type { MapSearchBounds } from '@/types/map-provider'
 
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
         }
 
         const provider = mapProviderFactory.createServiceProvider('search')
-        if (pagination.paginated && pagination.page > 1 && !pagination.pageToken && process.env.MAP_SEARCH_PROVIDER !== 'amap') {
+        if (pagination.paginated && pagination.page > 1 && !pagination.pageToken && searchServiceProvider(country, { bounds }) === 'google') {
             return NextResponse.json({ error: 'Google 翻页需要上一页返回的 pageToken' }, { status: 400 })
         }
         const resultPage = await provider.searchPlacesPage(query, undefined, country, {

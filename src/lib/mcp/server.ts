@@ -71,7 +71,7 @@ function createMcpServer(): McpServer {
 
 ### 地图服务选择
 - 地图渲染引擎由部署环境的 \`MAP_RENDERER\` 选择 OpenStreetMap/MapLibre 或高德 JS API 2.0。
-- \`search_places\`、\`get_place_details\`、\`get_directions\`、\`create_marker\`、\`plan_trip_day\` 可分别传 \`provider: "google" | "amap"\`；省略时使用服务端的对应默认值。
+- \`search_places\`、\`get_place_details\`、\`get_directions\`、\`create_marker\`、\`plan_trip_day\` 可分别传 \`provider: "google" | "amap"\`；省略时境内优先高德、失败回退 Google，境外使用 Google；跨境路线始终不寻路，仅返回两点距离与虚线回退。
 - 高德地点和路线服务仅支持中国，数据库坐标统一为 WGS-84。
 
 ### 查看已有行程

@@ -1,7 +1,8 @@
 import { resolveRouteMode, routeDistance } from './route-mode'
 import type { TransportMode } from '@/types/trip'
 import { cacheDirection, directionCacheKey, getCachedDirection } from '@/lib/db/direction-cache'
-import { defaultServiceProvider, mapProviderFactory } from './providers/map-provider-factory'
+import { mapProviderFactory } from './providers/map-provider-factory'
+import { isInChina } from '@/lib/coord-transform'
 import type { MapRoute, RoutePoint, TravelMode } from '@/types/map-provider'
 
 function withRouteDistance(route: MapRoute, origin: RoutePoint, destination: RoutePoint): MapRoute {
@@ -15,10 +16,40 @@ function withRouteDistance(route: MapRoute, origin: RoutePoint, destination: Rou
 const inFlight = new Map<string, Promise<MapRoute>>()
 
 /** Persist real routes and terminal coverage failures, shared by Web and MCP. */
-export async function getSavedDirection(origin: RoutePoint, destination: RoutePoint, requestedMode?: TravelMode, override?: string, transportMode?: TransportMode) {
+export async function getSavedDirection(origin: RoutePoint, destination: RoutePoint, requestedMode?: TravelMode, override?: string, transportMode?: TransportMode): Promise<MapRoute> {
     const mode = resolveRouteMode(origin, destination, transportMode, requestedMode)
     if (mode === null) return { path: [origin, destination], distance: routeDistance(origin, destination), duration: null, fallback: 'UNSUPPORTED_MODE' } as MapRoute
-    const provider = override || defaultServiceProvider('directions')
+    const fromChina = isInChina(origin.lng, origin.lat), toChina = isInChina(destination.lng, destination.lat)
+    const provider = fromChina ? 'amap' : 'google'
+    const key = directionCacheKey(`regional-v1:${fromChina !== toChina ? 'cross-border' : provider}`, mode, origin, destination)
+    if (fromChina !== toChina) {
+        const cached = getCachedDirection(key)
+        if (cached) return withRouteDistance(cached, origin, destination)
+        const route = withRouteDistance({ path: [origin, destination], distance: null, duration: null, fallback: 'UNSUPPORTED_REGION' }, origin, destination)
+        cacheDirection(key, route)
+        return route
+    }
+    if (override) return getProviderDirection(origin, destination, mode, override)
+    const cached = getCachedDirection(key)
+    if (cached) return withRouteDistance(cached, origin, destination)
+    const existing = inFlight.get(key)
+    if (existing) return existing
+    const pending = (async () => {
+        let route = await getProviderDirection(origin, destination, mode, provider)
+        if (provider === 'amap' && route.fallback) {
+            const primary = route
+            route = await getProviderDirection(origin, destination, mode, 'google')
+            // A temporary primary failure still needs a retry if neither service supplied a route.
+            if (route.fallback && primary.fallback === 'PLANNING_FAILED') route = primary
+        }
+        if (route.fallback !== 'PLANNING_FAILED') cacheDirection(key, route)
+        return route
+    })().finally(() => inFlight.delete(key))
+    inFlight.set(key, pending)
+    return pending
+}
+
+async function getProviderDirection(origin: RoutePoint, destination: RoutePoint, mode: TravelMode, provider: string): Promise<MapRoute> {
     const key = directionCacheKey(provider, mode, origin, destination)
     const cached = getCachedDirection(key)
     if (cached) return withRouteDistance(cached, origin, destination)

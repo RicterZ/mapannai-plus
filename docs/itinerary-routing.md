@@ -34,7 +34,7 @@ Web 路线规划只保留开关，不再提供全局自动/步行/驾车选择�
 - 可选 `mode` 为 walking/driving/bicycling/transit，保留已有显式调用兼容。
 - 均省略时按2km阈值。旧省略 mode 的请求不再固定步行。
 - 显式 null 或未知值返回400，沿用 `{ "error": "..." }`。
-- API 使用服务端配置的 directions provider，不增加前端切换。
+- API 按既有 isInChina 函数自动选择：两端境内优先高德，无有效结果/失败回退 Google；两端境外 Google。跨境不请求服务，返回 UNSUPPORTED_REGION、WGS-84 两点距离与 null 耗时并缓存；前端复用虚线，不增加切换或服务来源展示。MCP 显式 provider 保留兼容，跨境仍不寻路。境内高德无效结果经 Google 也无路线后才作为虚线终止结果；临时失败保留重试。
 
 成功返回既有 `path/distance/duration` 结构。不能映射的方式无需请求 provider，返回如下结构（数值仅示例）：
 
@@ -47,15 +47,15 @@ Web 路线规划只保留开关，不再提供全局自动/步行/驾车选择�
 }
 ```
 
-客户端看到 fallback 时用已有虚线贝塞尔显示，不把 path 中两点视为道路几何。普通寻路仍返回平台路程/耗时。已有 OVER_DIRECTION_RANGE、UNSUPPORTED_REGION 回退，以及新增 NO_ROUTE，均返回坐标距离和 null 耗时；旧缓存中的 null 距离读取时补算，不改原路线数据。缺少有效规划距离或路径也返回 NO_ROUTE。QPS、网络及凭据错误返回 HTTP 500，并附带 fallback: PLANNING_FAILED、两点 path、坐标 distance、null duration 和原有 error；不写入缓存，Web 保留重试，MCP 返回相同结果并标记 isError。所有按坐标补算的服务端结果均带 fallback，成功取得有效规划路程时省略 fallback。
+客户端看到 fallback 时用已有虚线贝塞尔显示，不把 path 中两点视为道路几何。普通寻路仍返回平台路程/耗时。已有 OVER_DIRECTION_RANGE、UNSUPPORTED_REGION 回退，以及新增 NO_ROUTE，均返回坐标距离和 null 耗时；旧缓存中的 null 距离读取时补算，不改原路线数据。缺少有效规划距离或路径也返回 NO_ROUTE。默认区域策略会先回退到 Google；双方均未取得有效路线且存在 QPS、网络或凭据等临时错误时返回 HTTP 500，并附带 fallback: PLANNING_FAILED、两点 path、坐标 distance、null duration 和原有 error；不写入缓存，Web 保留重试，MCP 返回相同结果并标记 isError。所有按坐标补算的服务端结果均带 fallback，成功取得有效规划路程时省略 fallback。
 
 ## Provider 与缓存
 
 - 高德步行/驾车保留 v3 接口；自行车调用 v4 bicycling，兼容其 errcode/data 返回结构。
-- 高德公共交通调用 v3 transit/integrated；city/cityd 必填，因此仅在路线缓存未命中时逆地理编码两个端点取得城市代码，再查询路线。读取步行、公交与铁路分段的平台 polyline；铁路只有车站坐标、没有路径时，整段返回 NO_ROUTE、坐标距离和 null 耗时，不把车站连线冒充规划路径。Google 缺少可解码路径时也返回 NO_ROUTE。
+- 高德公共交通调用 v3 transit/integrated；city/cityd 必填，因此仅在路线缓存未命中时逆地理编码两个端点取得城市代码，再查询路线。读取步行、公交与铁路分段的平台 polyline；铁路只有车站坐标、没有路径时，高德结果视为 NO_ROUTE，默认再尝试 Google；仍无法规划时返回坐标距离和 null 耗时，不把车站连线冒充规划路径。Google 缺少可解码路径时也返回 NO_ROUTE。
 - Google 保留 Directions Legacy，四种模式透传；ZERO_RESULTS 转为 NO_ROUTE。公交/地铁/火车都使用公共交通规划，没有承诺只乘指定交通类型或指定车次。
 - 两个平台均共享 SQLite 原始路线缓存；客户端共享请求队列、内存和 localStorage。缓存使用实际 mode、有向起终点与坐标，行程交通修改不会读取旧方式路线。既有步行、驾车缓存继续复用。
-- 公共交通缓存使用 v2 键（服务端和 Web 同步），隔离旧的车站连线成功结果；步行/驾车/骑行仍复用现有键。公共交通结果和 NO_ROUTE 缓存1小时，避免长期复用随时刻变化的方案；超范围/不支持地区终止结果仍持久保留。无法映射的行程无需第三方或额外 SQLite 记录，客户端只生成示意曲线。
+- 公共交通缓存使用 v2 键（服务端和 Web 同步），隔离旧的车站连线成功结果；实际 provider 的步行/驾车/骑行仍复用现有键；区域策略最终结果另存 regional-v1 键，客户端 regional-v1 标识隔离旧本地缓存。公共交通结果和 NO_ROUTE 缓存1小时，避免长期复用随时刻变化的方案；超范围/不支持地区终止结果仍持久保留。无法映射的行程无需第三方或额外 SQLite 记录，客户端只生成示意曲线。
 - 这不是基于旅行日期的班次查询；当前公共交通接口使用平台默认时刻。
 
 ## MCP 与 AI
@@ -67,3 +67,5 @@ Web 路线规划只保留开关，不再提供全局自动/步行/驾车选择�
 ## 验证
 
 `npx tsx scripts/test-itinerary-routing.ts` 使用临时 SQLite、实际 API handler、MCP bridge 和 provider HTTP mocks，验证十种交通映射、2km边界、方向与移回恢复、四种Google模式、高德四种请求/返回解析、公共交通城市查询与缓存、虚线距离/耗时、临时/终止失败、旧缓存复用、MCP兼容、客户端缓存与卡片渲染。两种 renderer 按同一映射接入，通过源码/类型与构建检查；没有真实SDK或付费第三方寻路验证。现有路径算法源文件未修改。
+
+区域与回退验证：`npx tsx scripts/test-regional-map-services.ts` 使用独立 SQLite 与 provider mock；不调用真实地图服务。

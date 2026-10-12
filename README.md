@@ -41,27 +41,20 @@ cd mapannai-public
 cp env.example .env
 ```
 
-Edit `.env`. The basemap, search, place details, and directions services can be chosen independently. See [env.example](env.example) for all settings.
+Edit `.env` and keep your preferred basemap (`MAP_RENDERER=amap` or `osm`). Backend services automatically prefer AMap for coordinates in the existing China range and use Google overseas; unavailable AMap results fall back to Google. Cross-border routes show dashed connections and endpoint distances without requesting directions. Search uses the map area center, or the country when no area is supplied. See [env.example](env.example) for all settings.
 
-| Use case | Basemap | Search / details / directions | Required configuration |
-| --- | --- | --- | --- |
-| AMap services in China | `MAP_RENDERER=amap` | Set all three providers to `amap` | AMap Web JS key, matching security code, and a separate Web Service key |
-| Google services for overseas places | `MAP_RENDERER=osm` | Set all three providers to `google` | Google API key with the relevant Places, Geocoding, and Directions APIs enabled; configure OSM tile access |
-
-Example using AMap for all services:
+Example with the AMap basemap and both backend services:
 
 ```dotenv
 MAP_RENDERER=amap
-MAP_SEARCH_PROVIDER=amap
-MAP_DETAILS_PROVIDER=amap
-MAP_DIRECTIONS_PROVIDER=amap
 AMAP_JS_KEY=your-web-js-key
 AMAP_JS_SECURITY_CODE=your-js-security-code
 AMAP_API_KEY=your-web-service-key
+GOOGLE_API_KEY=your-google-api-key
 API_TOKEN=your-access-token
 ```
 
-Use a matching AMap JS key and security code, and configure the deployment domain in the provider console. Obtain the backend Web Service key separately. For Google services, fill in `GOOGLE_API_KEY`. The OSM basemap and manually added places work without a map service key; search, details, and road routes require the relevant service credentials.
+Use a matching AMap JS key and security code and configure the deployment domain. Obtain the backend Web Service key separately. Enable Google Places, Geocoding and Directions APIs for overseas services and fallback. Backend selection does not change the basemap. The old `MAP_*_PROVIDER` service settings no longer control automatic selection.
 
 When `API_TOKEN` is set, the web app asks for it on first access, and iOS and MCP use the same token. If left empty, anyone who can reach the service can modify its data. For image uploads, configure `TENCENT_COS_*`, the bucket's upload CORS rules, and `NEXT_PUBLIC_IMAGE_DOMAINS`.
 

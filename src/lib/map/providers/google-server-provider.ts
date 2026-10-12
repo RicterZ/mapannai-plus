@@ -214,13 +214,13 @@ export class GoogleServerProvider implements MapProvider {
 
         // 检查响应数据结构
         if (!data.routes || !Array.isArray(data.routes) || data.routes.length === 0) {
-            throw new Error('Google Directions API 返回的路径数据为空')
+            throw new Error('NO_ROUTE: Google Directions API 返回的路径数据为空')
         }
 
         // 提取路径数据
         const route = data.routes[0]
         if (!route.legs || !Array.isArray(route.legs) || route.legs.length === 0) {
-            throw new Error('Google Directions API 返回的路径段数据为空')
+            throw new Error('NO_ROUTE: Google Directions API 返回的路径段数据为空')
         }
 
         const leg = route.legs[0]

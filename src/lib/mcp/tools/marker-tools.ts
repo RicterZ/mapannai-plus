@@ -77,7 +77,7 @@ export function registerMarkerTools(server: McpServer) {
           .describe('图标类型'),
         content: z.string().optional().describe('HTML 格式的描述内容（Tiptap 富文本编辑器输出，支持标题、加粗、斜体、下划线、列表、引用、图片等）'),
       })).min(1).describe('要创建的地点列表（支持批量）'),
-      provider: z.enum(['google', 'amap']).optional().describe('地点搜索后端，不填使用服务端配置'),
+      provider: z.enum(['google', 'amap']).optional().describe('地点搜索后端，不填按区域自动选择，境内高德优先并回退 Google'),
       country: z.string().optional().default('CN').describe('限定搜索国家代码，默认 CN（中国）。规划其他国家时必须修改，例如 JP（日本）、KR（韩国）、US（美国）。填错会导致同名地点定位到错误国家。'),
     },
     async ({ places, country, provider }) => {

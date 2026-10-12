@@ -116,10 +116,13 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 
 ## 地图与服务抽象
 
-渲染引擎和服务端能力独立组合，由**后端环境变量**选择；不要恢复前端 provider 切换 UI。
+渲染引擎由后端 `MAP_RENDERER` 选择，服务端能力自动按区域选取；不要恢复前端 provider 切换 UI。
 
 - `MAP_RENDERER=osm|amap`。
-- `MAP_SEARCH_PROVIDER`、`MAP_DETAILS_PROVIDER`、`MAP_DIRECTIONS_PROVIDER` 分别支持 `google|amap`。
+- 服务端默认按现有 `isInChina` 判断：境内优先高德，失败或无有效结果时回退 Google，境外直接 Google；旧三个 `MAP_*_PROVIDER` 服务环境变量不再参与选择。前端底图与展示不变，只下发 `regional-v1` 路线缓存策略标识，隔离旧本地缓存。MCP 显式 provider 保留兼容，但跨境路线始终跳过寻路。
+- 路线两端分属境内外时，不请求任何 provider，缓存 `UNSUPPORTED_REGION`、WGS-84 两点距离及 null 耗时，复用前端虚线，无重试。境内回退成功会缓存最终结果；临时失败且双方无有效路线仍保留重试，不缓存最终失败。
+- 搜索按可见范围中心调用 `isInChina`；无范围时 country=CN（默认）优先高德，其他国家 Google。只允许首批空结果/失败时换服务；Google 后续页凭 pageToken 继续，不因高德恢复而切回，也不在高德后续页混入 Google 首批。取消请求不触发回退。
+- 验证：`npx tsx scripts/test-regional-map-services.ts` 使用隔离 SQLite 和 provider mock，验证区域选择、回退、缓存、临时失败重试、跨境虚线及搜索分页。
 - 合约入口 `src/types/map-provider.ts`；factory 在 `src/lib/map/providers/map-provider-factory.ts`。新能力先考虑合约，再实现各 provider，不把高德逻辑散落到通用 UI。
 - 高德底图使用官方 JS API 2.0；不要退回直接抓取 `webrd*.is.autonavi.com` 非标准瓦片的实现。
 - JS 地图使用 `AMAP_JS_KEY` 和配套 `AMAP_JS_SECURITY_CODE`；服务端使用独立的 Web 服务 Key `AMAP_API_KEY`。Google 使用 `GOOGLE_API_KEY`。其他变量详见 `env.example`。
@@ -127,7 +130,7 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 - `isInChina` 是历史兼容的矩形坐标判断，不是精确国境、行政区或服务覆盖判断。改动转换逻辑前检查中国边界和海外地点的实际行为。
 - 网页搜索使用当前可见范围，每侧扩展 20%；高德使用 polygon 搜索，泛词酒店 / 高铁站等映射为 POI 类型；Google 使用中心点与半径偏好。MCP 无范围名称搜索保留原行为。
 - 搜索分页：`GET /api/search` 使用 `page=1..100`、`pageSize=1..25`，返回 `page/pageSize/hasMore/nextPage`，高德返回可用 `total`；Google 后续页附带上一页 `nextPageToken` 作为 `pageToken`，以实际返回的 `pageSize` 为准。无分页参数保留旧 `limit`（默认5、最多20）的数组接口。分页范围/关键词保持同一快照；客户端取消和去重，不因加载更多移动镜头。MCP原有首批名称搜索兼容，不能静默分页并增加搜索费用。
-- 高德地点服务主要面向中国，海外地点服务可以选择 Google。不要把没有搜索结果一概解释为权限或政策，先检查请求参数和返回值。
+- 高德地点服务主要面向中国，海外地点服务自动选择 Google。不要把没有搜索结果一概解释为权限或政策，先检查请求参数和返回值。
 
 ## 连线、缓存与动画：易回归点
 
@@ -223,9 +226,9 @@ ssh -p 2222 -o BatchMode=yes root@server \
 
 部署脚本位于服务器，不在本仓库。等待构建与容器重建完成，再检查 `mapannai` 容器运行状态及容器内 `http://127.0.0.1:3000/` 的 HTTP 状态；不要在脚本仍运行时宣布部署成功。文档更新不需要重建生产服务。
 
-路径与高德 `OVER_DIRECTION_RANGE` 和不支持地区终止结果永久保存在 SQLite `direction_cache`，Web / MCP 共用；超范围仅显示起终点之间的虚线贝塞尔关联曲线，距离由 WGS-84 两点计算，耗时为null；界面仅显示距离数值，不增加“直线”字样，不自动或手动重试。坐标、模式或 provider 变化后使用新缓存键。
+路径及明确的不可规划结果保存在 SQLite `direction_cache`，Web / MCP 共用。高德超范围或无有效结果时默认先尝试 Google；两家均明确无路线以及跨境路段才显示虚线贝塞尔曲线、WGS-84 两点距离及 null 耗时，不自动或手动重试。公共交通正常结果和 NO_ROUTE 仍按1小时过期；临时失败不缓存最终结果。坐标、模式或服务策略变化后使用新缓存键。
 
-路线计算完成后移除进度显示；高德不支持地区的路段保存为不可规划结果，显示虚线贝塞尔关联曲线，不反复请求或显示重试。仅临时失败保留重试入口。
+路线计算完成后移除进度显示；跨境以及双服务明确不可规划的路段保存为不可规划结果，显示虚线贝塞尔关联曲线，不反复请求或显示重试。仅临时失败保留重试入口。
 
 每段路线按 `routeChains` 中当前有向相邻 stops 的 active leg 选择方式：步行→walking，自行车→bicycling，自驾/出租车→driving，公交/地铁/火车→transit；飞机/轮船/其他不调用寻路，使用虚线贝塞尔曲线。没有交通安排时按 WGS-84 起终点直线距离，小于2km步行，否则驾车。公共映射在 `route-mode.ts`，地图两种 renderer 与侧栏距离使用同一映射；不改变剪枝、平滑、显示路径与点击动画约定。旧本地设置仅保留 enabled，忽略原 auto/mode。缓存按实际模式复用；公共交通正常结果和 NO_ROUTE 缓存1小时。接口与MCP见 [行程路线合约](docs/itinerary-routing.md)。
 

@@ -15,7 +15,7 @@ export function registerSearchTools(server: McpServer) {
     'search_places',
     '使用所选搜索后端搜索地点，返回坐标、地址、评分等基础信息。【重要】搜索词必须带上城市名以提高精度，例如「东京 浅草寺」「京都 金阁寺」，而非只写「浅草寺」。必须传入 country 参数以限定搜索范围，避免返回错误国家的同名地点。',
     {
-      provider: z.enum(['google', 'amap']).optional().describe('搜索后端，不填使用服务端配置'),
+      provider: z.enum(['google', 'amap']).optional().describe('搜索后端，不填按区域自动选择，境内高德优先并回退 Google'),
       query: z.string().describe('搜索关键词，必须包含城市名，例如「东京 浅草寺」「大阪 道顿堀」「北京 故宫」'),
       limit: z.number().int().min(1).max(10).optional().default(5).describe('返回结果数量（默认 5）'),
       country: z.string().optional().default('CN').describe('限定搜索国家代码，默认 CN（中国）。规划其他国家时必须修改，例如 JP（日本）、KR（韩国）、US（美国）。填错会导致同名地点定位到错误国家。'),
@@ -45,7 +45,7 @@ export function registerSearchTools(server: McpServer) {
     'get_place_details',
     '根据坐标获取地点的详细信息，包括电话、网站、评分、营业时间、地点类型等。',
     {
-      provider: z.enum(['google', 'amap']).optional().describe('地点详情后端，不填使用服务端配置'),
+      provider: z.enum(['google', 'amap']).optional().describe('地点详情后端，不填按区域自动选择，境内高德优先并回退 Google'),
       latitude: z.number().describe('纬度'),
       longitude: z.number().describe('经度'),
     },
@@ -57,7 +57,7 @@ export function registerSearchTools(server: McpServer) {
 
   const coordinates = z.object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) })
   const directionInputs = {
-    provider: z.enum(['google', 'amap']).optional().describe('路线后端，不填使用服务端配置'),
+    provider: z.enum(['google', 'amap']).optional().describe('路线后端，不填按区域自动选择，境内高德优先并回退 Google'),
     origin: coordinates.describe('WGS-84 起点坐标'),
     destination: coordinates.describe('WGS-84 终点坐标'),
   }

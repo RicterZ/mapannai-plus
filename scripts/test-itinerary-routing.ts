@@ -39,9 +39,9 @@ async function main() {
         if (String(input) === '/api/directions') return POST(new NextRequest('http://localhost/api/directions', { ...init, signal: init?.signal ?? undefined }))
         const url = new URL(String(input)); requests.push(url)
         if (responseMode === 'qps') return Response.json({ status: '0', info: 'CUQPS_HAS_EXCEEDED_THE_LIMIT' })
-        if (responseMode === 'range') return Response.json({ status: '0', info: 'OVER_DIRECTION_RANGE' })
+        if (responseMode === 'range') return Response.json(url.hostname === 'maps.googleapis.com' ? { status: 'ZERO_RESULTS' } : { status: '0', info: 'OVER_DIRECTION_RANGE' })
         if (url.hostname === 'maps.googleapis.com') {
-            if (responseMode === 'empty') return Response.json({ status: 'ZERO_RESULTS' })
+            if (responseMode === 'empty' || responseMode === 'station-only') return Response.json({ status: 'ZERO_RESULTS' })
             return Response.json({ status: 'OK', routes: [{ legs: [{ distance: responseMode === 'missing-distance' ? undefined : { value: 2500 }, duration: { value: 600 }, start_location: { lat: 39.9, lng: 116.4 }, end_location: { lat: 39.901, lng: 116.401 }, steps: responseMode === 'missing-shape' ? [] : [{ polyline: { points: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' } }] }] }] })
         }
         assert.equal(url.hostname, 'restapi.amap.com', 'no real third-party request')
@@ -127,7 +127,7 @@ async function main() {
         assert.equal(getCachedDirection(directionCacheKey('amap', 'walking', temporaryOrigin, destination)), null, 'temporary failures not persisted')
         responseMode = 'range'
         r = await api({ origin: temporaryOrigin, destination, mode: 'driving' })
-        assert.equal(r.data.fallback, 'OVER_DIRECTION_RANGE'); assert.equal(r.data.distanceKind, undefined); assert.equal(r.data.duration, null)
+        assert.equal(r.data.fallback, 'NO_ROUTE'); assert.equal(r.data.distanceKind, undefined); assert.equal(r.data.duration, null)
         const afterRange = requests.length
         await api({ origin: temporaryOrigin, destination, mode: 'driving' }); assert.equal(requests.length, afterRange)
         responseMode = 'normal'
@@ -185,9 +185,9 @@ async function main() {
         assert(html.includes('2.5 km')); assert(!html.includes('直线')); assert(html.includes('飞机'))
         const roadHtml = renderToStaticMarkup(React.createElement(RouteLeg, { day, route: { ...route, legs: [{ fromStopId: a.id, toStopId: b.id, mode: 'taxi' }] }, fromId: 'a', toId: 'b', distance: 2500, editable: false }))
         assert(!roadHtml.includes('直线')); assert(roadHtml.includes('2.5 km'))
-        process.env.MAP_DIRECTIONS_PROVIDER = 'google'
-        const planned = await getPlannedRoute('google', { ...segment, transportMode: 'cycling' })
-        assert(!isRangeFallback(planned)); assert.equal(readRouteMetrics(routeCacheKey('google', { ...segment, transportMode: 'cycling' }))?.distance, 2500)
+        process.env.MAP_DIRECTIONS_PROVIDER = 'google' // Legacy setting must not override regional routing.
+        const planned = await getPlannedRoute('regional-v1', { ...segment, transportMode: 'cycling' })
+        assert(!isRangeFallback(planned)); assert.equal(readRouteMetrics(routeCacheKey('regional-v1', { ...segment, transportMode: 'cycling' }))?.distance, 200)
         console.log('Itinerary routing passed: mapping/2km default, directed reorder, API modes, AMap walking/driving/cycling/transit mock shapes/cities, Google four modes, fallback/direct distances, cache reuse/expiry, temporary errors, MCP compatibility, client cache and route card rendering.')
     } finally {
         globalThis.fetch = previousFetch

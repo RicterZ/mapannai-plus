@@ -41,27 +41,20 @@ cd mapannai-public
 cp env.example .env
 ```
 
-编辑 `.env`。底图与搜索、地点详情、路线服务可以分别选择，完整配置见 [env.example](env.example)。
+编辑 `.env`，保留所需底图（`MAP_RENDERER=amap` 或 `osm`）。后端按现有中国范围判断函数自动选择服务：境内优先高德，获取不到有效结果时回退 Google，境外使用 Google。跨境路线不请求寻路，展示虚线与两点距离。搜索按地图范围中心判断，无范围时按国家选择。完整配置见 [env.example](env.example)。
 
-| 使用场景 | 底图 | 搜索 / 详情 / 路线 | 所需配置 |
-| --- | --- | --- | --- |
-| 中国境内使用高德 | `MAP_RENDERER=amap` | 三项 provider 设为 `amap` | 高德 Web 端 JS Key、配套安全密钥、独立的 Web 服务 Key |
-| 海外地点使用 Google 服务 | `MAP_RENDERER=osm` | 三项 provider 设为 `google` | Google API Key，并启用所用的 Places、Geocoding、Directions API；配置 OSM 瓦片访问 |
-
-全高德配置示例：
+高德底图搭配双后端服务的配置示例：
 
 ```dotenv
 MAP_RENDERER=amap
-MAP_SEARCH_PROVIDER=amap
-MAP_DETAILS_PROVIDER=amap
-MAP_DIRECTIONS_PROVIDER=amap
 AMAP_JS_KEY=your-web-js-key
 AMAP_JS_SECURITY_CODE=your-js-security-code
 AMAP_API_KEY=your-web-service-key
+GOOGLE_API_KEY=your-google-api-key
 API_TOKEN=your-access-token
 ```
 
-高德 JS Key 与安全密钥需配套，并在控制台配置部署域名；服务端使用的 Web 服务 Key 单独申请。选择 Google 服务时填写 `GOOGLE_API_KEY`。只使用 OSM 底图、手动添加地点无需地图服务 Key；搜索、详情和道路路线需要对应服务凭据。
+高德 JS Key 与安全密钥需配套，并在控制台配置部署域名；后端 Web 服务 Key 单独申请。Google 需启用 Places、Geocoding、Directions API，用于海外服务及境内回退。后端服务选择不改变底图，旧 `MAP_*_PROVIDER` 服务配置不再控制自动选择。
 
 设置 `API_TOKEN` 后，网页首次访问会要求输入 token，iOS 与 MCP 使用相同 token。留空时，任何能访问服务的人都可以操作数据。需要图片上传时再填写 `TENCENT_COS_*`，并配置存储桶的上传跨域规则和 `NEXT_PUBLIC_IMAGE_DOMAINS`。
 
