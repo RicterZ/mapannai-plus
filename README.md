@@ -54,7 +54,7 @@ GOOGLE_API_KEY=your-google-api-key
 API_TOKEN=your-access-token
 ```
 
-Use a matching AMap JS key and security code and configure the deployment domain. Obtain the backend Web Service key separately. Enable Google Places, Geocoding and Directions APIs for overseas services and fallback. Google basemaps also require Maps JavaScript API and billing. They reuse `GOOGLE_API_KEY` by default; set `GOOGLE_JS_KEY` for a separate browser key. Backend selection and frontend basemap switching are independent. The old `MAP_*_PROVIDER` service settings no longer control automatic selection.
+Use a matching AMap JS key and security code and configure the deployment domain. Obtain the backend Web Service key separately. Enable Google Places, Geocoding and Directions APIs for overseas services and fallback. Google basemaps use a fresh light palette while retaining place and transit labels, and require Maps JavaScript API and billing. They reuse `GOOGLE_API_KEY` by default; set `GOOGLE_JS_KEY` for a separate browser key. Backend selection and frontend basemap switching are independent. The old `MAP_*_PROVIDER` service settings no longer control automatic selection.
 
 When `API_TOKEN` is set, the web app asks for it on first access, and iOS and MCP use the same token. If left empty, anyone who can reach the service can modify its data. For image uploads, configure `TENCENT_COS_*`, the bucket's upload CORS rules, and `NEXT_PUBLIC_IMAGE_DOMAINS`.
 

@@ -151,6 +151,8 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 
 ## 已确认的 UI 约定
 
+- 浏览器 favicon 使用 `/icons/places/map.svg`，不再引用旧 favicon 或 PWA PNG；PWA 与 Apple 主屏幕图标独立保留。此变更无新增环境变量。
+
 - 浏览态地点卡片的悬停背景覆盖整张卡片（含访问备注）；选中态悬停统一使用更深的浅蓝色，标题按钮不单独覆盖背景。
 
 - 自绘地点图标只替换展示，保留现有iconType/emoji与数据合约。SVG资源在 `public/icons/places/` 与 `public/icons/trips/`，`place-icon.tsx` 通过emoji→资源映射，未覆盖的emoji保持原展示；神社风格已确认，十类地点、旅行/日期选择器全部60项及默认总览图标使用简洁彩色平面SVG，10面国旗使用对应国家图案与颜色，不显示国家代码字母；地图三种renderer共用MapMarker，正常缩放白底显示SVG，低缩放仍显示原分类色圆点。地图、列表、详情、搜索和选择器复用PlaceIcon，任意未映射的自选emoji保留原样，不改变地点分类含义。
@@ -259,3 +261,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - 路线成功必须有平台实际路径；铁路仅有站点坐标时返回 `NO_ROUTE`、坐标距离及 null 耗时，不能把站点连线当作铁路轨迹。公共交通缓存服务端/Web使用 v2 键，隔离旧站点连线结果，其余模式沿用现有键。
 
 - 日期标题在编辑模式下点击侧栏顶部标题修改，使用共用 Modal；清空恢复“第 N 天”。通过现有 updateTripDay 仅写入 title，成功后更新侧栏与顶部胶囊，失败保留输入。
+
+- Google 境外底图默认使用 `google-map-sdk.ts` 的浅色旅行配色（薄荷公园、浅蓝水域、杏色主干道），通过内嵌 JSON styles 设置；保留交通与 POI 标签，不改变行程覆盖物、坐标或服务选择，无新增环境变量。

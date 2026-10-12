@@ -27,6 +27,27 @@ export function loadGoogleMap(apiKey: string): Promise<SDKMapNamespace> {
     return loader!
 }
 
+// A light travel palette keeps saved places and itinerary colors in the foreground.
+const travelMapStyles = [
+    { elementType: 'geometry', stylers: [{ color: '#f7f8f5' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#536664' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },
+    { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#d7e1dc' }] },
+    { featureType: 'landscape.man_made', elementType: 'geometry', stylers: [{ color: '#eef1ed' }] },
+    { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#e8efe5' }] },
+    { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#ccead5' }] },
+    { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#4b8063' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#ffffff' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#e2e8e2' }] },
+    { featureType: 'road.arterial', elementType: 'geometry.fill', stylers: [{ color: '#fff6e9' }] },
+    { featureType: 'road.highway', elementType: 'geometry.fill', stylers: [{ color: '#f8d9ad' }] },
+    { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#edc995' }] },
+    { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#dae4e6' }] },
+    { featureType: 'transit', elementType: 'labels.text.fill', stylers: [{ color: '#537985' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#b7e3ed' }] },
+    { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#4d8393' }] },
+]
+
 function googleNamespace(maps: any): SDKMapNamespace {
     const latLng = (point: number[]) => new maps.LatLng(point[1], point[0])
     const point = (value: any): SDKPoint => ({ getLng: () => value.lng(), getLat: () => value.lat() })
@@ -45,7 +66,7 @@ function googleNamespace(maps: any): SDKMapNamespace {
         moving = false
         constructor(container: HTMLElement, options: Record<string, any>) {
             this.native = new maps.Map(container, {
-                center: latLng(options.center), zoom: options.zoom,
+                center: latLng(options.center), zoom: options.zoom, styles: travelMapStyles,
                 disableDefaultUI: true, clickableIcons: false, gestureHandling: 'greedy',
                 disableDoubleClickZoom: true, heading: 0, tilt: 0, isFractionalZoomEnabled: true,
             })

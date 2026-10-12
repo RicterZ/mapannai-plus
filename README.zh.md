@@ -54,7 +54,7 @@ GOOGLE_API_KEY=your-google-api-key
 API_TOKEN=your-access-token
 ```
 
-高德 JS Key 与安全密钥需配套，并在控制台配置部署域名；后端 Web 服务 Key 单独申请。Google 需启用 Places、Geocoding、Directions API，用于海外服务及境内回退。Google 底图另外需要启用 Maps JavaScript API 和计费，默认复用 `GOOGLE_API_KEY`，也可通过 `GOOGLE_JS_KEY` 配置专用浏览器 Key。后端服务选择与前端底图切换独立，旧 `MAP_*_PROVIDER` 服务配置不再控制自动选择。
+高德 JS Key 与安全密钥需配套，并在控制台配置部署域名；后端 Web 服务 Key 单独申请。Google 需启用 Places、Geocoding、Directions API，用于海外服务及境内回退。Google 底图默认采用清爽浅色配色，保留地点与交通标签。另外需要启用 Maps JavaScript API 和计费，默认复用 `GOOGLE_API_KEY`，也可通过 `GOOGLE_JS_KEY` 配置专用浏览器 Key。后端服务选择与前端底图切换独立，旧 `MAP_*_PROVIDER` 服务配置不再控制自动选择。
 
 设置 `API_TOKEN` 后，网页首次访问会要求输入 token，iOS 与 MCP 使用相同 token。留空时，任何能访问服务的人都可以操作数据。需要图片上传时再填写 `TENCENT_COS_*`，并配置存储桶的上传跨域规则和 `NEXT_PUBLIC_IMAGE_DOMAINS`。
 
