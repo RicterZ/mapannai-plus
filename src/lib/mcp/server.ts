@@ -94,6 +94,8 @@ function createMcpServer(): McpServer {
 - ✅ 正确：「东京 浅草寺」「京都 金阁寺」「上海 外滩」
 - ❌ 错误：「浅草寺」「金阁寺」「外滩」
 - 原因：Google Places 对无城市名的简称容易返回错误地区的同名地点。
+- 城市前缀仅用于搜索消歧，最终 Marker 标题只保存真实地点名称；不得添加自定义区域、日期、行程编号、分隔符或备注。名称本身含区域时保留，例如「呼和浩特假日酒店」；「深圳 某皇冠假日酒店」应保存为「某皇冠假日酒店」，「泰山石敢当 | 9.25 日」应保存为「泰山石敢当」。
+- 创建工具的 name 同时用于搜索与初始标题；对 status=created 的结果，用 update_marker 将 title 改为已核实的地点本名。status=existing 的已有收藏不擅自改名。访问日期和备注使用行程日 / stops.note，地点介绍使用 content / markdownContent。
 
 ### country 参数说明
 - \`search_places\`、\`create_marker\`、\`plan_trip_day\` 均有 \`country\` 参数，**默认值为 \`CN\`（中国）**。

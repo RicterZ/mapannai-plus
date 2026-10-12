@@ -263,3 +263,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - 日期标题在编辑模式下点击侧栏顶部标题修改，使用共用 Modal；清空恢复“第 N 天”。通过现有 updateTripDay 仅写入 title，成功后更新侧栏与顶部胶囊，失败保留输入。
 
 - Google 境外底图默认使用 `google-map-sdk.ts` 的浅色旅行配色（薄荷公园、浅蓝水域、杏色主干道），通过内嵌 JSON styles 设置；保留交通与 POI 标签，不改变行程覆盖物、坐标或服务选择，无新增环境变量。
+
+- AI 创建地点最终标题只保存核实的地点本名，不添加自定义区域、日期或备注；本名中的区域保留。创建工具带城市搜索后，对 status=created 的结果用 update_marker 清理搜索前缀；已有收藏不擅自改名。网页提示词与 MCP workflow 保持该规则一致。
