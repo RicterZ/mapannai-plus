@@ -18,7 +18,7 @@ const InteractiveMap = dynamic(() => import('@/components/map/abstract-map').the
     loading: () => <MapLoading />,
 })
 
-export function MapClient({ renderer, amapJsKey, amapSecurityCode, routeProvider }: { renderer: BasemapProviderType; amapJsKey: string; amapSecurityCode: string; routeProvider: string }) {
+export function MapClient({ renderer, googleJsKey, amapJsKey, amapSecurityCode, routeProvider }: { renderer: BasemapProviderType; googleJsKey: string; amapJsKey: string; amapSecurityCode: string; routeProvider: string }) {
     const [ready, setReady] = useState(false)
     const [error, setError] = useState(false)
     const [attempt, setAttempt] = useState(0)
@@ -33,5 +33,5 @@ export function MapClient({ renderer, amapJsKey, amapSecurityCode, routeProvider
         return () => { cancelled = true }
     }, [attempt])
     if (!ready) return <main><MapLoading error={error} onRetry={() => setAttempt(value => value + 1)} /></main>
-    return <main className="fixed inset-0"><InteractiveMap renderer={renderer} amapJsKey={amapJsKey} amapSecurityCode={amapSecurityCode} routeProvider={routeProvider} /></main>
+    return <main className="fixed inset-0"><InteractiveMap renderer={renderer} googleJsKey={googleJsKey} amapJsKey={amapJsKey} amapSecurityCode={amapSecurityCode} routeProvider={routeProvider} /></main>
 }

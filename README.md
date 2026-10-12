@@ -41,7 +41,7 @@ cd mapannai-public
 cp env.example .env
 ```
 
-Edit `.env` and keep your preferred basemap (`MAP_RENDERER=amap` or `osm`). Backend services automatically prefer AMap for coordinates in the existing China range and use Google overseas; unavailable AMap results fall back to Google. Cross-border routes show dashed connections and endpoint distances without requesting directions. Search uses the map area center, or the country when no area is supplied. See [env.example](env.example) for all settings.
+Edit `.env`: `MAP_RENDERER=amap` automatically selects AMap or Google using the existing China-range function and the map center. It switches after camera movement ends, retaining the camera and itinerary state. `osm` keeps the OSM basemap fixed. Backend services automatically prefer AMap for coordinates in the existing China range and use Google overseas; unavailable AMap results fall back to Google. Cross-border routes show dashed connections and endpoint distances without requesting directions. Search uses the map area center, or the country when no area is supplied. See [env.example](env.example) for all settings.
 
 Example with the AMap basemap and both backend services:
 
@@ -54,7 +54,7 @@ GOOGLE_API_KEY=your-google-api-key
 API_TOKEN=your-access-token
 ```
 
-Use a matching AMap JS key and security code and configure the deployment domain. Obtain the backend Web Service key separately. Enable Google Places, Geocoding and Directions APIs for overseas services and fallback. Backend selection does not change the basemap. The old `MAP_*_PROVIDER` service settings no longer control automatic selection.
+Use a matching AMap JS key and security code and configure the deployment domain. Obtain the backend Web Service key separately. Enable Google Places, Geocoding and Directions APIs for overseas services and fallback. Google basemaps also require Maps JavaScript API and billing. They reuse `GOOGLE_API_KEY` by default; set `GOOGLE_JS_KEY` for a separate browser key. Backend selection and frontend basemap switching are independent. The old `MAP_*_PROVIDER` service settings no longer control automatic selection.
 
 When `API_TOKEN` is set, the web app asks for it on first access, and iOS and MCP use the same token. If left empty, anyone who can reach the service can modify its data. For image uploads, configure `TENCENT_COS_*`, the bucket's upload CORS rules, and `NEXT_PUBLIC_IMAGE_DOMAINS`.
 

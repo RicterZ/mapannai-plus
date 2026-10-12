@@ -1,5 +1,8 @@
 'use client'
 
+import { loadGoogleMap } from '@/lib/map/google-map-sdk'
+import { toMapCoordinates, fromMapCoordinates } from '@/lib/map/basemap'
+
 import { routeTransportMode } from '@/lib/map/route-mode'
 
 import { isRangeFallback } from '@/lib/map/route-cache'
@@ -11,7 +14,6 @@ import { createPortal } from 'react-dom'
 import { useMapStore } from '@/store/map-store'
 import type { Marker } from '@/types/marker'
 import type { MarkerCoordinates } from '@/types/marker'
-import { wgs84ToGcj02, gcj02ToWgs84 } from '@/lib/coord-transform'
 import { getControlPoint, bezierPoint, getBezierPath } from '@/lib/map/connection-geometry'
 import { routeCacheKey, pointAlongPath } from '@/lib/map/route-cache'
 import { usePlannedRoutes, RouteViewport } from '@/lib/map/use-planned-routes'
@@ -24,8 +26,8 @@ import { SearchResultMarker, searchResultKey } from './search-result-marker'
 import type { SearchResult } from '@/lib/api/search-service'
 import type { MapSearchBounds } from '@/types/map-provider'
 
-interface AMapPoint { lng?: number; lat?: number; getLng?: () => number; getLat?: () => number }
-interface AMapInstance {
+export interface SDKPoint { lng?: number; lat?: number; getLng?: () => number; getLat?: () => number }
+export interface SDKMapInstance {
     on(event: string, handler: (event: any) => void): void
     off(event: string, handler: (event: any) => void): void
     destroy(): void
@@ -33,25 +35,25 @@ interface AMapInstance {
     setCenter(center: number[]): void
     setZoom(zoom: number): void
     lngLatToContainer(point: number[]): { getX(): number; getY(): number }
-    getCenter(): AMapPoint
+    getCenter(): SDKPoint
     getZoom(): number
-    getBounds(): { getSouthWest(): AMapPoint; getNorthEast(): AMapPoint }
+    getBounds(): { getSouthWest(): SDKPoint; getNorthEast(): SDKPoint }
     add(overlays: any[]): void
     remove(overlays: any[]): void
 }
-interface AMapNamespace {
-    Map: new (container: HTMLElement, options: Record<string, unknown>) => AMapInstance
+export interface SDKMapNamespace {
+    Map: new (container: HTMLElement, options: Record<string, unknown>) => SDKMapInstance
     Marker: new (options: Record<string, unknown>) => any
     Polyline: new (options: Record<string, unknown>) => any
     Pixel: new (x: number, y: number) => any
 }
-declare global { interface Window { AMap?: AMapNamespace; _AMapSecurityConfig?: { securityJsCode: string } } }
+declare global { interface Window { AMap?: SDKMapNamespace; _AMapSecurityConfig?: { securityJsCode: string } } }
 
-let loader: Promise<AMapNamespace> | null = null
-function loadAMap(key: string, securityCode: string): Promise<AMapNamespace> {
+let loader: Promise<SDKMapNamespace> | null = null
+function loadAMap(key: string, securityCode: string): Promise<SDKMapNamespace> {
     if (window.AMap) return Promise.resolve(window.AMap)
     if (!loader) {
-        loader = new Promise<AMapNamespace>((resolve, reject) => {
+        loader = new Promise<SDKMapNamespace>((resolve, reject) => {
             if (securityCode) window._AMapSecurityConfig = { securityJsCode: securityCode }
             const script = document.createElement('script')
             script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(key)}`
@@ -70,6 +72,7 @@ export interface MapRendererHandle {
     getSearchBounds(): MapSearchBounds | undefined
 }
 interface Props {
+    renderer: 'amap' | 'google'
     routeProvider: string
     apiKey: string
     securityCode: string
@@ -88,16 +91,15 @@ interface Props {
     onMarkerClick: (id: string) => void
     onError: (error: Error) => void
 }
-const gcj = (c: { longitude: number; latitude: number }) => {
-    const p = wgs84ToGcj02(c.longitude, c.latitude)
-    return [p.longitude, p.latitude]
-}
-const wgs = (p: AMapPoint) => gcj02ToWgs84(p.getLng?.() ?? p.lng ?? 0, p.getLat?.() ?? p.lat ?? 0)
-
-export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function AMapRenderer(props, ref) {
+export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(function SDKMapRenderer(props, ref) {
+    const toDisplayPoint = (c: { longitude: number; latitude: number }) => {
+        const p = toMapCoordinates(c, props.renderer)
+        return [p.longitude, p.latitude]
+    }
+    const fromDisplayPoint = (p: SDKPoint) => fromMapCoordinates({ longitude: p.getLng?.() ?? p.lng ?? 0, latitude: p.getLat?.() ?? p.lat ?? 0 }, props.renderer)
     const containerRef = useRef<HTMLDivElement>(null)
-    const mapRef = useRef<AMapInstance | null>(null)
-    const namespaceRef = useRef<AMapNamespace | null>(null)
+    const mapRef = useRef<SDKMapInstance | null>(null)
+    const namespaceRef = useRef<SDKMapNamespace | null>(null)
     const [ready, setReady] = useState(false)
     const [routeViewport, setRouteViewport] = useState<RouteViewport | null>(null)
     const [markerNodes, setMarkerNodes] = useState<HTMLElement[]>([])
@@ -119,13 +121,13 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
         getSearchBounds() {
             const bounds = mapRef.current?.getBounds()
             if (!bounds) return
-            const sw = wgs(bounds.getSouthWest()), ne = wgs(bounds.getNorthEast())
+            const sw = fromDisplayPoint(bounds.getSouthWest()), ne = fromDisplayPoint(bounds.getNorthEast())
             return { west: sw.longitude, south: sw.latitude, east: ne.longitude, north: ne.latitude }
         },
         flyTo({ center, zoom, duration, offset }) {
             const map = mapRef.current
             if (!map) return
-            const point = wgs84ToGcj02(center[0], center[1])
+            const point = toMapCoordinates({ longitude: center[0], latitude: center[1] }, latest.current.renderer)
             const targetZoom = zoom ?? map.getZoom()
             const worldSize = 256 * 2 ** targetZoom
             const latitude = Math.max(-85, Math.min(85, point.latitude)) * Math.PI / 180
@@ -140,45 +142,54 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     useEffect(() => {
         if (!containerRef.current) return
         const key = props.apiKey
-        if (!key) { props.onError(new Error('AMAP_JS_KEY 未配置')); return }
-        if (!props.securityCode) { props.onError(new Error('AMAP_JS_SECURITY_CODE 未配置')); return }
+        if (!key) { props.onError(new Error(props.renderer === 'google' ? 'Google 地图 Key 未配置' : 'AMAP_JS_KEY 未配置')); return }
+        if (props.renderer === 'amap' && !props.securityCode) { props.onError(new Error('AMAP_JS_SECURITY_CODE 未配置')); return }
+        const onAuthError = () => latest.current.onError(new Error('Google 地图认证失败，请检查地图 Key 配置'))
+        if (props.renderer === 'google') window.addEventListener('googleMapAuthError', onAuthError)
         let cancelled = false
-        let map: AMapInstance | null = null
+        let map: SDKMapInstance | null = null
         const onClick = (event: any) => {
             if (event.originEvent?.target?.closest?.('.map-marker, .map-search-marker, .map-popup, .amap-marker')) return
-            latest.current.onClick(wgs(event.lnglat), event.originEvent || new Event('click'))
+            latest.current.onClick(fromDisplayPoint(event.lnglat), event.originEvent || new Event('click'))
         }
+        let panning = false
+        const onPanStart = () => { panning = true }
         const onMove = () => {
             if (!map) return
-            const center = wgs(map.getCenter())
+            const center = fromDisplayPoint(map.getCenter())
             latest.current.onMove({ ...center, zoom: map.getZoom() })
             const bounds = map.getBounds()
-            const sw = wgs(bounds.getSouthWest()), ne = wgs(bounds.getNorthEast())
+            const sw = fromDisplayPoint(bounds.getSouthWest()), ne = fromDisplayPoint(bounds.getNorthEast())
             setRouteViewport({ west: sw.longitude, east: ne.longitude, south: sw.latitude, north: ne.latitude, centerLat: center.latitude, centerLng: center.longitude })
         }
-        loadAMap(key, props.securityCode).then(AMap => {
+        const onPanEnd = () => { panning = false; onMove() }
+        const onZoomEnd = () => { if (!panning) onMove() }
+        (props.renderer === 'google' ? loadGoogleMap(key) : loadAMap(key, props.securityCode)).then(SDK => {
             if (cancelled || !containerRef.current) return
-            namespaceRef.current = AMap
-            map = new AMap.Map(containerRef.current, {
+            namespaceRef.current = SDK
+            map = new SDK.Map(containerRef.current, {
                 zoom: latest.current.viewState.zoom,
-                center: gcj(latest.current.viewState),
+                center: toDisplayPoint(latest.current.viewState),
                 viewMode: '2D',
                 resizeEnable: true,
             })
             mapRef.current = map
             map.on('click', onClick)
-            map.on('moveend', onMove)
-            map.on('zoomend', onMove)
+            map.on('movestart', onPanStart)
+            map.on('moveend', onPanEnd)
+            map.on('zoomend', onZoomEnd)
             setReady(true)
             onMove()
             latest.current.onLoad()
         }).catch(error => { if (!cancelled) latest.current.onError(error) })
         return () => {
             cancelled = true
+            window.removeEventListener('googleMapAuthError', onAuthError)
             if (map) {
                 map.off('click', onClick)
-                map.off('moveend', onMove)
-                map.off('zoomend', onMove)
+                map.off('movestart', onPanStart)
+                map.off('moveend', onPanEnd)
+                map.off('zoomend', onZoomEnd)
                 map.destroy()
             }
             mapRef.current = null
@@ -187,8 +198,8 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     }, [])
 
     useEffect(() => {
-        const map = mapRef.current, AMap = namespaceRef.current
-        if (!ready || !map || !AMap) return
+        const map = mapRef.current, SDK = namespaceRef.current
+        if (!ready || !map || !SDK) return
         const removed: any[] = [], added: any[] = []
         const ids = new Set(props.markers.map(marker => marker.id))
         for (const [id, entry] of Array.from(markerOverlaysRef.current)) {
@@ -197,14 +208,14 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
         for (const marker of props.markers) {
             const existing = markerOverlaysRef.current.get(marker.id)
             if (existing) {
-                existing.overlay.setPosition(gcj(marker.coordinates))
+                existing.overlay.setPosition(toDisplayPoint(marker.coordinates))
                 existing.overlay.setzIndex(marker.id === props.selectedMarkerId ? 120 : 100)
                 continue
             }
             const node = document.createElement('div')
             node.className = 'map-marker'
             node.style.cssText = 'width:28px;height:28px;cursor:pointer'
-            const overlay = new AMap.Marker({ position: gcj(marker.coordinates), content: node, offset: new AMap.Pixel(-14, -14), zIndex: marker.id === props.selectedMarkerId ? 120 : 100 })
+            const overlay = new SDK.Marker({ position: toDisplayPoint(marker.coordinates), content: node, offset: new SDK.Pixel(-14, -14), zIndex: marker.id === props.selectedMarkerId ? 120 : 100 })
             added.push(overlay)
             markerOverlaysRef.current.set(marker.id, { overlay, node })
         }
@@ -215,8 +226,8 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     }, [ready, props.markers, props.selectedMarkerId])
 
     useEffect(() => {
-        const map = mapRef.current, AMap = namespaceRef.current
-        if (!ready || !map || !AMap) return
+        const map = mapRef.current, SDK = namespaceRef.current
+        if (!ready || !map || !SDK) return
         const live = new Set(props.searchResults.map(searchResultKey))
         for (const [key, entry] of Array.from(searchOverlaysRef.current)) {
             if (!live.has(key)) {
@@ -227,11 +238,11 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
             const key = searchResultKey(result)
             const zIndex = props.selectedSearchKey === key ? 125 : 105
             const existing = searchOverlaysRef.current.get(key)
-            if (existing) { existing.overlay.setPosition(gcj(result.coordinates)); existing.overlay.setzIndex(zIndex); continue }
+            if (existing) { existing.overlay.setPosition(toDisplayPoint(result.coordinates)); existing.overlay.setzIndex(zIndex); continue }
             const node = document.createElement('div')
             node.className = 'map-search-marker'
-            const overlay = new AMap.Marker({ position: gcj(result.coordinates), content: node,
-                offset: new AMap.Pixel(-22, -22), zIndex })
+            const overlay = new SDK.Marker({ position: toDisplayPoint(result.coordinates), content: node,
+                offset: new SDK.Pixel(-22, -22), zIndex })
             map.add([overlay]); searchOverlaysRef.current.set(key, { overlay, node })
         }
         setSearchNodes(props.searchResults.map(result => ({ key: searchResultKey(result), node: searchOverlaysRef.current.get(searchResultKey(result))!.node })))
@@ -275,8 +286,8 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
         return new Map(routeSegments.map((segment, index) => [segment.displayKey, paths[index]]))
     }, [routeSegments, planned.enabled, planned.routes, routeProvider])
     useEffect(() => {
-        const map = mapRef.current, AMap = namespaceRef.current
-        if (!ready || !map || !AMap) return
+        const map = mapRef.current, SDK = namespaceRef.current
+        if (!ready || !map || !SDK) return
         if (props.viewState.zoom < zoomThreshold) {
             map.remove(Array.from(routeOverlaysRef.current.values()).flatMap(entry => [entry.casing, entry.line, entry.hitArea, ...(entry.dot ? [entry.dot] : [])]))
             routeOverlaysRef.current.clear()
@@ -293,12 +304,12 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
             for (let index = 0; index < chain.length - 1; index++) {
                 const fromMarker = byId.get(chain[index]), toMarker = byId.get(chain[index + 1])
                 if (!fromMarker || !toMarker) continue
-                const [fromLng, fromLat] = gcj(fromMarker.coordinates), [toLng, toLat] = gcj(toMarker.coordinates)
+                const [fromLng, fromLat] = toDisplayPoint(fromMarker.coordinates), [toLng, toLat] = toDisplayPoint(toMarker.coordinates)
                 const from = { lng: fromLng, lat: fromLat }, to = { lng: toLng, lat: toLat }
                 const highlighted = day.id === effectiveDayId
                 const segment = { transportMode: routeTransportMode(day.routeChains?.[chainIndex], fromMarker.id, toMarker.id), fromId: fromMarker.id, toId: toMarker.id, origin: { lat: fromMarker.coordinates.latitude, lng: fromMarker.coordinates.longitude }, destination: { lat: toMarker.coordinates.latitude, lng: toMarker.coordinates.longitude } }
                 const cachedPath = planned.enabled ? planned.routes[routeCacheKey(routeProvider, segment)] : null
-                const path = cachedPath && !isRangeFallback(cachedPath) ? displayPaths.get(`${day.id}:${chainIndex}:${index}`)!.map(point => gcj({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
+                const path = cachedPath && !isRangeFallback(cachedPath) ? displayPaths.get(`${day.id}:${chainIndex}:${index}`)!.map(point => toDisplayPoint({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
                 pickableRoutesRef.current.push({ dayId: day.id, path })
                 const width = Math.max(3, 3 + (props.viewState.zoom - 10) * 0.2) + (highlighted ? 2 : 0)
                 const color = routeColor(chainIndex, day.id, day.colorIndex)
@@ -309,7 +320,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                 const lineOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: color, strokeStyle: planned.enabled && (!cachedPath || isRangeFallback(cachedPath)) ? 'dashed' : 'solid', strokeDasharray: [8, 6], strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.25 : 0.8, zIndex: highlighted ? 53 : 49 }
                 const hitOptions = { path, strokeColor: color, strokeWeight: 28, strokeOpacity: 0, zIndex: highlighted ? 56 : 55, bubble: false }
                 if (!entry) {
-                    entry = { casing: new AMap.Polyline(casingOptions), line: new AMap.Polyline(lineOptions), hitArea: new AMap.Polyline(hitOptions) }
+                    entry = { casing: new SDK.Polyline(casingOptions), line: new SDK.Polyline(lineOptions), hitArea: new SDK.Polyline(hitOptions) }
                     entry.hitArea.on('mouseover', () => setHoveredDayId(day.id))
                     entry.hitArea.on('mouseout', () => setHoveredDayId(null))
                     entry.hitArea.on('click', (event: any) => {
@@ -327,7 +338,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                     routeOverlaysRef.current.set(key, entry)
                     overlays.push(entry.casing, entry.line, entry.hitArea)
                 } else {
-                    // AMap geometry updates use setPath; setOptions only updates style.
+                    // Keep geometry shared by the visible line, casing and click target.
                     entry.casing.setPath(path)
                     entry.line.setPath(path)
                     entry.hitArea.setPath(path)
@@ -338,7 +349,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
                 if (highlighted) {
                     if (!entry.dot) {
                         entry.node = document.createElement('div')
-                        entry.dot = new AMap.Marker({ position: [from.lng, from.lat], content: entry.node, offset: new AMap.Pixel(-5, -5), zIndex: 54, clickable: false })
+                        entry.dot = new SDK.Marker({ position: [from.lng, from.lat], content: entry.node, offset: new SDK.Pixel(-5, -5), zIndex: 54, clickable: false })
                         overlays.push(entry.dot)
                     }
                     entry.node!.style.cssText = `width:10px;height:10px;border:2px solid white;border-radius:50%;background:${color};box-sizing:border-box;pointer-events:none`
@@ -371,8 +382,8 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     }, [ready, props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId, effectiveDayId, props.viewState.zoom, zoomThreshold, planned.enabled, planned.routes, displayPaths, routeProvider])
 
     useEffect(() => {
-        const map = mapRef.current, AMap = namespaceRef.current
-        if (!ready || !map || !AMap) return
+        const map = mapRef.current, SDK = namespaceRef.current
+        if (!ready || !map || !SDK) return
         if (popupOverlayRef.current) map.remove([popupOverlayRef.current])
         popupNodeRef.current?.remove()
         popupOverlayRef.current = null
@@ -381,7 +392,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
         if (!props.popupCoordinates) return
         const node = document.createElement('div')
         node.className = 'map-popup'
-        const overlay = new AMap.Marker({ position: gcj(props.popupCoordinates), content: node, offset: new AMap.Pixel(-120, props.selectedMarkerId ? 36 : 20), zIndex: 130 })
+        const overlay = new SDK.Marker({ position: toDisplayPoint(props.popupCoordinates), content: node, offset: new SDK.Pixel(-120, props.selectedMarkerId ? 36 : 20), zIndex: 130 })
         map.add([overlay])
         popupOverlayRef.current = overlay
         popupNodeRef.current = node
@@ -390,14 +401,14 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     }, [ready, props.popupCoordinates, props.selectedMarkerId])
 
     useEffect(() => {
-        const map = mapRef.current, AMap = namespaceRef.current
-        if (!ready || !map || !AMap) return
+        const map = mapRef.current, SDK = namespaceRef.current
+        if (!ready || !map || !SDK) return
         if (locationOverlayRef.current) map.remove([locationOverlayRef.current])
         locationNodeRef.current?.remove()
         if (!props.userLocation) return
         const node = document.createElement('div')
         node.innerHTML = '<div style="width:16px;height:16px;border:2px solid white;border-radius:50%;background:#3b82f6;box-shadow:0 1px 6px #555"></div>'
-        const overlay = new AMap.Marker({ position: gcj({ longitude: props.userLocation.lng, latitude: props.userLocation.lat }), content: node, offset: new AMap.Pixel(-8, -8), zIndex: 140 })
+        const overlay = new SDK.Marker({ position: toDisplayPoint({ longitude: props.userLocation.lng, latitude: props.userLocation.lat }), content: node, offset: new SDK.Pixel(-8, -8), zIndex: 140 })
         map.add([overlay])
         locationOverlayRef.current = overlay
         locationNodeRef.current = node
@@ -405,7 +416,7 @@ export const AMapRenderer = React.forwardRef<MapRendererHandle, Props>(function 
     }, [ready, props.userLocation])
 
     return <>
-        <div ref={containerRef} className="absolute inset-0 isolate z-0" />
+        <div ref={containerRef} className={`absolute inset-0 isolate z-0 ${props.renderer === 'google' ? 'google-map-container' : ''}`} data-map-renderer={props.renderer} />
         {ready && markerNodes.map((node, index) => props.markers[index] && createPortal(
             <MapMarker marker={props.markers[index]} isSelected={props.markers[index].id === props.selectedMarkerId} onClick={() => props.onMarkerClick(props.markers[index].id)} zoom={props.viewState.zoom} />,
             node, props.markers[index].id,

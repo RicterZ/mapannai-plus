@@ -77,11 +77,11 @@ export function RouteLeg({ day, route, fromId, toId, distance, editable }: { day
                     <span className="text-left tabular-nums">{distance !== null && distanceLabel(distance)}</span>
                     {canEdit ? <span className="text-center text-gray-400">无交通安排</span> : <span />}
                     <span />
-                </span> : <span className="flex min-w-0 items-center gap-1.5"><span className="flex min-w-0 flex-1 items-center gap-1">
+                </span> : <span className="flex min-w-0 items-start gap-1.5"><span className="flex min-w-0 flex-1 items-start gap-1">
                     {distance !== null && <span className="shrink-0 tabular-nums">{distanceLabel(distance)}</span>}{distance !== null && leg && <span className="text-gray-300">·</span>}
-                    {leg && <><Icon size={13} className="shrink-0 text-gray-400" /><span className="shrink-0">{modes.find(m => m.value === leg.mode)?.label}</span>{leg.serviceNumber && <span className="truncate font-medium text-gray-700" title={leg.serviceNumber}>{leg.serviceNumber}</span>}</>}
+                    {leg && <><Icon size={13} className="shrink-0 text-gray-400" /><span className="shrink-0">{modes.find(m => m.value === leg.mode)?.label}</span>{leg.serviceNumber && <span className="min-w-0 flex-1 break-words font-medium text-gray-700" title={leg.serviceNumber}>{leg.serviceNumber}</span>}</>}
                 </span>{leg && <span className="ml-auto flex shrink-0 items-center gap-1 tabular-nums">{leg.startTime && <span>{leg.startTime}</span>}{leg.startTime && leg.durationMinutes !== undefined && <span className="text-gray-300">·</span>}{leg.durationMinutes !== undefined && <span>{formatPlannedDuration(leg.durationMinutes)}</span>}</span>}</span>}
-                {leg?.note && <span className="mt-0.5 block truncate leading-4 text-gray-400" title={leg.note}>{leg.note}</span>}
+                {leg?.note && <span className="mt-0.5 block whitespace-pre-wrap break-words leading-4 text-gray-400" title={leg.note}>{leg.note}</span>}
             </button>
         </div><Arrow />
     </>}{open && day && route && stop && next && <ScheduleEditor day={day} route={route} stop={stop} next={next} title="交通安排" onClose={() => setOpen(false)} />}</>

@@ -146,13 +146,13 @@ function ChainItem({ id, marker, index, hasArrowAfter, distance, onRemove, onFly
                 <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full', getMarkerColor(marker.content.iconType || 'location'))}><PlaceIcon emoji={icon.emoji} size={20} /></div>
                 <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-1.5">
-                        <button className="route-schedule-button min-w-0 flex-1 text-left" onClick={onFlyTo} title="跳转到此位置"><div className="line-clamp-2 break-words text-sm font-medium leading-6 text-gray-800" title={marker.content.title}>{marker.content.title || '未命名地点'}</div></button>
+                        <button className="route-schedule-button min-w-0 flex-1 text-left" onClick={onFlyTo} title="跳转到此位置"><div className="break-words text-sm font-medium leading-6 text-gray-800" title={marker.content.title}>{marker.content.title || '未命名地点'}</div></button>
                         <div className="flex h-6 shrink-0 items-center"><StopSchedule day={day} route={route} markerId={marker.id} editable /></div>
                     </div>
-                    {marker.content.address && <button className="route-schedule-button mt-0.5 block w-full text-left" onClick={onFlyTo}><div className="truncate text-[11px] leading-4 text-gray-500" title={marker.content.address}>{shortAddress(marker.content.address)}</div></button>}
+                    {marker.content.address && <button className="route-schedule-button mt-0.5 block w-full text-left" onClick={onFlyTo}><div className="break-words text-[11px] leading-4 text-gray-500" title={marker.content.address}>{shortAddress(marker.content.address)}</div></button>}
                 </div>
               </div>
-              {route?.stops.find(stop => stop.markerId === marker.id)?.note && <div className="line-clamp-2 px-2 pb-2 text-xs leading-5 text-gray-500" title={route.stops.find(stop => stop.markerId === marker.id)?.note}>{route.stops.find(stop => stop.markerId === marker.id)?.note}</div>}
+              {route?.stops.find(stop => stop.markerId === marker.id)?.note && <div className="whitespace-pre-wrap break-words px-2 pb-2 text-xs leading-5 text-gray-500" title={route.stops.find(stop => stop.markerId === marker.id)?.note}>{route.stops.find(stop => stop.markerId === marker.id)?.note}</div>}
               <div className="flex items-center justify-end gap-1 border-t border-gray-100 px-2">
                 <button type="button" onClick={onRemove} className="route-item-action mr-auto px-2 text-xs text-gray-400 hover:text-red-500" aria-label={`从路线移除${marker.content.title || '地点'}`}>移除</button>
                 <button type="button" disabled={index === 0} onClick={() => onMove(-1)} className="route-item-action px-2 text-xs text-gray-500 hover:text-accent-600 disabled:opacity-30">上移</button>
@@ -213,7 +213,7 @@ function PaletteItem({ marker, routeNumbers, onFlyTo, onRemove, onAdd, selected,
                 onClick={onFlyTo}
                 title="跳转到此位置"
             >
-                <div className="text-sm font-medium text-gray-800 line-clamp-2 break-words">{marker.content.title || '未命名地点'}</div>
+                <div className="text-sm font-medium text-gray-800 break-words">{marker.content.title || '未命名地点'}</div>
                 <div className="mt-1 flex flex-wrap gap-1">{routeNumbers.map(number => <span key={number} style={{ color: routeColor(number - 1, dayId, colorIndex), backgroundColor: `${routeColor(number - 1, dayId, colorIndex)}10` }} className="rounded px-1.5 py-0.5 text-xs">路线 {number}</span>)}</div>
             </button>
             <button
@@ -1124,7 +1124,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                     <div className="mb-3 flex items-center justify-between gap-2"><span className="text-base font-semibold text-gray-900">第{idx + 1}天</span><span className="text-xs text-gray-400">{formatDate(day.date)}</span></div>
                                     {day.title && day.title !== `第${idx + 1}天` && <div className="mb-1 line-clamp-2 text-sm font-medium text-gray-800">{day.title}</div>}
                                     {dayMarkers.length > 0 ? (
-                                        <div className="text-xs text-gray-500 truncate mt-0.5">
+                                        <div className="text-xs text-gray-500 break-words mt-0.5">
                                             {dayMarkers.map(m => m.content.title || '未命名').join(' · ')}
                                         </div>
                                     ) : (
@@ -1360,13 +1360,13 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                         <PlaceIcon emoji={icon.emoji} size={24} />
                                                     </div>}
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-1.5"><div className="min-w-0 flex-1 line-clamp-2 break-words text-[15px] font-medium leading-6 text-gray-900" title={marker.content.title}>{marker.content.title || '未命名地点'}</div><span className="ml-auto shrink-0 text-[11px] tabular-nums text-gray-500">{(() => { const stop = route?.stops.find(item => item.markerId === marker.id); return stop && <span className="flex flex-col items-end gap-0.5">{stop.startTime && <span className="text-xs text-gray-600">{stop.startTime}</span>}{stop.durationMinutes !== undefined && <span className="text-[11px] text-gray-400">{formatPlannedDuration(stop.durationMinutes)}</span>}</span> })()}</span></div>
+                                                        <div className="flex items-start gap-1.5"><div className="min-w-0 flex-1 break-words text-[15px] font-medium leading-6 text-gray-900" title={marker.content.title}>{marker.content.title || '未命名地点'}</div><span className="ml-auto shrink-0 text-[11px] tabular-nums text-gray-500">{(() => { const stop = route?.stops.find(item => item.markerId === marker.id); return stop && <span className="flex flex-col items-end gap-0.5">{stop.startTime && <span className="text-xs text-gray-600">{stop.startTime}</span>}{stop.durationMinutes !== undefined && <span className="text-[11px] text-gray-400">{formatPlannedDuration(stop.durationMinutes)}</span>}</span> })()}</span></div>
                                                         {marker.content.address && (
-                                                            <div className="text-xs text-gray-500 truncate mt-0.5" title={marker.content.address}>{shortAddress(marker.content.address)}</div>
+                                                            <div className="text-xs text-gray-500 break-words mt-0.5" title={marker.content.address}>{shortAddress(marker.content.address)}</div>
                                                         )}
                                                     </div>
                                                 </button>
-                                                {route?.stops.find(stop => stop.markerId === marker.id)?.note && <div className="journey-visit-note line-clamp-2 pb-3 pr-3 text-xs leading-5 text-gray-500" title={route?.stops.find(stop => stop.markerId === marker.id)?.note}>{route?.stops.find(stop => stop.markerId === marker.id)?.note}</div>}
+                                                {route?.stops.find(stop => stop.markerId === marker.id)?.note && <div className="journey-visit-note whitespace-pre-wrap break-words pb-3 pr-3 text-xs leading-5 text-gray-500" title={route?.stops.find(stop => stop.markerId === marker.id)?.note}>{route?.stops.find(stop => stop.markerId === marker.id)?.note}</div>}
                                             </div>
                                             {idx < group.length - 1 && <RouteLeg day={currentDay ?? undefined} route={route} fromId={marker.id} toId={group[idx + 1].id} distance={segmentDistance(marker, group[idx + 1], route)} editable={false} />}
                                         </div>
@@ -1400,9 +1400,9 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                     <PlaceIcon emoji={icon.emoji} size={20} />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-medium text-gray-800 line-clamp-2 break-words">{marker.content.title || '未命名地点'}</div>
+                                                    <div className="text-sm font-medium text-gray-800 break-words">{marker.content.title || '未命名地点'}</div>
                                                     {marker.content.address && (
-                                                        <div className="text-xs text-gray-500 truncate mt-0.5" title={marker.content.address}>{shortAddress(marker.content.address)}</div>
+                                                        <div className="text-xs text-gray-500 break-words mt-0.5" title={marker.content.address}>{shortAddress(marker.content.address)}</div>
                                                     )}
                                                 </div>
                                             </button>

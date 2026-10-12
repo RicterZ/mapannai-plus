@@ -44,7 +44,7 @@ git diff --check
 
 - Next.js 14 App Router、React 18、TypeScript、Tailwind CSS。
 - Zustand 管理 UI 与行程状态；dnd-kit 实现排序与链路拖动；Tiptap 编辑地点富文本。
-- OSM 渲染使用 MapLibre / react-map-gl；高德渲染使用官方 JS API 2.0。
+- OSM 渲染使用 MapLibre / react-map-gl；高德渲染使用官方 JS API 2.0；境外使用 Google Maps JavaScript API。
 - SQLite / better-sqlite3 持久化地点、旅行、每日行程与寻路缓存。
 - MCP 使用 Streamable HTTP；腾讯 COS 保存图片；next-pwa 提供 PWA。
 - TypeScript 别名 `@/*` 对应 `src/*`。
@@ -64,7 +64,7 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 | `src/app/api/` | markers、trips、dataset、search、places、directions、upload、mcp 等入口 |
 | `src/store/map-store.ts` | 地点与行程数据、选中状态、弹窗、sidebar、编辑模式、ActiveView 与业务操作 |
 | `src/components/map/abstract-map.tsx` | 地图页面编排、定位、搜索、视图切换、marker/popup、两种 renderer 接入 |
-| `src/components/map/amap-renderer.tsx` | 官方高德地图与覆盖物、事件、React portals、路径与动画更新 |
+| `src/components/map/sdk-map-renderer.tsx` | 复用高德 / Google SDK 地图与覆盖物、事件、React portals、路径与动画更新 |
 | `src/components/map/connection-lines.tsx` | OSM / MapLibre 关联线、透明点击层、高亮与动画 |
 | `src/components/map/view-mode-banner.tsx` | 顶部旅行 / 日期胶囊与日期选择菜单 |
 | `src/components/sidebar/left-sidebar.tsx` | 旅行总览、每日行程、路线链、地点列表、编辑和紧凑路线设置 |
@@ -123,14 +123,14 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 
 渲染引擎由后端 `MAP_RENDERER` 选择，服务端能力自动按区域选取；不要恢复前端 provider 切换 UI。
 
-- `MAP_RENDERER=osm|amap`。
+- `MAP_RENDERER=osm|amap`；osm 固定 OSM，amap 按既有 `isInChina` 对 WGS-84 地图中心选取境内高德、境外 Google。初次加载使用保存镜头判断，拖动/缩放或 flyTo 结束后才切换，回境内自动恢复高德。只重建 SDK 地图，保留中心/缩放、选中地点、弹窗、旅行/日期、搜索与侧栏状态；不添加切换 UI。`sdk-map-renderer.tsx` 共用地点门户、路线形状、动画与点击判定，`google-map-sdk.ts` 接入 Google 原生覆盖物。Google 使用256px镜头尺度，Google不做GCJ转换；高德仅在SDK边界转换。
 - 服务端默认按现有 `isInChina` 判断：境内优先高德，失败或无有效结果时回退 Google，境外直接 Google；旧三个 `MAP_*_PROVIDER` 服务环境变量不再参与选择。前端底图与展示不变，只下发 `regional-v1` 路线缓存策略标识，隔离旧本地缓存。MCP 显式 provider 保留兼容，但跨境路线始终跳过寻路。
 - 路线两端分属境内外时，不请求任何 provider，缓存 `UNSUPPORTED_REGION`、WGS-84 两点距离及 null 耗时，复用前端虚线，无重试。境内回退成功会缓存最终结果；临时失败且双方无有效路线仍保留重试，不缓存最终失败。
 - 搜索按可见范围中心调用 `isInChina`；无范围时 country=CN（默认）优先高德，其他国家 Google。只允许首批空结果/失败时换服务；Google 后续页凭 pageToken 继续，不因高德恢复而切回，也不在高德后续页混入 Google 首批。取消请求不触发回退。
 - 验证：`npx tsx scripts/test-regional-map-services.ts` 使用隔离 SQLite 和 provider mock，验证区域选择、回退、缓存、临时失败重试、跨境虚线及搜索分页。
 - 合约入口 `src/types/map-provider.ts`；factory 在 `src/lib/map/providers/map-provider-factory.ts`。新能力先考虑合约，再实现各 provider，不把高德逻辑散落到通用 UI。
 - 高德底图使用官方 JS API 2.0；不要退回直接抓取 `webrd*.is.autonavi.com` 非标准瓦片的实现。
-- JS 地图使用 `AMAP_JS_KEY` 和配套 `AMAP_JS_SECURITY_CODE`；服务端使用独立的 Web 服务 Key `AMAP_API_KEY`。Google 使用 `GOOGLE_API_KEY`。其他变量详见 `env.example`。
+- JS 地图使用 `AMAP_JS_KEY` 和配套 `AMAP_JS_SECURITY_CODE`；服务端使用独立的 Web 服务 Key `AMAP_API_KEY`。Google 后端使用 `GOOGLE_API_KEY`；前端境外底图使用可选 `GOOGLE_JS_KEY`，未设置时复用 `GOOGLE_API_KEY`，需启用 Maps JavaScript API 与计费，JS Key 会下发浏览器。其他变量详见 `env.example`。
 - 内部 DB、服务合约、路由缓存统一为 **WGS-84**，高德接口 / 渲染边界进行 **GCJ-02** 转换，避免双重偏移。Google 境内坐标按现有 provider 转换约定处理。
 - `isInChina` 是历史兼容的矩形坐标判断，不是精确国境、行政区或服务覆盖判断。改动转换逻辑前检查中国边界和海外地点的实际行为。
 - 网页总览与无目的地的旧旅行搜索使用当前可见范围，每侧扩展 20%；有目的地的旅行/每日视图分别使用各目的地固定中心范围；高德使用 polygon 搜索，泛词酒店 / 高铁站等映射为 POI 类型；Google 使用中心点与半径偏好。MCP 无范围名称搜索保留原行为。
@@ -151,13 +151,13 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 
 ## 已确认的 UI 约定
 
-- 自绘地点图标只替换展示，保留现有iconType/emoji与数据合约。SVG资源在 `public/icons/places/` 与 `public/icons/trips/`，`place-icon.tsx` 通过emoji→资源映射，未覆盖的emoji保持原展示；神社风格已确认，十类地点、旅行/日期选择器全部60项及默认总览图标使用简洁彩色平面SVG，10面国旗使用对应国家图案与颜色，不显示国家代码字母；地图两种renderer共用MapMarker，正常缩放白底显示SVG，低缩放仍显示原分类色圆点。地图、列表、详情、搜索和选择器复用PlaceIcon，任意未映射的自选emoji保留原样，不改变地点分类含义。
+- 自绘地点图标只替换展示，保留现有iconType/emoji与数据合约。SVG资源在 `public/icons/places/` 与 `public/icons/trips/`，`place-icon.tsx` 通过emoji→资源映射，未覆盖的emoji保持原展示；神社风格已确认，十类地点、旅行/日期选择器全部60项及默认总览图标使用简洁彩色平面SVG，10面国旗使用对应国家图案与颜色，不显示国家代码字母；地图三种renderer共用MapMarker，正常缩放白底显示SVG，低缩放仍显示原分类色圆点。地图、列表、详情、搜索和选择器复用PlaceIcon，任意未映射的自选emoji保留原样，不改变地点分类含义。
 
 - 总览“新建旅行”入口保留原竖向布局、加号、虚线边框和日文副文案“旅の目的地は、まだ見ぬ地平線の向こうに”；视觉调整仅修改配色，不改文案、形状与布局。
 - 视觉参考本地 iOS `docs/local/design-references/2026-10-11-travel-app/` 的模块拆分与原图，Web按PC工作区适配：白/中性灰阅读底色、黑灰标题正文、蓝灰accent仅用于选中/焦点，独立的多日路线色。不要用单一主题色染整页文字、背景和按钮。地点身份→访问安排→段间交通保持稳定阅读轴，照片用真实封面，无图不造占位照片；减少类别底色和嵌套卡片。地点详情名称/地址先于照片；日期条用深色文字及细短下划线识别当前项。
 - 行程工作区使用白色内容区、中性灰分组间隙和轻边框；日期色集中用于路线标题与标识，浏览态隐藏排序/移除控件，完整地点笔记与访问备注保持独立可编辑。已有头图可在路线浏览卡片中显示压缩缩略图。
 - 侧栏顶部统一提供“添加地点”入口，搜索仅属于此添加流程；地图不显示常驻搜索或定位按钮，不要求先开启编辑模式。从日期打开时冻结目标日期，从旅行打开时冻结旅行待分配目标；切换视图不改变本次搜索的添加归属。总览只收藏。搜索结果正文查看地图，独立加号添加：已有地点复用ID，新地点打开共用地点编辑器，不自动创建路线。搜索在同一个左侧工作区替换行程内容，输入在顶部、结果在下方；关闭搜索清除临时结果并恢复行程滚动位置。PC左侧工作区宽400px，右侧地点详情宽420px，日期横向列表直接切换；选点镜头计入侧栏遮挡，顶部胶囊位于剩余地图中间；打开地点详情时关闭地图弹窗，并计入左右两侧遮挡定位地点和顶部胶囊。移动端仅做兼容，搜索工作区随VisualViewport调整，选点时收起工作区以查看地图，地图画布保持原高度。两种renderer共用`place-search-panel.tsx`。无新增环境变量。
-- “查看路线/全天”和AI建点镜头按renderer瓦片尺度计算：高德256px、MapLibre512px，计入400px左侧遮挡；`npx tsx scripts/test-workspace-camera.ts`检查可见范围与两种尺度。
+- “查看路线/全天”和AI建点镜头按renderer瓦片尺度计算：高德 / Google256px、MapLibre512px，计入400px左侧遮挡；`npx tsx scripts/test-workspace-camera.ts`检查可见范围与两种尺度。
 - 搜索面板状态验证：`npx tsx scripts/test-place-search-panel.tsx`；添加归属、搜索返回和手机布局的浏览器验证使用隔离数据库与模拟provider。
 
 - 启动认证与地图模块加载共用一个“加载地图中…”提示，保持相同布局，避免连续出现重复连接提示。
@@ -220,7 +220,7 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 ## 路线安排前端
 
 - 正式侧栏复用 `src/components/trips/route-schedule.tsx`。地点时间与计划时长放在右上角，交通信息在浅灰虚线容器内，距离靠左，时间靠右；上下沿用原有折角箭头并居中。整小时显示1小时/2小时，90分钟仍显示90分钟，编辑和存储使用分钟。
-- 编辑态地点卡片顶部对齐拖拽、序号、图标、标题和时间；长标题最多两行，地址紧跟标题；编辑模式下未填时间和时长的地点右上角使用灰色钟表图标 + `--:--` 时间占位，不使用“设时间”等行动文案；只有浏览模式不显示空占位，已有时间/时长沿用同一位置和字号。移除、上下移统一放底部32px操作栏。移动端紧凑按钮覆盖需使用不低于通用 `button:not([role="switch"])` 的选择器优先级，实测 coarse pointer 的高度，不只看桌面截图。
+- 编辑态地点卡片顶部对齐拖拽、序号、图标、标题和时间；地点标题、地址、访问备注与交通车次/备注自然换行，不使用行数截断或省略号，地点卡片保留72px最小高度并由内容撑开；地址紧跟标题；编辑模式下未填时间和时长的地点右上角使用灰色钟表图标 + `--:--` 时间占位，不使用“设时间”等行动文案；只有浏览模式不显示空占位，已有时间/时长沿用同一位置和字号。移除、上下移统一放底部32px操作栏。移动端紧凑按钮覆盖需使用不低于通用 `button:not([role="switch"])` 的选择器优先级，实测 coarse pointer 的高度，不只看桌面截图。
 - 安排编辑统一由已有“编辑模式”控制，使用紧凑弹窗，不增加铅笔按钮。交通方式、线路/车次号和备注分开输入；可清除交通安排，字段留空清除对应值。保存采用服务端返回的完整 TripDay，旧 chains 重排也刷新权威 routeChains，不能让访问 ID 或安排残留在旧顺序。快速重排按日期串行写入，过时响应不覆盖较新的乐观顺序。
 - 未设置交通安排时卡片不显示推测的交通方式（寻路内部按2km阈值选择）：浏览模式有距离就只展示距离，无距离时只展示一支居中箭头，不显示空虚线框；编辑模式显示水平居中的“无交通安排”入口，有距离时距离仍靠左且不影响文案居中。已填交通但无距离时仍展示交通信息，不填0km或虚构距离。
 - 开发环境 `/dev/route-designs` 使用正式侧栏和组件配合模拟数据，展示已设置/未设置安排的状态；生产环境返回404。测试写入由浏览器mock或独立SQLite承接，不操作线上数据。无新增环境变量。

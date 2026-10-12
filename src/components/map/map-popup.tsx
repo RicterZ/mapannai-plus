@@ -64,6 +64,7 @@ export const MapPopup = ({
                 if (!(event.target as HTMLElement).closest('.map-marker') &&
                     !(event.target as HTMLElement).closest('.maplibregl-map') &&
                     !(event.target as HTMLElement).closest('.amap-container') &&
+                    !(event.target as HTMLElement).closest('.google-map-container') &&
                     !(event.target as HTMLElement).closest('.left-sidebar') &&
                     !(event.target as HTMLElement).closest('.right-sidebar')) {
                     onClose()

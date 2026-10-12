@@ -603,6 +603,7 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
     border: 1px solid rgb(226 232 240 / 75%);
 }
 .journey-place-card {
+    min-height: 72px;
     border-color: #e5e7eb;
 }
 .journey-place-card:has([aria-pressed="true"]),

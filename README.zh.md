@@ -41,7 +41,7 @@ cd mapannai-public
 cp env.example .env
 ```
 
-编辑 `.env`，保留所需底图（`MAP_RENDERER=amap` 或 `osm`）。后端按现有中国范围判断函数自动选择服务：境内优先高德，获取不到有效结果时回退 Google，境外使用 Google。跨境路线不请求寻路，展示虚线与两点距离。搜索按地图范围中心判断，无范围时按国家选择。完整配置见 [env.example](env.example)。
+编辑 `.env`：`MAP_RENDERER=amap` 按现有中国范围判断函数，以地图中心自动选择境内高德、境外 Google，移动结束后切换并保留地图位置与行程状态；`osm` 保持固定 OSM 底图。后端按现有中国范围判断函数自动选择服务：境内优先高德，获取不到有效结果时回退 Google，境外使用 Google。跨境路线不请求寻路，展示虚线与两点距离。搜索按地图范围中心判断，无范围时按国家选择。完整配置见 [env.example](env.example)。
 
 高德底图搭配双后端服务的配置示例：
 
@@ -54,7 +54,7 @@ GOOGLE_API_KEY=your-google-api-key
 API_TOKEN=your-access-token
 ```
 
-高德 JS Key 与安全密钥需配套，并在控制台配置部署域名；后端 Web 服务 Key 单独申请。Google 需启用 Places、Geocoding、Directions API，用于海外服务及境内回退。后端服务选择不改变底图，旧 `MAP_*_PROVIDER` 服务配置不再控制自动选择。
+高德 JS Key 与安全密钥需配套，并在控制台配置部署域名；后端 Web 服务 Key 单独申请。Google 需启用 Places、Geocoding、Directions API，用于海外服务及境内回退。Google 底图另外需要启用 Maps JavaScript API 和计费，默认复用 `GOOGLE_API_KEY`，也可通过 `GOOGLE_JS_KEY` 配置专用浏览器 Key。后端服务选择与前端底图切换独立，旧 `MAP_*_PROVIDER` 服务配置不再控制自动选择。
 
 设置 `API_TOKEN` 后，网页首次访问会要求输入 token，iOS 与 MCP 使用相同 token。留空时，任何能访问服务的人都可以操作数据。需要图片上传时再填写 `TENCENT_COS_*`，并配置存储桶的上传跨域规则和 `NEXT_PUBLIC_IMAGE_DOMAINS`。
 

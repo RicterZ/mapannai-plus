@@ -7,7 +7,8 @@ import type { PlaceReferences } from '@/types/place-references'
 import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react'
 import { toast } from 'sonner'
 
-import { AMapRenderer, MapRendererHandle } from './amap-renderer'
+import { SDKMapRenderer, MapRendererHandle } from './sdk-map-renderer'
+import { regionalRenderer } from '@/lib/map/regional-renderer'
 import { createBasemapStyle, toMapCoordinates, fromMapCoordinates } from '@/lib/map/basemap'
 import { config } from '@/lib/config'
 import { isInChina } from '@/lib/coord-transform'
@@ -39,7 +40,7 @@ import Map, { Marker as MapboxMarker, MapRef, ViewState, MapProvider as ReactMap
 // 根据地图提供者导入相应的样式
 import 'maplibre-gl/dist/maplibre-gl.css'
 
-export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvider }: { renderer: BasemapProviderType; amapJsKey: string; amapSecurityCode: string; routeProvider: string }) => {
+export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode, routeProvider }: { renderer: BasemapProviderType; googleJsKey: string; amapJsKey: string; amapSecurityCode: string; routeProvider: string }) => {
     const searchPanelRef = useRef<HTMLDivElement>(null)
     const mapRef = useRef<any>(null)
     const suppressMapClickRef = useRef(false) // popup 内操作后短暂屏蔽地图点击
@@ -50,16 +51,6 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     const [pendingMarkerDelete, setPendingMarkerDelete] = useState<string | null>(null)
     const [deletingMarker, setDeletingMarker] = useState(false)
 
-    const basemap = renderer
-    const isAmap = basemap === 'amap'
-    const amapRef = useRef<MapRendererHandle>(null)
-    const flyMap = useCallback((options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }) => {
-        if (isAmap) amapRef.current?.flyTo(options)
-        else mapRef.current?.flyTo(options)
-    }, [isAmap])
-    const toDisplay = useCallback((c: { longitude: number; latitude: number }) => toMapCoordinates(c, basemap), [basemap])
-    const fromDisplay = useCallback((c: { longitude: number; latitude: number }) => fromMapCoordinates(c, basemap), [basemap])
-    const mapStyle = useMemo(() => createBasemapStyle(typeof window !== 'undefined' ? window.location.origin : ''), [basemap])
     // 存储地点名称，用于更新 popup title
     const draftPlaceReferences = useRef<PlaceReferences | undefined>(undefined)
     const placeLookupEpoch = useRef(0)
@@ -127,6 +118,16 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     }
 
     const [viewState, setViewState] = useState<ViewState>(getInitialViewState())
+    const [basemap, setBasemap] = useState(() => regionalRenderer(renderer, viewState))
+    const isNative = basemap !== 'osm'
+    const sdkRef = useRef<MapRendererHandle>(null)
+    const flyMap = useCallback((options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }) => {
+        if (isNative) sdkRef.current?.flyTo(options)
+        else mapRef.current?.flyTo(options)
+    }, [isNative])
+    const toDisplay = useCallback((c: { longitude: number; latitude: number }) => toMapCoordinates(c, basemap), [basemap])
+    const fromDisplay = useCallback((c: { longitude: number; latitude: number }) => fromMapCoordinates(c, basemap), [basemap])
+    const mapStyle = useMemo(() => createBasemapStyle(typeof window !== 'undefined' ? window.location.origin : ''), [basemap])
     const [addMarkerEnabled, setAddMarkerEnabled] = useState(() => {
         if (typeof window === 'undefined') return true
         const saved = localStorage.getItem('addMarkerEnabled')
@@ -158,6 +159,17 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             // ignore save errors
         }
     }, [])
+    const handleSdkMove = useCallback((next: { longitude: number; latitude: number; zoom: number }) => {
+        setViewState(previous => ({ ...previous, ...next }))
+        saveViewState(next)
+        const target = regionalRenderer(renderer, next)
+        if (target !== basemap) {
+            setMapInitialized(false)
+            setError(null)
+            setBasemap(target)
+        }
+    }, [renderer, basemap, saveViewState])
+
 
     // 右下角搜索栏状态
     const [searchOpen, setSearchOpen] = useState(false)
@@ -221,7 +233,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     useEffect(() => {
         const handleJumpToCenter = (event: CustomEvent) => {
             const { coordinates, zoom } = event.detail
-            if (mapRef.current || amapRef.current) {
+            if (mapRef.current || sdkRef.current) {
                 flyMap({ center: [coordinates.longitude, coordinates.latitude], zoom, duration: 2000 })
             }
         }
@@ -247,7 +259,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
 
     // 地图flyTo功能
     const handleFlyTo = useCallback((coordinates: { longitude: number; latitude: number }, zoom?: number) => {
-        if (mapRef.current || amapRef.current) {
+        if (mapRef.current || sdkRef.current) {
             // popup 显示在标记下方，标记上移让 popup 视觉居中（offset 负 y = 目标点在视口中心上方）
             flyMap({ center: [coordinates.longitude, coordinates.latitude], offset: [useMapStore.getState().leftSidebar.isOpen && window.innerWidth >= 1024 ? 200 : 0, -80], zoom, duration: flyDuration(coordinates) })
         }
@@ -255,19 +267,19 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     const handleFitMarkers = useCallback((ids: string[]) => {
         const state = useMapStore.getState()
         const width = window.innerWidth - (state.leftSidebar.isOpen && window.innerWidth >= 1024 ? 400 : 0)
-        const camera = routeCamera(state.markers.filter(marker => ids.includes(marker.id)), width, window.innerHeight, isAmap ? 256 : 512)
+        const camera = routeCamera(state.markers.filter(marker => ids.includes(marker.id)), width, window.innerHeight, isNative ? 256 : 512)
         if (!camera) return
         state.closePopup()
         if (window.innerWidth < 1024) state.closeLeftSidebar()
         const offset = width !== window.innerWidth ? 200 : 0
         const longitude = camera.longitude
         flyMap({ center: [longitude, camera.latitude], zoom: camera.zoom, duration: 1000, offset: [offset, 0] })
-    }, [flyMap, isAmap])
+    }, [flyMap, isNative])
 
     const handleAiMarkersCreated = useCallback((ids: string[], panel: DOMRect | null) => {
         const state = useMapStore.getState()
         const places = state.markers.filter(marker => ids.includes(marker.id))
-        if (!places.length || (!mapRef.current && !amapRef.current)) return
+        if (!places.length || (!mapRef.current && !sdkRef.current)) return
         const viewportWidth = window.innerWidth, viewportHeight = window.innerHeight
         // Fit the unobscured rectangle, including the existing left sidebar.
         const mobilePanel = panel && panel.width >= viewportWidth - 1
@@ -275,12 +287,12 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         const left = state.leftSidebar.isOpen && viewportWidth >= 1024 ? 400 : 0
         const right = panel && !mobilePanel ? panel.left : viewportWidth
         const bottom = mobilePanel ? panel.top : viewportHeight
-        const camera = routeCamera(places, Math.max(120, right - left), Math.max(160, bottom), isAmap ? 256 : 512)
+        const camera = routeCamera(places, Math.max(120, right - left), Math.max(160, bottom), isNative ? 256 : 512)
         if (!camera) return
         state.closePopup()
         flyMap({ center: [camera.longitude, camera.latitude], zoom: places.length === 1 ? 15 : camera.zoom,
             duration: flyDuration(camera), offset: [(left + right - viewportWidth) / 2, (bottom - viewportHeight) / 2] })
-    }, [flyMap, flyDuration, isAmap])
+    }, [flyMap, flyDuration, isNative])
 
     const startupCameraApplied = useRef(false)
     useEffect(() => {
@@ -322,7 +334,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             lastFocusedDayRef.current = null
             return
         }
-        if (lastFocusedDayRef.current === activeView.dayId || (!mapRef.current && !amapRef.current)) return
+        if (lastFocusedDayRef.current === activeView.dayId || (!mapRef.current && !sdkRef.current)) return
         const day = tripDays.find(item => item.id === activeView.dayId)
         const firstMarkerId = day?.chains.find(chain => chain.length > 0)?.[0]
         const marker = markers.find(item => item.id === firstMarkerId)
@@ -419,7 +431,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                 setIsSearching(true)
                 setFabQueryError('')
                 const map = mapRef.current?.getMap()
-                const bounds = isAmap ? amapRef.current?.getSearchBounds() : (() => {
+                const bounds = isNative ? sdkRef.current?.getSearchBounds() : (() => {
                     const b = map?.getBounds()
                     return b ? { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() } : undefined
                 })()
@@ -449,7 +461,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             clearTimeout(searchTimeout)
             controller.abort()
         }
-    }, [searchScopeKey, fabQuery, isAmap, closePopup])
+    }, [searchScopeKey, fabQuery, isNative, closePopup])
 
     const handleFabResultClick = useCallback((result: MapSearchResult) => {
         selectedSearchRef.current = searchResultKey(result)
@@ -885,9 +897,11 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             <Sidebar />
 
             {/* 地图组件 */}
-                {isAmap ? <AMapRenderer
-                    ref={amapRef}
-                    apiKey={amapJsKey}
+                {isNative ? <SDKMapRenderer
+                    key={basemap}
+                    renderer={basemap as 'amap' | 'google'}
+                    ref={sdkRef}
+                    apiKey={basemap === 'google' ? googleJsKey : amapJsKey}
                     securityCode={amapSecurityCode}
                     routeProvider={routeProvider}
                     viewState={viewState}
@@ -898,14 +912,14 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                     selectedMarkerId={selectedMarkerId}
                     popupCoordinates={isPopupOpen ? popupCoordinates : null}
                     userLocation={null}
-                    onMove={next => { setViewState(previous => ({ ...previous, ...next })); saveViewState(next) }}
+                    onMove={handleSdkMove}
                     onLoad={handleMapLoad}
                     onClick={(coordinates, originalEvent) => handleMapClick({ lngLat: { lng: coordinates.longitude, lat: coordinates.latitude }, originalEvent, canonical: true })}
                     onMarkerClick={handleMarkerClick}
-                    onError={error => { console.error('AMap error:', error); setError(error.message) }}
+                    onError={error => { setMapInitialized(false); setError(error.message) }}
                     popup={isPopupOpen && popupCoordinates ? <MapPopup
                         coordinates={popupCoordinates}
-                        basemap="amap"
+                        basemap={basemap}
                         embedded
                         selectedMarkerId={selectedMarkerId}
                         hideAssignment={searchOpen}

@@ -4,5 +4,5 @@ export const dynamic = 'force-dynamic'
 
 export default function HomePage() {
     const renderer = process.env.MAP_RENDERER === 'amap' ? 'amap' : 'osm'
-    return <MapClient renderer={renderer} amapJsKey={process.env.AMAP_JS_KEY || ''} amapSecurityCode={process.env.AMAP_JS_SECURITY_CODE || ''} routeProvider="regional-v1" />
+    return <MapClient renderer={renderer} googleJsKey={renderer === 'amap' ? process.env.GOOGLE_JS_KEY || process.env.GOOGLE_API_KEY || '' : ''} amapJsKey={process.env.AMAP_JS_KEY || ''} amapSecurityCode={process.env.AMAP_JS_SECURITY_CODE || ''} routeProvider="regional-v1" />
 }

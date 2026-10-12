@@ -74,7 +74,7 @@ export interface MapProviderConfig {
 }
 
 // 地图底图与后端能力分别选择；所有服务输入输出均为 WGS-84。
-export type BasemapProviderType = 'osm' | 'amap'
+export type BasemapProviderType = 'osm' | 'amap' | 'google'
 export type MapProviderType = 'google' | 'amap'
 export type MapServiceCapability = 'search' | 'details' | 'directions'
 export interface PlaceDetails extends MapSearchResult {
