@@ -8,7 +8,7 @@ MapAnNai Plus is a self-hosted place collection and travel itinerary editor. Sav
 
 ## Features
 
-- **Save places and travel notes**: Add places by clicking the map or searching. Use ten icon categories for food, accommodation, shopping, sights, and more. Rich text notes support lists, links, and images.
+- **Save places and travel notes**: Add places by clicking the map or searching. Use ten custom icon categories for food, accommodation, shopping, sights, and more. Trips and days offer 60 illustrated icons, including ten national flags. Rich text notes support lists, links, and images.
 - **Plan each day**: Select one or more destination provinces or cities when creating a trip, with removable tags inside the input. Their centers anchor the map and searches within the trip. Create a trip with automatically generated days, shift its dates, add or remove days, and reuse saved places across your itinerary. When deleting a trip or day, optionally remove places belonging to only one trip and one day; places shared across trips or days are kept.
 - **Arrange visits your way**: Save places to a trip before choosing a date, then drag them onto a day when ready. Create multiple routes within a day and drag places to change their visit order. A place can belong to several routes.
 - **See the whole plan on a map**: Switch between all places, a trip overview, and individual days. Colors distinguish days; selecting a place or route brings up its itinerary.
