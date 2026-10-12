@@ -37,6 +37,15 @@ import { AiPlanner } from '@/components/ai/ai-planner'
 import { MarkerIconType } from '@/types/marker'
 import Map, { Marker as MapboxMarker, MapRef, ViewState, MapProvider as ReactMapProvider } from 'react-map-gl/maplibre'
 
+// Sidebar widths match the unobscured region used by the top capsule.
+function mapWorkspaceViewport() {
+    const state = useMapStore.getState()
+    const desktop = window.innerWidth >= 1024
+    const left = desktop && state.leftSidebar.isOpen ? document.querySelector('.left-sidebar')?.getBoundingClientRect().width ?? 400 : 0
+    const right = desktop && state.interactionState.isSidebarOpen ? document.querySelector('.right-sidebar')?.getBoundingClientRect().width ?? 420 : 0
+    return { width: Math.max(120, window.innerWidth - left - right), height: window.innerHeight, offset: [(left - right) / 2, 0] as [number, number] }
+}
+
 // 根据地图提供者导入相应的样式
 import 'maplibre-gl/dist/maplibre-gl.css'
 
@@ -260,21 +269,17 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
     // 地图flyTo功能
     const handleFlyTo = useCallback((coordinates: { longitude: number; latitude: number }, zoom?: number) => {
         if (mapRef.current || sdkRef.current) {
-            // popup 显示在标记下方，标记上移让 popup 视觉居中（offset 负 y = 目标点在视口中心上方）
-            flyMap({ center: [coordinates.longitude, coordinates.latitude], offset: [useMapStore.getState().leftSidebar.isOpen && window.innerWidth >= 1024 ? 200 : 0, -80], zoom, duration: flyDuration(coordinates) })
+            flyMap({ center: [coordinates.longitude, coordinates.latitude], offset: mapWorkspaceViewport().offset, zoom, duration: flyDuration(coordinates) })
         }
     }, [flyDuration, flyMap])
     const handleFitMarkers = useCallback((ids: string[]) => {
         const state = useMapStore.getState()
-        const desktop = window.innerWidth >= 1024
-        const left = desktop && state.leftSidebar.isOpen ? document.querySelector('.left-sidebar')?.getBoundingClientRect().width ?? 400 : 0
-        const right = desktop && state.interactionState.isSidebarOpen ? document.querySelector('.right-sidebar')?.getBoundingClientRect().width ?? 420 : 0
-        const width = Math.max(120, window.innerWidth - left - right)
-        const camera = routeCamera(state.markers.filter(marker => ids.includes(marker.id)), width, window.innerHeight, isNative ? 256 : 512)
+        const viewport = mapWorkspaceViewport()
+        const camera = routeCamera(state.markers.filter(marker => ids.includes(marker.id)), viewport.width, viewport.height, isNative ? 256 : 512)
         if (!camera) return
         state.closePopup()
         if (window.innerWidth < 1024) state.closeLeftSidebar()
-        flyMap({ center: [camera.longitude, camera.latitude], zoom: camera.zoom, duration: flyDuration(camera), offset: [(left - right) / 2, 0] })
+        flyMap({ center: [camera.longitude, camera.latitude], zoom: camera.zoom, duration: flyDuration(camera), offset: viewport.offset })
     }, [flyMap, flyDuration, isNative])
 
     const handleAiMarkersCreated = useCallback((ids: string[], panel: DOMRect | null) => {

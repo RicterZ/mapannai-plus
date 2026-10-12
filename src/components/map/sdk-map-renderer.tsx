@@ -132,7 +132,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
             const worldSize = 256 * 2 ** targetZoom
             const latitude = Math.max(-85, Math.min(85, point.latitude)) * Math.PI / 180
             const worldY = (1 - Math.log(Math.tan(latitude) + 1 / Math.cos(latitude)) / Math.PI) / 2
-            const centerY = worldY + (offset?.[1] ?? 0) / worldSize
+            const centerY = worldY - (offset?.[1] ?? 0) / worldSize
             const target = [point.longitude - (offset?.[0] ?? 0) * 360 / worldSize, Math.atan(Math.sinh(Math.PI * (1 - 2 * centerY))) * 180 / Math.PI]
             const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
             map.setZoomAndCenter(targetZoom, target, reduced, reduced ? 0 : duration ?? 700)
@@ -392,7 +392,9 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
         if (!props.popupCoordinates) return
         const node = document.createElement('div')
         node.className = 'map-popup'
-        const overlay = new SDK.Marker({ position: toDisplayPoint(props.popupCoordinates), content: node, offset: new SDK.Pixel(-120, props.selectedMarkerId ? 36 : 20), zIndex: 130 })
+        node.style.width = 'max-content'
+        node.style.transform = 'translateX(-50%)'
+        const overlay = new SDK.Marker({ position: toDisplayPoint(props.popupCoordinates), content: node, offset: new SDK.Pixel(0, props.selectedMarkerId ? 36 : 20), zIndex: 130 })
         map.add([overlay])
         popupOverlayRef.current = overlay
         popupNodeRef.current = node
