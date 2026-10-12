@@ -1351,7 +1351,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                         <div key={marker.id}>
                                             <div data-marker-id={marker.id} className={cn('journey-place-card border rounded-2xl bg-white overflow-hidden', interactionState.selectedMarkerId === marker.id ? 'border-accent-500 ring-1 ring-accent-200 bg-accent-50/50' : 'border-gray-200')}>
                                                 <button
-                                                    className="w-full flex items-center gap-2 px-2 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                                                    className="journey-place-trigger w-full flex items-center gap-2 px-2 py-2.5 text-left"
                                                     onClick={() => handleMarkerClick(marker.id)}
                                                     aria-pressed={interactionState.selectedMarkerId === marker.id}
                                                 >
@@ -1392,7 +1392,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                     return (
                                         <div key={marker.id} data-marker-id={marker.id} className={cn('journey-place-card border rounded-2xl bg-white overflow-hidden', interactionState.selectedMarkerId === marker.id ? 'border-accent-500 ring-1 ring-accent-200' : 'border-gray-200')}>
                                             <button
-                                                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                                                className="journey-place-trigger w-full flex items-center gap-2 px-3 py-2.5 text-left"
                                                 onClick={() => handleMarkerClick(marker.id)}
                                             >
 

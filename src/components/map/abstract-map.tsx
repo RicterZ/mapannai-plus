@@ -266,15 +266,16 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
     }, [flyDuration, flyMap])
     const handleFitMarkers = useCallback((ids: string[]) => {
         const state = useMapStore.getState()
-        const width = window.innerWidth - (state.leftSidebar.isOpen && window.innerWidth >= 1024 ? 400 : 0)
+        const desktop = window.innerWidth >= 1024
+        const left = desktop && state.leftSidebar.isOpen ? document.querySelector('.left-sidebar')?.getBoundingClientRect().width ?? 400 : 0
+        const right = desktop && state.interactionState.isSidebarOpen ? document.querySelector('.right-sidebar')?.getBoundingClientRect().width ?? 420 : 0
+        const width = Math.max(120, window.innerWidth - left - right)
         const camera = routeCamera(state.markers.filter(marker => ids.includes(marker.id)), width, window.innerHeight, isNative ? 256 : 512)
         if (!camera) return
         state.closePopup()
         if (window.innerWidth < 1024) state.closeLeftSidebar()
-        const offset = width !== window.innerWidth ? 200 : 0
-        const longitude = camera.longitude
-        flyMap({ center: [longitude, camera.latitude], zoom: camera.zoom, duration: 1000, offset: [offset, 0] })
-    }, [flyMap, isNative])
+        flyMap({ center: [camera.longitude, camera.latitude], zoom: camera.zoom, duration: flyDuration(camera), offset: [(left - right) / 2, 0] })
+    }, [flyMap, flyDuration, isNative])
 
     const handleAiMarkersCreated = useCallback((ids: string[], panel: DOMRect | null) => {
         const state = useMapStore.getState()
@@ -319,7 +320,7 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
         lastDestinationRef.current = destinationKey
         if (activeView.mode === 'day') {
             const day = tripDays.find(day => day.id === activeView.dayId)
-            if (day?.chains.some(chain => markers.some(marker => marker.id === chain[0]))) return
+            if (day && markers.some(marker => day.markerIds.includes(marker.id) || day.chains.some(chain => chain.includes(marker.id)))) return
         }
         flyMap({ center: [activeDestination.longitude, activeDestination.latitude], zoom: 11, duration: 1000 })
     }, [destinationKey, activeDestination, mapInitialized, activeView.mode, activeView.dayId, activeView.focusFirstMarker, tripDays, markers, flyMap])
@@ -334,14 +335,14 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
             lastFocusedDayRef.current = null
             return
         }
-        if (lastFocusedDayRef.current === activeView.dayId || (!mapRef.current && !sdkRef.current)) return
+        if (!mapInitialized || lastFocusedDayRef.current === activeView.dayId || (!mapRef.current && !sdkRef.current)) return
         const day = tripDays.find(item => item.id === activeView.dayId)
-        const firstMarkerId = day?.chains.find(chain => chain.length > 0)?.[0]
-        const marker = markers.find(item => item.id === firstMarkerId)
-        if (!marker) return
+        if (!day) return
+        const ids = [...day.markerIds, ...day.chains.flat()]
+        if (!markers.some(marker => ids.includes(marker.id))) return
         lastFocusedDayRef.current = activeView.dayId
-        handleFlyTo(marker.coordinates)
-    }, [activeView.mode, activeView.dayId, activeView.focusFirstMarker, tripDays, markers, handleFlyTo, mapInitialized])
+        handleFitMarkers(ids)
+    }, [activeView.mode, activeView.dayId, activeView.focusFirstMarker, tripDays, markers, handleFitMarkers, mapInitialized])
 
     const searchTrip = trips.find(trip => trip.id === (searchOpen ? searchTarget?.tripId : activeView.tripId))
     const searchDestinations = searchOpen ? tripDestinations(searchTrip) : activeDestinations

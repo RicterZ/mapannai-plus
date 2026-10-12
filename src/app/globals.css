@@ -653,6 +653,17 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
         outline-offset: 2px;
     }
 }
+@media (hover: hover) {
+    .journey-place-card:has(> .journey-place-trigger) {
+        transition: background-color 150ms;
+    }
+    .journey-place-card:has(> .journey-place-trigger):hover {
+        background: #f9fafb;
+    }
+    .journey-place-card.border-accent-500:has(> .journey-place-trigger):hover {
+        background: #e6f3f6;
+    }
+}
 @media (max-width: 1023px) {
     .left-sidebar:has(.place-search-panel) {
         top: var(--dialog-viewport-top, 0px);
