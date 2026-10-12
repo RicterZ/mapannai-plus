@@ -295,6 +295,9 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         const path = readCachedRoute(key)
         return routeDistance(origin, destination, path && !isRangeFallback(path) ? readRouteMetrics(key)?.distance : null)
     }
+    const [dayTitleEditor, setDayTitleEditor] = useState<{ tripId: string; dayId: string; title: string } | null>(null)
+    const [savingDayTitle, setSavingDayTitle] = useState(false)
+    const [dayTitleError, setDayTitleError] = useState('')
     const sidebarRef = useRef<HTMLDivElement>(null)
     const hadSearchPanel = useRef(false)
     useEffect(() => {
@@ -886,10 +889,17 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                 <span className="block text-xs font-normal text-gray-400 tracking-widest mt-0.5" style={{ fontFamily: 'var(--font-inter, sans-serif)' }}>マップ案内</span>
                             )}
                             {displayMode === 'trip' && (currentTrip ? `${currentTrip.name} · ${currentTrip.startDate.slice(0, 4)}` : '旅行')}
-                            {displayMode === 'day' && (currentDay?.title || (() => {
-                                const idx = currentTripDays.findIndex(d => d.id === displayDayId)
-                                return `第${idx + 1}天`
-                            })())}
+                            {displayMode === 'day' && <button type="button" disabled={!addMarkerEnabled || !currentDay}
+                                className="max-w-full truncate text-left enabled:cursor-pointer enabled:hover:text-accent-600 disabled:cursor-default"
+                                aria-label={addMarkerEnabled ? '修改日期标题' : undefined}
+                                title={addMarkerEnabled ? '点击修改日期标题' : currentDay?.title}
+                                onClick={() => {
+                                    if (!currentDay) return
+                                    setDayTitleError('')
+                                    setDayTitleEditor({ tripId: currentDay.tripId, dayId: currentDay.id, title: currentDay.title || '' })
+                                }}>
+                                {currentDay?.title || `第${currentTripDays.findIndex(d => d.id === displayDayId) + 1}天`}
+                            </button>}
                         </h2>
                     )}
                     {displayMode === 'trip' && currentTrip && (
@@ -1493,6 +1503,31 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 </div>
                 </>}
             </div>
+
+            {dayTitleEditor && <Modal title="修改日期标题" onClose={() => setDayTitleEditor(null)} busy={savingDayTitle}>
+                <form onSubmit={async event => {
+                    event.preventDefault()
+                    if (savingDayTitle) return
+                    setSavingDayTitle(true)
+                    setDayTitleError('')
+                    try {
+                        await updateTripDay(dayTitleEditor.tripId, dayTitleEditor.dayId, { title: dayTitleEditor.title.trim() })
+                        setDayTitleEditor(null)
+                    } catch {
+                        setDayTitleError('保存失败，请重试')
+                    } finally { setSavingDayTitle(false) }
+                }}>
+                    <label htmlFor="day-title" className="block text-sm text-gray-600">日期标题</label>
+                    <input id="day-title" value={dayTitleEditor.title} disabled={savingDayTitle}
+                        onChange={event => setDayTitleEditor({ ...dayTitleEditor, title: event.target.value })}
+                        placeholder="留空显示第 N 天" className="mt-2 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-accent-400 focus:outline-none" />
+                    {dayTitleError && <p role="alert" className="mt-2 text-sm text-red-600">{dayTitleError}</p>}
+                    <div className="mt-5 flex justify-end gap-2">
+                        <button type="button" disabled={savingDayTitle} onClick={() => setDayTitleEditor(null)} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600">取消</button>
+                        <button type="submit" disabled={savingDayTitle} className="rounded-lg bg-gray-800 px-4 py-2 text-sm text-white disabled:opacity-50">{savingDayTitle ? '保存中…' : '保存'}</button>
+                    </div>
+                </form>
+            </Modal>}
 
             {assignTripMarker && currentTrip && <Modal title="分配日期" onClose={() => setAssignTripMarker(null)}>
                 <div className="space-y-2">{currentTripDays.map((day, index) => <button key={day.id} className="min-h-[44px] w-full rounded-lg border px-3 text-left text-sm" onClick={async () => {
