@@ -38,7 +38,7 @@ function renderTokens(tokens: Token[]): ReactNode {
             }
             case 'link': {
                 const href = safeHref(token.href)
-                return href ? <a key={index} href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline underline-offset-2">{children}</a> : <Fragment key={index}>{children}</Fragment>
+                return href ? <a key={index} href={href} target="_blank" rel="noopener noreferrer" className="text-accent-600 underline underline-offset-2">{children}</a> : <Fragment key={index}>{children}</Fragment>
             }
             case 'image': return <span key={index}>{token.text}</span>
             case 'table': return <div key={index} className="my-2 max-w-full overflow-x-auto"><table className="w-full border-collapse text-left text-xs leading-5">

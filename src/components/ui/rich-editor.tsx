@@ -14,6 +14,8 @@ interface RichEditorProps {
     content: string
     onChange: (html: string) => void
     placeholder?: string
+    editable?: boolean
+    onUploadingChange?: (uploading: boolean) => void
 }
 
 // ── Toolbar button ─────────────────────────────────────────────────────────
@@ -40,7 +42,7 @@ function ToolBtn({
             className={cn(
                 'flex items-center justify-center w-9 h-9 rounded-lg text-sm font-medium transition-colors select-none flex-shrink-0',
                 active
-                    ? 'bg-blue-100 text-blue-700'
+                    ? 'bg-accent-100 text-accent-700'
                     : 'text-gray-600 hover:bg-gray-100 active:bg-gray-200',
                 disabled && 'opacity-30 pointer-events-none',
             )}
@@ -58,7 +60,7 @@ function Divider() {
 
 // ── Main editor ────────────────────────────────────────────────────────────
 
-export function RichEditor({ content, onChange, placeholder = '添加标记的详细描述...' }: RichEditorProps) {
+export function RichEditor({ content, onChange, placeholder = '记录地点笔记…', editable = true, onUploadingChange }: RichEditorProps) {
     const [isUploading, setIsUploading] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -80,6 +82,9 @@ export function RichEditor({ content, onChange, placeholder = '添加标记的�
             },
         },
     })
+
+    useEffect(() => { editor?.setEditable(editable) }, [editor, editable])
+    useEffect(() => { onUploadingChange?.(isUploading) }, [isUploading, onUploadingChange])
 
     // editor 初始化完成后设置初始内容，之后完全由用户编辑，不再响应外部 content prop 变化
     const initializedRef = useRef(false)
@@ -118,7 +123,7 @@ export function RichEditor({ content, onChange, placeholder = '添加标记的�
     const canRedo = editor.can().redo()
 
     return (
-        <div className="flex flex-col h-full">
+        <fieldset disabled={!editable} className="flex min-w-0 flex-col h-full">
             {/* ── Editor area ───────────────────────────────────────────── */}
             <div className="flex-1 overflow-y-auto">
                 <EditorContent editor={editor} />
@@ -127,7 +132,7 @@ export function RichEditor({ content, onChange, placeholder = '添加标记的�
             {/* ── Bottom toolbar ────────────────────────────────────────── */}
             <div className="flex-shrink-0 border-t border-gray-200 bg-gray-50">
                 {isUploading && (
-                    <div className="px-4 py-1.5 flex items-center gap-2 text-xs text-blue-600 border-b border-gray-200">
+                    <div className="px-4 py-1.5 flex items-center gap-2 text-xs text-accent-600 border-b border-gray-200">
                         <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
@@ -268,6 +273,6 @@ export function RichEditor({ content, onChange, placeholder = '添加标记的�
                     e.target.value = ''
                 }}
             />
-        </div>
+        </fieldset>
     )
 }

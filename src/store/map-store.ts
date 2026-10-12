@@ -3,7 +3,6 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { Marker, MarkerCoordinates, MarkerIconType, MapInteractionState } from '@/types/marker'
 import { Trip, TripDay, ActiveView } from '@/types/trip'
-import { v4 as uuidv4 } from 'uuid'
 import { removeRouteMarker } from '@/lib/trips/route-chain'
 import type { RouteChainPatch } from '@/lib/trips/route-chain-schema'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
@@ -64,7 +63,8 @@ interface MapStore {
         iconType: MarkerIconType
         address?: string
         placeReferences?: PlaceReferences
-        onSynced?: (realMarkerId: string) => void
+        headerImage?: string
+        markdownContent?: string
     }) => Promise<string>
     updateMarker: (markerId: string, updates: Partial<Marker>) => void
     updateMarkerFromModal: (data: {
@@ -73,7 +73,7 @@ interface MapStore {
         headerImage?: string
         markdownContent: string
         iconType?: MarkerIconType
-    }) => void
+    }) => Promise<void>
     deleteMarker: (markerId: string) => Promise<void>
     selectMarker: (markerId: string | null) => void
 
@@ -228,128 +228,22 @@ export const useMapStore = create<MapStore>()(
 
             // Actions
             createMarkerFromModal: async (data) => {
-                try {
-                    // 1. 立即创建临时标记（乐观更新）
-                    const tempMarkerId = uuidv4()
-                    const now = new Date()
-                    const tempMarker: Marker = {
-                        id: tempMarkerId,
-                        placeReferences: data.placeReferences ?? null,
-                        coordinates: data.coordinates,
-                        content: {
-                            id: tempMarkerId,
-                            title: data.name,
-                            address: data.address,
-                            iconType: data.iconType,
-                            markdownContent: '',
-                            createdAt: now,
-                            updatedAt: now,
-                        },
-                    }
-
-                    // 2. 立即添加到本地状态，用户立即看到标记
-                    set(state => ({
-                        markers: [...state.markers, tempMarker],
-                        addMarkerModal: {
-                            isOpen: false,
-                            coordinates: null,
-                            placeName: null,
-                        },
-                        interactionState: {
-                            ...state.interactionState,
-                            selectedMarkerId: null,
-                            isSidebarOpen: false,
-                            isPopupOpen: false,
-                            popupCoordinates: null,
-                            placeName: null,
-                        },
-                    }), false, 'createMarkerFromModal-optimistic')
-
-                    // 3. 异步调用API创建标记（不阻塞UI）
-                    const syncMarker = async () => {
-                        try {
-                            const response = await fetchWithAuth('/api/markers', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    placeReferences: data.placeReferences,
-                                    coordinates: data.coordinates,
-                                    title: data.name,
-                                    iconType: data.iconType,
-                                    address: data.address,
-                                    content: '',
-                                }),
-                            })
-
-                            if (!response.ok) {
-                                const errorData = await response.json().catch(() => ({}))
-                                throw new Error(`创建标记失败: ${errorData.error || response.status}`)
-                            }
-
-                            const result = await response.json()
-
-                            // 4. 更新本地标记为服务器返回的最终标记（修复Date类型）
-                            set(state => ({
-                                markers: state.markers.map(marker =>
-                                    marker.id === tempMarkerId
-                                        ? {
-                                            ...result,
-                                            content: {
-                                                ...result.content,
-                                                title: data.name,
-                                                address: data.address,
-                                                createdAt: result.content?.createdAt ? new Date(result.content.createdAt) : new Date(),
-                                                updatedAt: result.content?.updatedAt ? new Date(result.content.updatedAt) : new Date(),
-                                            }
-                                        }
-                                        : marker
-                                ),
-                            }), false, 'createMarkerFromModal-sync')
-
-                            // 5. 通知调用者实际 ID（用于 day 归属等后续操作）
-                            data.onSynced?.(result.id)
-
-                            return result.id
-                        } catch (error) {
-                            console.error('同步标记到服务器失败:', error)
-                            set(state => ({
-                                markers: state.markers.map(marker =>
-                                    marker.id === tempMarkerId
-                                        ? {
-                                            ...marker,
-                                            content: {
-                                                ...marker.content,
-                                                isTemporary: true,
-                                                syncError: error instanceof Error ? error.message : '同步失败'
-                                            }
-                                        }
-                                        : marker
-                                ),
-                            }), false, 'createMarkerFromModal-error')
-                            return tempMarkerId
-                        }
-                    }
-
-                    // 异步执行同步，不阻塞UI
-                    syncMarker().catch(() => {
-                        if (typeof window !== 'undefined') {
-                            window.dispatchEvent(new CustomEvent('syncMarkerFailed'))
-                        }
-                    })
-
-                    return tempMarkerId
-                } catch (error) {
-                    console.error('创建标记失败:', error)
-                    set({ 
-                        error: error instanceof Error ? error.message : '创建标记失败，请稍后重试',
-                        addMarkerModal: {
-                            isOpen: false,
-                            coordinates: null,
-                            placeName: null,
-                        }
-                    })
-                    throw error
+                const response = await fetchWithAuth('/api/markers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ coordinates: data.coordinates, title: data.name,
+                        iconType: data.iconType, address: data.address, placeReferences: data.placeReferences,
+                        headerImage: data.headerImage, content: data.markdownContent || '' }),
+                })
+                if (!response.ok) {
+                    const body = await response.json().catch(() => ({}))
+                    throw new Error(body.error || '保存地点失败，请重试')
                 }
+                const result = await response.json()
+                const marker: Marker = { ...result, content: { ...result.content,
+                    createdAt: new Date(result.content.createdAt), updatedAt: new Date(result.content.updatedAt) } }
+                set(state => ({ markers: [...state.markers.filter(item => item.id !== marker.id), marker] }), false, 'createMarkerFromModal')
+                return marker.id
             },
 
             updateMarker: (markerId, updates) => {
@@ -374,39 +268,15 @@ export const useMapStore = create<MapStore>()(
                 }
             },
 
-            updateMarkerFromModal: (data) => {
-                const now = new Date()
-
-                set(state => ({
-                    markers: state.markers.map(marker =>
-                        marker.id === data.markerId
-                            ? {
-                                ...marker,
-                                content: {
-                                    ...marker.content,
-                                    title: data.title,
-                                    headerImage: data.headerImage,
-                                    markdownContent: data.markdownContent,
-                                    iconType: data.iconType !== undefined ? data.iconType : marker.content.iconType,
-                                    updatedAt: now,
-                                },
-                            }
-                            : marker
-                    ),
-                    editMarkerModal: {
-                        isOpen: false,
-                        markerId: null,
-                    },
-                }), false, 'updateMarkerFromModal')
-
-                // 异步保存到 Dataset
-                const marker = get().markers.find(m => m.id === data.markerId)
-                if (marker) {
-                    get().saveMarkerToDataset(marker).catch(error => {
-                        console.error('更新到 Dataset 失败:', error)
-                        set({ error: '更新标记失败，请稍后重试' })
-                    })
-                }
+            updateMarkerFromModal: async (data) => {
+                const previous = get().markers.find(marker => marker.id === data.markerId)
+                if (!previous) throw new Error('地点已不存在，请刷新后重试')
+                const marker: Marker = { ...previous, content: { ...previous.content,
+                    title: data.title, headerImage: data.headerImage, markdownContent: data.markdownContent,
+                    iconType: data.iconType ?? previous.content.iconType, updatedAt: new Date() } }
+                const result = await saveMarkerToDataset(marker)
+                set(state => ({ markers: state.markers.map(item => item.id === marker.id
+                    ? { ...marker, placeReferences: result?.data ? result.data.properties.placeReferences ?? null : marker.placeReferences } : item) }), false, 'updateMarkerFromModal')
             },
 
             deleteMarker: async (markerId) => {

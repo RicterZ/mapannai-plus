@@ -1,5 +1,10 @@
 'use client'
 
+import { PlaceIcon } from '@/components/ui/place-icon'
+
+import { Plus } from 'lucide-react'
+import { compressedImageUrl } from '@/lib/upload/image-url'
+
 import { tripDestinations } from '@/lib/trips/destination'
 
 import { exclusiveMarkerIds } from '@/lib/trip-deletion'
@@ -36,7 +41,7 @@ import { cn } from '@/utils/cn'
 import { routeTransportMode, routeDistance } from '@/lib/map/route-mode'
 import { useRouteSettings, setRouteSettings } from '@/lib/map/route-settings'
 import { CreateTripModal } from '@/components/modal/create-trip-modal'
-import { routeColor, dayColor, shortAddress } from '@/lib/map/route-presentation'
+import { routeColor, shortAddress } from '@/lib/map/route-presentation'
 import { useRouteProgress } from '@/lib/map/route-progress'
 import { isRangeFallback, readCachedRoute, readRouteMetrics, routeCacheKey } from '@/lib/map/route-cache'
 import { StopSchedule, RouteLeg, formatPlannedDuration } from '@/components/trips/route-schedule'
@@ -49,6 +54,8 @@ interface LeftSidebarProps {
     routeProvider: string
     addMarkerEnabled: boolean
     onToggleAddMarker: () => void
+    onSearchPlaces?: () => void
+    searchPanel?: React.ReactNode
 }
 
 // Format ISO date as "3月1日（周五）"
@@ -60,21 +67,21 @@ function formatDate(iso: string): string {
 
 function getMarkerColor(iconType: string): string {
     const map: Record<string, string> = {
-        hotel: 'bg-green-500/50', activity: 'bg-orange-500/50',
-        shopping: 'bg-purple-500/50', location: 'bg-pink-500/50',
-        park: 'bg-slate-500/50', culture: 'bg-gray-500/50',
-        food: 'bg-zinc-500/50', landmark: 'bg-purple-500/50',
-        natural: 'bg-fuchsia-500/50',
-        transit: 'bg-blue-500/50',
+        hotel: 'bg-green-100', activity: 'bg-orange-100',
+        shopping: 'bg-purple-100', location: 'bg-pink-100',
+        park: 'bg-slate-100', culture: 'bg-gray-100',
+        food: 'bg-zinc-100', landmark: 'bg-purple-100',
+        natural: 'bg-fuchsia-100',
+        transit: 'bg-accent-100',
     }
-    return map[iconType] || 'bg-sky-500/50'
+    return map[iconType] || 'bg-accent-100'
 }
 
 // Ghost item rendered in DragOverlay
 function DragGhostItem({ marker, index }: { marker: Marker; index: number }) {
     const icon = MARKER_ICONS[marker.content.iconType || 'location'] || MARKER_ICONS.location
     return (
-        <div className="flex items-center gap-2 border border-blue-300 rounded-xl bg-white shadow-lg overflow-hidden opacity-90">
+        <div className="flex items-center gap-2 border border-accent-300 rounded-xl bg-white shadow-lg overflow-hidden opacity-90">
             <div className="pl-2 py-2.5 text-gray-300 flex-shrink-0">
                 <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M7 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm6-8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0z" />
@@ -83,10 +90,10 @@ function DragGhostItem({ marker, index }: { marker: Marker; index: number }) {
             <div className="flex items-center gap-2 py-2.5 flex-1 min-w-0 pr-3">
                 <span className="text-xs font-bold text-gray-400 w-4 flex-shrink-0">{index + 1}</span>
                 <div className={cn('w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0', getMarkerColor(marker.content.iconType || 'location'))}>
-                    <span className="text-xs text-white">{icon.emoji}</span>
+                    <PlaceIcon emoji={icon.emoji} size={20} />
                 </div>
-                <span className="flex-1 text-sm font-medium text-gray-800 truncate">
-                    {marker.content.title || '未命名标记'}
+                <span className="flex-1 text-sm font-semibold text-gray-800 truncate">
+                    {marker.content.title || '未命名地点'}
                 </span>
             </div>
         </div>
@@ -130,26 +137,26 @@ function ChainItem({ id, marker, index, hasArrowAfter, distance, onRemove, onFly
 
     return (
         <div ref={setNodeRef} style={style} className={cn(isSortableDragging && 'opacity-40')}>
-            <div data-marker-id={marker.id} className={cn('border rounded-xl bg-white overflow-hidden select-none', selected ? 'border-blue-500 ring-1 ring-blue-200 bg-blue-50/50' : 'border-gray-200')}>
+            <div data-marker-id={marker.id} className={cn('journey-place-card border rounded-2xl bg-white overflow-hidden select-none', selected ? 'border-accent-500 ring-1 ring-accent-200 bg-accent-50/50' : 'border-gray-200')}>
               <div className="flex items-start gap-1.5 px-2 pt-2.5 pb-2">
                 <button {...attributes} {...listeners} className="route-drag-handle flex h-6 w-4 shrink-0 items-center justify-center text-gray-400 cursor-grab active:cursor-grabbing touch-none" aria-label="拖拽排序">
                     <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M7 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm6-8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0z" /></svg>
                 </button>
                 <span className="flex h-6 w-3 shrink-0 items-center text-xs font-bold text-gray-400">{index + 1}</span>
-                <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full', getMarkerColor(marker.content.iconType || 'location'))}><span className="text-xs text-white">{icon.emoji}</span></div>
+                <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full', getMarkerColor(marker.content.iconType || 'location'))}><PlaceIcon emoji={icon.emoji} size={20} /></div>
                 <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-1.5">
-                        <button className="route-schedule-button min-w-0 flex-1 text-left" onClick={onFlyTo} title="跳转到此位置"><div className="line-clamp-2 break-words text-sm font-medium leading-6 text-gray-800" title={marker.content.title}>{marker.content.title || '未命名标记'}</div></button>
+                        <button className="route-schedule-button min-w-0 flex-1 text-left" onClick={onFlyTo} title="跳转到此位置"><div className="line-clamp-2 break-words text-sm font-medium leading-6 text-gray-800" title={marker.content.title}>{marker.content.title || '未命名地点'}</div></button>
                         <div className="flex h-6 shrink-0 items-center"><StopSchedule day={day} route={route} markerId={marker.id} editable /></div>
                     </div>
                     {marker.content.address && <button className="route-schedule-button mt-0.5 block w-full text-left" onClick={onFlyTo}><div className="truncate text-[11px] leading-4 text-gray-500" title={marker.content.address}>{shortAddress(marker.content.address)}</div></button>}
                 </div>
               </div>
-              {route?.stops.find(stop => stop.markerId === marker.id)?.note && <div className="truncate px-2 pb-2 text-[11px] text-gray-500" title={route.stops.find(stop => stop.markerId === marker.id)?.note}>{route.stops.find(stop => stop.markerId === marker.id)?.note}</div>}
+              {route?.stops.find(stop => stop.markerId === marker.id)?.note && <div className="line-clamp-2 px-2 pb-2 text-xs leading-5 text-gray-500" title={route.stops.find(stop => stop.markerId === marker.id)?.note}>{route.stops.find(stop => stop.markerId === marker.id)?.note}</div>}
               <div className="flex items-center justify-end gap-1 border-t border-gray-100 px-2">
                 <button type="button" onClick={onRemove} className="route-item-action mr-auto px-2 text-xs text-gray-400 hover:text-red-500" aria-label={`从路线移除${marker.content.title || '地点'}`}>移除</button>
-                <button type="button" disabled={index === 0} onClick={() => onMove(-1)} className="route-item-action px-2 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30">上移</button>
-                <button type="button" disabled={last} onClick={() => onMove(1)} className="route-item-action px-2 text-xs text-gray-500 hover:text-blue-600 disabled:opacity-30">下移</button>
+                <button type="button" disabled={index === 0} onClick={() => onMove(-1)} className="route-item-action px-2 text-xs text-gray-500 hover:text-accent-600 disabled:opacity-30">上移</button>
+                <button type="button" disabled={last} onClick={() => onMove(1)} className="route-item-action px-2 text-xs text-gray-500 hover:text-accent-600 disabled:opacity-30">下移</button>
               </div>
             </div>
             {hasArrowAfter && nextId && <RouteLeg day={day} route={route} fromId={marker.id} toId={nextId} distance={distance} editable />}
@@ -181,9 +188,9 @@ function PaletteItem({ marker, routeNumbers, onFlyTo, onRemove, onAdd, selected,
             ref={setNodeRef}
             data-marker-id={marker.id}
             className={cn(
-                'border rounded-xl bg-white overflow-hidden select-none',
-                selected ? 'border-blue-500 ring-1 ring-blue-200' : 'border-gray-200',
-                isDragging && 'opacity-40 border-blue-300'
+                'journey-place-card border rounded-2xl bg-white overflow-hidden select-none',
+                selected ? 'border-accent-500 ring-1 ring-accent-200' : 'border-gray-200',
+                isDragging && 'opacity-40 border-accent-300'
             )}
         >
           <div className="flex items-center gap-2">
@@ -197,7 +204,7 @@ function PaletteItem({ marker, routeNumbers, onFlyTo, onRemove, onAdd, selected,
                     <path d="M7 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm6-8a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm0 4a1 1 0 1 1-2 0 1 1 0 0 1 2 0z" />
                 </svg>
                 <div className={cn('w-6 h-6 rounded-full flex items-center justify-center', getMarkerColor(marker.content.iconType || 'location'))}>
-                    <span className="text-xs text-white">{icon.emoji}</span>
+                    <PlaceIcon emoji={icon.emoji} size={20} />
                 </div>
             </button>
             {/* 标题按钮：独立于拖拽区域，不会收到 ghost click */}
@@ -206,7 +213,7 @@ function PaletteItem({ marker, routeNumbers, onFlyTo, onRemove, onAdd, selected,
                 onClick={onFlyTo}
                 title="跳转到此位置"
             >
-                <div className="text-sm font-medium text-gray-800 line-clamp-2 break-words">{marker.content.title || '未命名标记'}</div>
+                <div className="text-sm font-medium text-gray-800 line-clamp-2 break-words">{marker.content.title || '未命名地点'}</div>
                 <div className="mt-1 flex flex-wrap gap-1">{routeNumbers.map(number => <span key={number} style={{ color: routeColor(number - 1, dayId, colorIndex), backgroundColor: `${routeColor(number - 1, dayId, colorIndex)}10` }} className="rounded px-1.5 py-0.5 text-xs">路线 {number}</span>)}</div>
             </button>
             <button
@@ -220,7 +227,7 @@ function PaletteItem({ marker, routeNumbers, onFlyTo, onRemove, onAdd, selected,
                 </svg>
             </button>
           </div>
-          <button type="button" onClick={onAdd} className="w-full border-t border-gray-100 py-2 text-xs font-medium text-blue-600 hover:bg-blue-50">＋ 加入路线</button>
+          <button type="button" onClick={onAdd} className="w-full border-t border-gray-100 py-2 text-xs font-medium text-accent-600 hover:bg-accent-50">＋ 加入路线</button>
         </div>
     )
 }
@@ -238,12 +245,12 @@ function ChainDropContainer({ chainIdx, children, isEmpty }: {
             ref={setNodeRef}
             className={cn(
                 'flex flex-col gap-0 min-h-[48px] rounded-lg transition-colors',
-                isOver && 'bg-blue-50 ring-2 ring-blue-200 ring-inset',
-                isEmpty && 'border border-dashed border-blue-200'
+                isOver && 'bg-accent-50 ring-2 ring-accent-200 ring-inset',
+                isEmpty && 'border border-dashed border-accent-200'
             )}
         >
             {isEmpty && (
-                <div className="flex items-center justify-center h-12 text-xs text-blue-300 select-none">
+                <div className="flex items-center justify-center h-12 text-xs text-accent-300 select-none">
                     拖入节点到此路线
                 </div>
             )}
@@ -254,23 +261,23 @@ function ChainDropContainer({ chainIdx, children, isEmpty }: {
 
 function TripDayDrop({ dayId, enabled, children }: { dayId: string; enabled: boolean; children: React.ReactNode }) {
     const { setNodeRef, isOver } = useDroppable({ id: `trip-day:${dayId}`, disabled: !enabled })
-    return <div ref={setNodeRef} data-day-drop={dayId} className={cn('rounded-xl', isOver && 'ring-2 ring-blue-400 bg-blue-50')}>{children}</div>
+    return <div ref={setNodeRef} data-day-drop={dayId} className={cn('rounded-xl', isOver && 'ring-2 ring-accent-400 bg-accent-50')}>{children}</div>
 }
 
 function TripPendingMarker({ marker, editable, onSelect, onAssign, onRemove }: { marker: Marker; editable: boolean; onSelect: () => void; onAssign: () => void; onRemove: () => void }) {
     const { setNodeRef, listeners, attributes, isDragging } = useDraggable({ id: `trip-marker:${marker.id}`, disabled: !editable })
-    return <div ref={setNodeRef} data-marker-id={marker.id} className={cn('flex items-center gap-1 rounded-xl border border-gray-200 bg-white', isDragging && 'opacity-40')}>
+    return <div ref={setNodeRef} data-marker-id={marker.id} className={cn('journey-place-card flex items-center gap-1 rounded-2xl border border-gray-200 bg-white', isDragging && 'opacity-40')}>
         {editable && <button {...listeners} {...attributes} aria-label={`拖动${marker.content.title}到日期`} className="touch-none px-2 py-3 text-gray-400">⠿</button>}
         <button onClick={onSelect} className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2.5 text-left">
-            <span>{MARKER_ICONS[marker.content.iconType || 'location']?.emoji}</span><span className="truncate text-sm text-gray-800">{marker.content.title || '未命名地点'}</span>
+            <PlaceIcon iconType={marker.content.iconType || 'location'} size={20} /><span className="truncate text-sm text-gray-800">{marker.content.title || '未命名地点'}</span>
         </button>
-        {editable && <><button onClick={onAssign} className="min-h-[44px] px-2 text-xs text-blue-600">分配</button><button aria-label={`从旅行移除${marker.content.title}`} onClick={onRemove} className="min-h-[44px] px-2 text-gray-400">×</button></>}
+        {editable && <><button onClick={onAssign} className="min-h-[44px] px-2 text-xs text-accent-600">分配</button><button aria-label={`从旅行移除${marker.content.title}`} onClick={onRemove} className="min-h-[44px] px-2 text-gray-400">×</button></>}
     </div>
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEnabled, onToggleAddMarker }: LeftSidebarProps) => {
+export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEnabled, onToggleAddMarker, onSearchPlaces, searchPanel }: LeftSidebarProps) => {
     const routeSettings = useRouteSettings()
     const progress = useRouteProgress()
     // The existing progress subscription rerenders after each segment is cached.
@@ -289,6 +296,11 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         return routeDistance(origin, destination, path && !isRangeFallback(path) ? readRouteMetrics(key)?.distance : null)
     }
     const sidebarRef = useRef<HTMLDivElement>(null)
+    const hadSearchPanel = useRef(false)
+    useEffect(() => {
+        if (hadSearchPanel.current && !searchPanel) sidebarRef.current?.querySelector<HTMLButtonElement>('.journey-toolbar button')?.focus({ preventScroll: true })
+        hadSearchPanel.current = !!searchPanel
+    }, [!!searchPanel])
     const scrollPositions = useRef(new Map<string, number>())
     const {
         markers, trips, tripDays, activeView, interactionState,
@@ -384,6 +396,12 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         [tripDays, displayTripId]
     )
 
+    useEffect(() => {
+        const tabs = sidebarRef.current?.querySelector<HTMLElement>('.journey-day-tabs')
+        const active = tabs?.querySelector<HTMLElement>('[aria-current="date"]')
+        if (tabs && active) tabs.scrollLeft += active.getBoundingClientRect().left - tabs.getBoundingClientRect().left - (tabs.clientWidth - active.offsetWidth) / 2
+    }, [displayDayId, !!searchPanel])
+
     const currentDay = useMemo(() =>
         tripDays.find(d => d.id === displayDayId) ?? null,
         [tripDays, displayDayId]
@@ -419,6 +437,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         if (bounds.top < viewport.top || bounds.bottom > viewport.bottom) parent.scrollTop += bounds.top - viewport.top - 16
     }, [interactionState.selectedMarkerId, leftSidebar.isOpen, displayDayId, addMarkerEnabled, collapsedRoutes])
     useEffect(() => {
+        if (searchPanel) return
         const container = sidebarRef.current?.querySelector<HTMLElement>('.custom-scrollbar')
         if (!container) return
         const key = `${displayMode}:${displayTripId}:${displayDayId}:${addMarkerEnabled}`
@@ -426,7 +445,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         const save = () => scrollPositions.current.set(key, container.scrollTop)
         container.addEventListener('scroll', save)
         return () => container.removeEventListener('scroll', save)
-    }, [displayMode, displayTripId, displayDayId, addMarkerEnabled])
+    }, [displayMode, displayTripId, displayDayId, addMarkerEnabled, !!searchPanel])
 
     // Split currentDayMarkers into chain groups + isolated nodes
     // 单节点链视为孤立节点（不构成连线）
@@ -761,13 +780,13 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
     // ── Render helpers ───────────────────────────────────────────────────────
 
     const renderHeader = () => (
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-blue-50 flex-shrink-0 min-h-[68px]">
+        <div className="flex items-center justify-between px-5 pb-1 pt-5 bg-white flex-shrink-0 min-h-[68px]">
             <div className="flex min-w-0 flex-1 items-center gap-2">
                 {/* Back button */}
                 {displayMode === 'trip' && (
                     <button
                         onClick={() => { setActiveView('overview', null, null) }}
-                        className="mr-1 p-1 rounded-lg text-gray-500 hover:bg-white/80 hover:text-blue-600 transition-colors"
+                        className="mr-1 p-1 rounded-lg text-gray-500 hover:bg-white/80 hover:text-accent-600 transition-colors"
                         title="返回全览"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -778,7 +797,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 {displayMode === 'day' && (
                     <button
                         onClick={() => { setActiveView('trip', activeView.tripId, null) }}
-                        className="mr-1 p-1 rounded-lg text-gray-500 hover:bg-white/80 hover:text-blue-600 transition-colors"
+                        className="mr-1 p-1 rounded-lg text-gray-500 hover:bg-white/80 hover:text-accent-600 transition-colors"
                         title="返回旅行"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -792,19 +811,20 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                         className={cn(
                             'w-11 h-11 rounded-xl flex items-center justify-center text-2xl',
                                 displayMode !== 'overview' && addMarkerEnabled
-                                ? 'bg-blue-100 cursor-pointer hover:bg-blue-200 transition-colors'
-                                : 'bg-blue-100',
+                                ? 'bg-gray-100 cursor-pointer hover:bg-gray-200 transition-colors'
+                                : 'bg-gray-100',
                         )}
                         onClick={() => displayMode !== 'overview' && addMarkerEnabled && setShowEmojiPicker(v => !v)}
                         title={displayMode !== 'overview' ? '更换图标' : undefined}
                     >
-                        {displayMode === 'overview' ? '🗺️' : displayMode === 'trip' ? (currentTrip?.emoji ?? '✈️') : (currentDay?.emoji ?? '📅')}
+                        <PlaceIcon emoji={displayMode === 'overview' ? '🗺️' : displayMode === 'trip' ? (currentTrip?.emoji ?? '✈️') : (currentDay?.emoji ?? '📅')} size={24} />
                     </div>
                     {showEmojiPicker && ((displayMode === 'trip' && currentTrip) || (displayMode === 'day' && currentDay)) && (
                         <div data-emoji-picker className="absolute left-0 top-9 z-50 bg-white rounded-xl shadow-xl border border-gray-200 p-2 grid grid-cols-5 gap-1 w-44 max-h-64 overflow-y-auto">
                             {TRIP_EMOJIS.map(e => (
                                 <button
                                     key={e}
+                                    aria-label={e}
                                     onClick={() => {
                                         if (displayMode === 'trip' && currentTrip) {
                                             updateTrip(currentTrip.id, { emoji: e }).catch(() => toast.error('更新图标失败'))
@@ -814,11 +834,11 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                         setShowEmojiPicker(false)
                                     }}
                                     className={cn(
-                                        'text-lg w-8 h-8 rounded-lg flex items-center justify-center hover:bg-blue-50 transition-colors',
-                                        (displayMode === 'trip' ? (currentTrip?.emoji ?? '✈️') : currentDay?.emoji) === e && 'bg-blue-100'
+                                        'text-lg w-8 h-8 rounded-lg flex items-center justify-center hover:bg-accent-50 transition-colors',
+                                        (displayMode === 'trip' ? (currentTrip?.emoji ?? '✈️') : currentDay?.emoji) === e && 'bg-accent-100'
                                     )}
                                 >
-                                    {e}
+                                    <PlaceIcon emoji={e} size={22} />
                                 </button>
                             ))}
                         </div>
@@ -828,7 +848,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     {displayMode === 'trip' && currentTrip && editingTripName ? (
                         <input
                             autoFocus
-                            className="text-sm font-semibold text-gray-900 bg-white border border-blue-300 rounded px-1.5 py-0.5 w-40 focus:outline-none"
+                            className="text-sm font-semibold text-gray-900 bg-white border border-accent-300 rounded px-1.5 py-0.5 w-40 focus:outline-none"
                             value={tripNameDraft}
                             onChange={e => setTripNameDraft(e.target.value)}
                             onBlur={() => {
@@ -848,11 +868,11 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                             className={cn(
                                 'leading-tight truncate',
                                 displayMode === 'overview'
-                                    ? 'text-xl font-normal text-gray-900 tracking-wide'
+                                    ? 'text-xl font-semibold text-gray-900 tracking-tight'
                                     : 'text-sm font-semibold text-gray-900',
-                                displayMode === 'trip' && addMarkerEnabled && 'cursor-pointer hover:text-blue-600 transition-colors'
+                                displayMode === 'trip' && addMarkerEnabled && 'cursor-pointer hover:text-accent-600 transition-colors'
                             )}
-                            style={displayMode === 'overview' ? { fontFamily: 'var(--font-dm-serif)' } : undefined}
+
                             onClick={() => {
                                 if (displayMode === 'trip' && currentTrip && addMarkerEnabled) {
                                     setTripNameDraft(currentTrip.name)
@@ -877,7 +897,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                             {tripDestinations(currentTrip).length > 0 && <p className="text-xs text-gray-500 truncate" title={tripDestinations(currentTrip).map(item => item.name).join(' · ')}>{tripDestinations(currentTrip).map(item => item.name).join(' · ')}</p>}
                             <button
                                 type="button"
-                                className={cn('text-xs text-gray-500', addMarkerEnabled && 'hover:text-blue-600 cursor-pointer')}
+                                className={cn('text-xs text-gray-500', addMarkerEnabled && 'hover:text-accent-600 cursor-pointer')}
                                 title={addMarkerEnabled ? '修改开始日期，天数保持不变' : undefined}
                                 disabled={savingTripDate || !addMarkerEnabled}
                                 onClick={() => {
@@ -901,7 +921,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                     type="date"
                                     aria-label="行程开始日期"
                                     defaultValue={currentTrip.startDate}
-                                    className="absolute left-0 top-full z-20 w-36 rounded border border-blue-300 bg-white p-1 text-xs text-gray-900 shadow-lg"
+                                    className="absolute left-0 top-full z-20 w-36 rounded border border-accent-300 bg-white p-1 text-xs text-gray-900 shadow-lg"
                                     onBlur={() => setEditingTripDate(false)}
                                     onChange={async e => {
                                         const date = e.target.value
@@ -923,7 +943,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                         </div>
                     )}
                     {displayMode === 'day' && currentDay && (
-                        <p className="truncate text-xs text-gray-500">{formatDate(currentDay.date)}</p>
+                        <p className="mt-1 truncate text-xs text-gray-500">{currentTrip?.name} · {formatDate(currentDay.date)}</p>
                     )}
                 </div>
             </div>
@@ -936,7 +956,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     return <button key={offset} type="button" aria-label={label} title={label}
                         disabled={!target || blockClicks}
                         onClick={() => { if (target) { setShowEmojiPicker(false); setActiveView('day', target.tripId, target.id) } }}
-                        className="min-h-[44px] min-w-[36px] flex items-center justify-center rounded-md text-blue-600 hover:bg-white/80 disabled:opacity-30 disabled:pointer-events-none">
+                        className="min-h-[44px] min-w-[36px] flex lg:hidden items-center justify-center rounded-md text-accent-600 hover:bg-white/80 disabled:opacity-30 disabled:pointer-events-none">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={offset < 0 ? 'M15 19l-7-7 7-7' : 'M9 5l7 7-7 7'} /></svg>
                     </button>
                 })}
@@ -962,19 +982,19 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 {/* Create trip button */}
                 <button
                     onClick={() => setShowCreateTrip(true)}
-                    className="w-full flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed border-gray-200 rounded-2xl text-gray-400 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-500 transition-colors group"
+                    className="w-full flex flex-col items-center justify-center gap-1.5 py-4 border-2 border-dashed border-gray-200 rounded-2xl bg-white text-gray-400 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-500 transition-colors group"
                 >
                     <svg className="w-6 h-6 text-gray-300 group-hover:text-gray-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
                     </svg>
-                    <span className="text-sm font-medium text-gray-600">新建旅行</span>
-                    <span className="text-[10px] text-gray-300 group-hover:text-gray-400 transition-colors tracking-wide">旅の目的地は、まだ見ぬ地平線の向こうに</span>
+                    <span className="text-sm font-medium text-gray-700">新建旅行</span>
+                    <span className="text-[10px] text-gray-400 group-hover:text-gray-500 transition-colors tracking-wide">旅の目的地は、まだ見ぬ地平線の向こうに</span>
                 </button>
 
                 {/* Trip list */}
                 {trips.length === 0 ? (
                     <div className="text-center py-8 text-gray-400">
-                        <div className="text-3xl mb-2">✈️</div>
+                        <PlaceIcon emoji="✈️" size={32} className="mx-auto mb-2" />
                         <p className="text-sm">还没有旅行记录</p>
                         <p className="text-xs mt-1">点击上方创建你的第一次旅行</p>
                     </div>
@@ -1000,12 +1020,12 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                     const days = tripDays.filter(d => d.tripId === trip.id)
                                     const totalMarkers = new Set([...days.flatMap(d => d.markerIds), ...(trip.markerIds ?? [])]).size
                                     return (
-                                        <div key={trip.id} className="border border-gray-200 rounded-xl bg-white overflow-hidden mb-2">
+                                        <div key={trip.id} className="journey-trip-card border border-gray-200/70 rounded-2xl bg-white overflow-hidden mb-3">
                                             <button
                                                 onClick={() => { setActiveView('trip', trip.id, null) }}
-                                                className="w-full flex items-center gap-3 px-3 py-3 hover:bg-blue-50 transition-colors text-left"
+                                                className="w-full flex items-center gap-3 px-3 py-3 hover:bg-gray-50 transition-colors text-left"
                                             >
-                                                <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center text-lg flex-shrink-0">{trip.emoji ?? '✈️'}</div>
+                                                <div className="w-10 h-10 bg-gray-100 rounded-2xl flex items-center justify-center text-lg flex-shrink-0"><PlaceIcon emoji={trip.emoji ?? '✈️'} size={28} /></div>
                                                 <div className="flex-1 min-w-0">
                                                     <div className="font-medium text-sm text-gray-900 truncate">{trip.name}</div>
                                                     <div className="text-xs text-gray-500">
@@ -1025,72 +1045,30 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     })()
                 )}
 
-                {/* Unassigned markers — grouped by icon type */}
-                {unassignedMarkers.length > 0 && (
-                    <>
-                        <div className="flex items-center gap-2 px-1 py-1">
-                            <div className="flex-1 border-t border-gray-200" />
-                            <span className="text-[10px] text-gray-400 flex-shrink-0">独立标记</span>
-                            <div className="flex-1 border-t border-gray-200" />
-                        </div>
-                        {(() => {
-                            // Group by iconType, preserve order of first appearance
-                            const groups = new Map<string, Marker[]>()
-                            unassignedMarkers.forEach(m => {
-                                const type = m.content.iconType || 'location'
-                                if (!groups.has(type)) groups.set(type, [])
-                                groups.get(type)!.push(m)
-                            })
-                            return Array.from(groups.entries()).map(([type, groupMarkers]) => {
-                                const iconConfig = MARKER_ICONS[type as keyof typeof MARKER_ICONS] || MARKER_ICONS.location
-                                return (
-                                    <div key={type}>
-                                        {/* Group header */}
-                                        <div className="flex items-center gap-1.5 px-1 py-1.5">
-                                            <span className="text-sm">{iconConfig.emoji}</span>
-                                            <span className="text-xs font-medium text-gray-500">{iconConfig.name}</span>
-                                            <span className="text-[10px] text-gray-400">({groupMarkers.length})</span>
-                                        </div>
-                                        {/* Cards */}
-                                        <div className="space-y-1.5">
-                                            {groupMarkers.map(m => (
-                                                <div key={m.id} className="border border-gray-200 rounded-xl bg-white overflow-hidden">
-                                                    {m.content.headerImage && (
-                                                        <div className="w-full h-24 bg-gray-100">
-                                                            <img
-                                                                src={m.content.headerImage}
-                                                                alt={m.content.title || ''}
-                                                                className="w-full h-full object-cover"
-                                                                onError={e => { e.currentTarget.style.display = 'none' }}
-                                                            />
-                                                        </div>
-                                                    )}
-                                                    <button
-                                                        onClick={() => handleMarkerClick(m.id)}
-                                                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50 transition-colors text-left"
-                                                    >
-                                                        <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-sm flex-shrink-0', getMarkerColor(m.content.iconType || 'location'))}>
-                                                            {iconConfig.emoji}
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="font-medium text-sm text-gray-900 truncate">{m.content.title || '未命名标记'}</div>
-                                                            {m.content.address && (
-                                                                <div className="text-xs text-gray-400 truncate mt-0.5">{m.content.address}</div>
-                                                            )}
-                                                        </div>
-                                                        <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                                        </svg>
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )
-                            })
-                        })()}
-                    </>
-                )}
+                {/* Saved places outside any itinerary. */}
+                {unassignedMarkers.length > 0 && <section className="pt-5">
+                    <div className="mb-3 flex items-baseline justify-between px-1"><h3 className="text-sm font-semibold text-gray-800">收藏地点</h3><span className="text-xs text-gray-400">{unassignedMarkers.length}个 · 未加入旅行</span></div>
+                    {(() => {
+                        const groups = new Map<string, Marker[]>()
+                        unassignedMarkers.forEach(marker => {
+                            const type = marker.content.iconType || 'location'
+                            if (!groups.has(type)) groups.set(type, [])
+                            groups.get(type)!.push(marker)
+                        })
+                        return Array.from(groups.entries()).map(([type, group]) => {
+                            const icon = MARKER_ICONS[type as keyof typeof MARKER_ICONS] || MARKER_ICONS.location
+                            return <div key={type} className="mb-3 overflow-hidden rounded-2xl border border-gray-200/70 bg-white">
+                                <div className="flex items-center gap-2 border-b border-gray-100 px-3 py-2 text-xs text-gray-400"><span>{icon.name}</span><span className="ml-auto">{group.length}</span></div>
+                                <div className="divide-y divide-gray-100">{group.map(marker => <button key={marker.id} onClick={() => handleMarkerClick(marker.id)} className="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-gray-50">
+                                    {marker.content.headerImage ? <img src={compressedImageUrl(marker.content.headerImage)} loading="lazy" alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" /> : <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-lg"><PlaceIcon emoji={icon.emoji} size={30} /></span>}
+                                    <span className="min-w-0 flex-1"><span className="line-clamp-2 break-words text-sm font-medium text-gray-800">{marker.content.title || '未命名地点'}</span>{marker.content.address && <span className="mt-1 line-clamp-2 text-xs leading-4 text-gray-400">{marker.content.address}</span>}</span>
+                                    <svg className="h-3.5 w-3.5 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m9 5 7 7-7 7" /></svg>
+                                </button>)}</div>
+                            </div>
+                        })
+                    })()}
+                </section>}
+
             </div>
         </div>
     )
@@ -1126,7 +1104,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
             <div className="p-3">
                 {currentTripDays.length === 0 ? (
                     <div className="text-center py-8 text-gray-400">
-                        <div className="text-3xl mb-2">📅</div>
+                        <PlaceIcon emoji="📅" size={32} className="mx-auto mb-2" />
                         <p className="text-sm">暂无行程天</p>
                     </div>
                 ) : (
@@ -1136,20 +1114,15 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                             .filter(Boolean) as typeof markers
                         return (
                             <TripDayDrop key={day.id} dayId={day.id} enabled={addMarkerEnabled}>
-                            <div className="flex items-stretch rounded-xl border border-gray-200 bg-white hover:border-blue-300 hover:bg-blue-50 transition-colors">
+                            <div className="journey-trip-card flex items-stretch rounded-2xl border border-gray-200/70 bg-white hover:border-accent-200 transition-colors">
                             <button
                                 onClick={() => { setActiveView('day', activeView.tripId, day.id) }}
                                 className="flex-1 min-w-0 flex items-center gap-3 px-3 py-3 text-left"
                             >
-                                <div className="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center text-sm font-bold text-blue-600 flex-shrink-0">
-                                    {day.emoji || idx + 1}
-                                </div>
+
                                 <div className="flex-1 min-w-0">
-                                    <div className="font-medium text-sm text-gray-900">
-                                        <span aria-hidden="true" className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: dayColor(day.id, day.colorIndex) }} />
-                                        {day.title || `第${idx + 1}天`}
-                                        <span className="ml-1.5 text-xs text-gray-400 font-normal">{formatDate(day.date)}</span>
-                                    </div>
+                                    <div className="mb-3 flex items-center justify-between gap-2"><span className="text-base font-semibold text-gray-900">第{idx + 1}天</span><span className="text-xs text-gray-400">{formatDate(day.date)}</span></div>
+                                    {day.title && day.title !== `第${idx + 1}天` && <div className="mb-1 line-clamp-2 text-sm font-medium text-gray-800">{day.title}</div>}
                                     {dayMarkers.length > 0 ? (
                                         <div className="text-xs text-gray-500 truncate mt-0.5">
                                             {dayMarkers.map(m => m.content.title || '未命名').join(' · ')}
@@ -1176,7 +1149,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                             </div>
                             {idx < currentTripDays.length - 1 && (
                                 <div className="flex justify-center py-0.5">
-                                    <svg className="w-4 h-4 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-accent-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                     </svg>
                                 </div>
@@ -1195,7 +1168,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     ))}
                 </div>}
                 {addMarkerEnabled && <div className="grid grid-cols-2 gap-2 mt-2">
-                    <button type="button" onClick={handleAddDay} className="flex items-center justify-center gap-1.5 py-2 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50 transition-colors" title="新增一天">
+                    <button type="button" onClick={handleAddDay} className="flex items-center justify-center gap-1.5 py-2 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-accent-300 hover:text-accent-600 hover:bg-accent-50 transition-colors" title="新增一天">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                         <span className="text-xs">新增一天</span>
                     </button>
@@ -1223,7 +1196,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                         <div className="text-center py-8 text-gray-400">
                             <div className="text-3xl mb-2">📍</div>
                             <p className="text-sm">当天暂无地点</p>
-                            <p className="text-xs mt-1">{addMarkerEnabled ? '搜索地点，或点击地图标记上的「加入今天」' : '开启「编辑模式」，把地图地点加入今天'}</p>
+                            <p className="text-xs mt-1">点击「添加地点」，开始安排今天</p>
                         </div>
                     </div>
                 </div>
@@ -1256,15 +1229,15 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                 const chainItemIds = getChainItemIds(chainIdx)
 
                                 return (
-                                    <div key={`chain-slot-${slotIdx}`} className="rounded-xl border p-2" style={{ borderColor: `${routeColor(slotIdx, currentDay?.id, currentDay?.colorIndex)}30`, backgroundColor: `${routeColor(slotIdx, currentDay?.id, currentDay?.colorIndex)}05` }}>
+                                    <div key={`chain-slot-${slotIdx}`} className="journey-route-card journey-route-editor rounded-2xl border p-2.5" style={{ borderColor: `${routeColor(slotIdx, currentDay?.id, currentDay?.colorIndex)}30`, backgroundColor: '#fff' }}>
                                         <div className="flex items-center justify-between gap-1 pb-2">
                                             <button type="button" onClick={() => toggleRoute(slotIdx)} aria-expanded={!collapsedRoutes.has(slotIdx)} className="min-h-[44px] flex-1 flex items-center gap-2 px-2 text-xs font-semibold" style={{ color: routeColor(slotIdx, currentDay?.id, currentDay?.colorIndex) }}>
                                                 <span className="h-2 w-2 rounded-full" style={{ backgroundColor: routeColor(slotIdx, currentDay?.id, currentDay?.colorIndex) }} />
                                                 路线 {slotIdx + 1}<span className="font-normal text-gray-500">· {chainGroup.length} 地点</span><span>{collapsedRoutes.has(slotIdx) ? '▸' : '▾'}</span>
                                             </button>
                                             <div className="flex gap-1">
-                                                {chainGroup.length > 0 && <button type="button" onClick={() => onFitMarkers(chainGroup.map(marker => marker.id))} className="min-h-[44px] px-3 text-xs text-gray-600 hover:text-blue-600" aria-label={`查看路线 ${slotIdx + 1}`}>查看</button>}
-                                                <button type="button" onClick={() => setRoutePicker({ chainIndex: chainIdx })} className="min-h-[36px] px-2 text-xs font-medium text-blue-600">＋ 地点</button>
+                                                {chainGroup.length > 0 && <button type="button" onClick={() => onFitMarkers(chainGroup.map(marker => marker.id))} className="min-h-[44px] px-3 text-xs text-gray-600 hover:text-accent-600" aria-label={`查看路线 ${slotIdx + 1}`}>查看</button>}
+                                                <button type="button" onClick={() => setRoutePicker({ chainIndex: chainIdx })} className="min-h-[36px] px-2 text-xs font-medium text-accent-600">＋ 地点</button>
                                                 {isPending && <button type="button" aria-label="取消空路线" onClick={() => setPendingEmptyChains(value => Math.max(0, value - 1))} className="min-h-[36px] px-2 text-gray-500">×</button>}
                                             </div>
                                         </div>
@@ -1303,7 +1276,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                             {/* ＋ 创建行程链按钮 */}
                             <button
                                 onClick={() => setPendingEmptyChains(prev => prev + 1)}
-                                className="w-full flex items-center justify-center gap-2 px-3 py-2 border-2 border-dashed border-blue-200 rounded-xl text-blue-400 hover:border-blue-400 hover:bg-blue-50 transition-colors text-xs"
+                                className="w-full flex items-center justify-center gap-2 px-3 py-2 border-2 border-dashed border-accent-200 rounded-xl text-accent-400 hover:border-accent-400 hover:bg-accent-50 transition-colors text-xs"
                             >
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1318,7 +1291,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                 <div className="flex-1 border-t border-gray-200" />
                             </div>
                             <div className="flex rounded-lg bg-gray-100 p-1" role="group" aria-label="地点筛选">
-                                {[false, true].map(all => <button key={String(all)} type="button" aria-pressed={showAllDayMarkers === all} onClick={() => setShowAllDayMarkers(all)} className={cn('min-h-[36px] flex-1 rounded-md px-2 text-xs', showAllDayMarkers === all ? 'bg-white font-medium text-blue-600 shadow-sm' : 'text-gray-600')}>{all ? `全部地点 · ${currentDayMarkers.length}` : `未加入路线 · ${currentDayMarkers.filter(marker => !currentDay?.chains.some(chain => chain.includes(marker.id))).length}`}</button>)}
+                                {[false, true].map(all => <button key={String(all)} type="button" aria-pressed={showAllDayMarkers === all} onClick={() => setShowAllDayMarkers(all)} className={cn('min-h-[36px] flex-1 rounded-md px-2 text-xs', showAllDayMarkers === all ? 'bg-white font-medium text-accent-600 shadow-sm' : 'text-gray-600')}>{all ? `全部地点 · ${currentDayMarkers.length}` : `未加入路线 · ${currentDayMarkers.filter(marker => !currentDay?.chains.some(chain => chain.includes(marker.id))).length}`}</button>)}
                             </div>
 
                             {/* ── 下半区：当天节点（按类型排序，单列）── */}
@@ -1362,12 +1335,12 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 <div className="p-3 flex flex-col gap-3">
                     {/* 路线分组 */}
                     {chainedGroups.map((group, chainIdx) => (
-                        <div key={`chain-${chainIdx}`} className="rounded-xl border p-2" style={{ borderColor: `${routeColor(chainIdx, currentDay?.id, currentDay?.colorIndex)}30`, backgroundColor: `${routeColor(chainIdx, currentDay?.id, currentDay?.colorIndex)}05` }}>
+                        <div key={`chain-${chainIdx}`} className="journey-route-card rounded-2xl border p-2.5" style={{ borderColor: `${routeColor(chainIdx, currentDay?.id, currentDay?.colorIndex)}30`, backgroundColor: '#fff' }}>
                             <div className="flex items-center justify-between gap-1 pb-2">
                                 <button type="button" onClick={() => toggleRoute(chainIdx)} aria-expanded={!collapsedRoutes.has(chainIdx)} className="min-h-[44px] flex-1 flex items-center gap-2 px-2 text-xs font-semibold" style={{ color: routeColor(chainIdx, currentDay?.id, currentDay?.colorIndex) }}>
                                     <span className="h-2 w-2 rounded-full" style={{ backgroundColor: routeColor(chainIdx, currentDay?.id, currentDay?.colorIndex) }} />路线 {chainIdx + 1}<span className="font-normal text-gray-500">· {group.length} 地点</span><span>{collapsedRoutes.has(chainIdx) ? '▸' : '▾'}</span>
                                 </button>
-                                <button type="button" onClick={() => onFitMarkers(group.map(marker => marker.id))} className="min-h-[44px] px-3 text-xs text-gray-600 hover:text-blue-600" aria-label={`查看路线 ${chainIdx + 1}`}>查看路线</button>
+                                <button type="button" onClick={() => onFitMarkers(group.map(marker => marker.id))} className="min-h-[44px] px-3 text-xs text-gray-600 hover:text-accent-600" aria-label={`查看路线 ${chainIdx + 1}`}>查看路线</button>
                             </div>
                             {!collapsedRoutes.has(chainIdx) && <div className="flex flex-col">
                                 {group.map((marker, idx) => {
@@ -1376,24 +1349,24 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                     const route = candidate?.stops.length === group.length && candidate.stops.every((stop, i) => stop.markerId === group[i].id) ? candidate : undefined
                                     return (
                                         <div key={marker.id}>
-                                            <div data-marker-id={marker.id} className={cn('border rounded-xl bg-white overflow-hidden', interactionState.selectedMarkerId === marker.id ? 'border-blue-500 ring-1 ring-blue-200 bg-blue-50/50' : 'border-gray-200')}>
+                                            <div data-marker-id={marker.id} className={cn('journey-place-card border rounded-2xl bg-white overflow-hidden', interactionState.selectedMarkerId === marker.id ? 'border-accent-500 ring-1 ring-accent-200 bg-accent-50/50' : 'border-gray-200')}>
                                                 <button
-                                                    className="w-full flex items-center gap-2 px-2 py-2.5 hover:bg-blue-50 transition-colors text-left"
+                                                    className="w-full flex items-center gap-2 px-2 py-2.5 hover:bg-gray-50 transition-colors text-left"
                                                     onClick={() => handleMarkerClick(marker.id)}
                                                     aria-pressed={interactionState.selectedMarkerId === marker.id}
                                                 >
-                                                    <span className="text-xs font-bold text-gray-400 w-4 flex-shrink-0">{idx + 1}</span>
-                                                    <div className={cn('w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0', getMarkerColor(marker.content.iconType || 'location'))}>
-                                                        <span className="text-xs text-white">{icon.emoji}</span>
-                                                    </div>
+                                                    <span className="journey-stop-number flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-medium shrink-0" style={{ color: routeColor(chainIdx, currentDay?.id, currentDay?.colorIndex), backgroundColor: `${routeColor(chainIdx, currentDay?.id, currentDay?.colorIndex)}12` }}>{idx + 1}</span>
+                                                    {marker.content.headerImage ? <img src={compressedImageUrl(marker.content.headerImage)} alt="" loading="lazy" className="h-10 w-10 shrink-0 rounded-xl object-cover" /> : <div className={cn('journey-category-icon w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0', getMarkerColor(marker.content.iconType || 'location'))}>
+                                                        <PlaceIcon emoji={icon.emoji} size={24} />
+                                                    </div>}
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-1.5"><div className="min-w-0 flex-1 truncate text-sm font-medium text-gray-800" title={marker.content.title}>{marker.content.title || '未命名标记'}</div><span className="ml-auto shrink-0 text-[11px] tabular-nums text-gray-500">{(() => { const stop = route?.stops.find(item => item.markerId === marker.id); return stop && <>{stop.startTime}{stop.startTime && stop.durationMinutes !== undefined && ' · '}{stop.durationMinutes !== undefined && formatPlannedDuration(stop.durationMinutes)}</> })()}</span></div>
+                                                        <div className="flex items-center gap-1.5"><div className="min-w-0 flex-1 line-clamp-2 break-words text-[15px] font-medium leading-6 text-gray-900" title={marker.content.title}>{marker.content.title || '未命名地点'}</div><span className="ml-auto shrink-0 text-[11px] tabular-nums text-gray-500">{(() => { const stop = route?.stops.find(item => item.markerId === marker.id); return stop && <span className="flex flex-col items-end gap-0.5">{stop.startTime && <span className="text-xs text-gray-600">{stop.startTime}</span>}{stop.durationMinutes !== undefined && <span className="text-[11px] text-gray-400">{formatPlannedDuration(stop.durationMinutes)}</span>}</span> })()}</span></div>
                                                         {marker.content.address && (
                                                             <div className="text-xs text-gray-500 truncate mt-0.5" title={marker.content.address}>{shortAddress(marker.content.address)}</div>
                                                         )}
                                                     </div>
                                                 </button>
-                                                {route?.stops.find(stop => stop.markerId === marker.id)?.note && <div className="truncate px-2 pb-2 text-[11px] text-gray-500" title={route?.stops.find(stop => stop.markerId === marker.id)?.note}>{route?.stops.find(stop => stop.markerId === marker.id)?.note}</div>}
+                                                {route?.stops.find(stop => stop.markerId === marker.id)?.note && <div className="journey-visit-note line-clamp-2 pb-3 pr-3 text-xs leading-5 text-gray-500" title={route?.stops.find(stop => stop.markerId === marker.id)?.note}>{route?.stops.find(stop => stop.markerId === marker.id)?.note}</div>}
                                             </div>
                                             {idx < group.length - 1 && <RouteLeg day={currentDay ?? undefined} route={route} fromId={marker.id} toId={group[idx + 1].id} distance={segmentDistance(marker, group[idx + 1], route)} editable={false} />}
                                         </div>
@@ -1417,17 +1390,17 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                 {isolatedMarkers.map((marker, idx) => {
                                     const icon = MARKER_ICONS[marker.content.iconType || 'location'] || MARKER_ICONS.location
                                     return (
-                                        <div key={marker.id} data-marker-id={marker.id} className={cn('border rounded-xl bg-white overflow-hidden', interactionState.selectedMarkerId === marker.id ? 'border-blue-500 ring-1 ring-blue-200' : 'border-gray-200')}>
+                                        <div key={marker.id} data-marker-id={marker.id} className={cn('journey-place-card border rounded-2xl bg-white overflow-hidden', interactionState.selectedMarkerId === marker.id ? 'border-accent-500 ring-1 ring-accent-200' : 'border-gray-200')}>
                                             <button
-                                                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-blue-50 transition-colors text-left"
+                                                className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 transition-colors text-left"
                                                 onClick={() => handleMarkerClick(marker.id)}
                                             >
-                                                <span className="text-xs font-bold text-gray-400 w-4 flex-shrink-0">{idx + 1}</span>
+
                                                 <div className={cn('w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0', getMarkerColor(marker.content.iconType || 'location'))}>
-                                                    <span className="text-xs text-white">{icon.emoji}</span>
+                                                    <PlaceIcon emoji={icon.emoji} size={20} />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-medium text-gray-800 line-clamp-2 break-words">{marker.content.title || '未命名标记'}</div>
+                                                    <div className="text-sm font-medium text-gray-800 line-clamp-2 break-words">{marker.content.title || '未命名地点'}</div>
                                                     {marker.content.address && (
                                                         <div className="text-xs text-gray-500 truncate mt-0.5" title={marker.content.address}>{shortAddress(marker.content.address)}</div>
                                                     )}
@@ -1457,9 +1430,9 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 ref={sidebarRef}
                 className={cn(
                     'left-sidebar fixed left-0 top-0 bottom-0 z-[60]',
-                    'w-full bg-white shadow-2xl',
+                    'w-full bg-white shadow-xl',
                     'flex flex-col',
-                    'lg:w-[360px]',
+                    'lg:w-[400px]',
                     'app-panel',
                     !leftSidebar.isOpen ? '-translate-x-full panel-closed' : 'translate-x-0 panel-open',
                 )}
@@ -1473,16 +1446,25 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     }
                 }}
             >
+                {searchPanel || <>
                 {renderHeader()}
-                <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-gray-100 px-4 py-2">
-                    <div className="flex items-center gap-2">
-                        <span className="whitespace-nowrap text-xs text-gray-600">编辑模式</span>
-                        <button type="button" role="switch" aria-checked={addMarkerEnabled} aria-label="编辑模式" onClick={onToggleAddMarker} className={cn('relative h-6 w-11 flex-shrink-0 rounded-full transition-colors', addMarkerEnabled ? 'bg-blue-500' : 'bg-gray-300')}>
-                            <span className={cn('absolute left-0 top-1 h-4 w-4 rounded-full bg-white shadow transition-transform', addMarkerEnabled ? 'translate-x-6' : 'translate-x-1')} />
+                <div className="journey-toolbar flex shrink-0 items-center justify-between gap-3 bg-white px-5 pb-4 pt-3">
+                    {onSearchPlaces && <button type="button" onClick={onSearchPlaces} className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-white border border-gray-200 px-3.5 text-xs font-medium text-gray-800 hover:bg-gray-50 shadow-sm"><Plus size={15} />添加地点</button>}
+                    <div className="ml-auto flex items-center gap-2">
+                        <span className="whitespace-nowrap text-xs text-gray-500">编辑模式</span>
+                        <button type="button" role="switch" aria-checked={addMarkerEnabled} aria-label="编辑模式" onClick={onToggleAddMarker} className={cn('relative h-5 w-9 shrink-0 rounded-full transition-colors', addMarkerEnabled ? 'bg-accent-500' : 'bg-gray-300')}>
+                            <span className={cn('absolute left-0 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform', addMarkerEnabled ? 'translate-x-[18px]' : 'translate-x-0.5')} />
                         </button>
                     </div>
-                    {displayMode === 'day' && currentDayMarkers.length > 0 && <button type="button" onClick={() => onFitMarkers(currentDayMarkers.map(marker => marker.id))} className="min-h-[36px] px-2 text-xs text-gray-600 hover:text-blue-600">查看全天</button>}
                 </div>
+                {displayMode === 'day' && <>
+                    <nav aria-label="旅行日期" className="journey-day-tabs hidden shrink-0 gap-1 overflow-x-auto border-y border-gray-100 bg-white px-4 py-2 lg:flex">
+                        {currentTripDays.map((day, index) => <button key={day.id} type="button" aria-current={day.id === displayDayId ? 'date' : undefined} onClick={() => setActiveView('day', day.tripId, day.id)} className={cn('shrink-0 rounded-lg px-3 py-2 text-left text-xs transition-colors', day.id === displayDayId ? 'journey-day-tab-current font-semibold text-gray-900' : 'text-gray-400 hover:text-gray-700')}>
+                            <span className="block">第{index + 1}天</span><span className="mt-1 block text-[11px] opacity-70">{day.date.slice(5).replace('-', '/')}</span>
+                        </button>)}
+                    </nav>
+                    <div className="flex shrink-0 items-center justify-between px-5 pb-1 pt-4 text-xs text-gray-500"><span>{currentDayMarkers.length} 个地点 · {chainedGroups.length} 条路线</span>{currentDayMarkers.length > 0 && <button type="button" onClick={() => onFitMarkers(currentDayMarkers.map(marker => marker.id))} className="py-1 text-gray-600 hover:text-accent-600">查看全天</button>}</div>
+                </>}
 
                 {/* 内容立即切换，只对新内容播放入场动画 */}
                 <div
@@ -1498,17 +1480,18 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 </div>
 
                 {/* 全局路线规划设置 */}
-                <div className="route-settings-bar border-t border-gray-100 px-4 py-2 flex-shrink-0">
+                <div className="route-settings-bar bg-white border-t border-gray-100 px-4 py-2 flex-shrink-0">
                     <div className="flex items-center justify-between gap-2 whitespace-nowrap">
                         <span className="text-xs text-gray-600 whitespace-nowrap">路线规划</span>
                         {routeSettings.enabled && (progress.calculating || progress.failed > 0) && <span role="status" aria-live="polite" className="min-w-0 flex-1 truncate text-right text-xs text-gray-500" title={progress.calculating ? `正在计算 ${progress.completed + progress.failed}/${progress.total}，虚线为示意连接` : progress.failed ? `${progress.failed} 段暂时无法规划，虚线为示意连接` : ''}>
-                            {progress.calculating ? `${progress.completed + progress.failed}/${progress.total}` : progress.failed ? <button type="button" onClick={progress.retry} className="route-retry-button text-blue-600 hover:underline" aria-label={`重试 ${progress.failed} 段失败路线`}>重试 {progress.failed} 段</button> : null}
+                            {progress.calculating ? `${progress.completed + progress.failed}/${progress.total}` : progress.failed ? <button type="button" onClick={progress.retry} className="route-retry-button text-accent-600 hover:underline" aria-label={`重试 ${progress.failed} 段失败路线`}>重试 {progress.failed} 段</button> : null}
                         </span>}
-                        <button type="button" role="switch" aria-checked={routeSettings.enabled} aria-label="路线规划" onClick={() => setRouteSettings({ ...routeSettings, enabled: !routeSettings.enabled })} className={cn('relative w-11 h-6 flex-shrink-0 rounded-full transition-colors', routeSettings.enabled ? 'bg-blue-500' : 'bg-gray-300')}>
+                        <button type="button" role="switch" aria-checked={routeSettings.enabled} aria-label="路线规划" onClick={() => setRouteSettings({ ...routeSettings, enabled: !routeSettings.enabled })} className={cn('relative w-11 h-6 flex-shrink-0 rounded-full transition-colors', routeSettings.enabled ? 'bg-accent-500' : 'bg-gray-300')}>
                             <span className={cn('absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow transition-transform', routeSettings.enabled ? 'translate-x-6' : 'translate-x-1')} />
                         </button>
                     </div>
                 </div>
+                </>}
             </div>
 
             {assignTripMarker && currentTrip && <Modal title="分配日期" onClose={() => setAssignTripMarker(null)}>
@@ -1523,9 +1506,9 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 <div className="space-y-2">
                     {routePicker.markerId ? <>
                         {currentDay.chains.map((chain, index) => <button key={index} disabled={savingRoute || chain.includes(routePicker.markerId!)} onClick={() => { void handleAddToRoute(routePicker.markerId!, index) }} className="flex min-h-[44px] w-full items-center justify-between rounded-lg border px-3 text-sm hover:bg-gray-50 disabled:opacity-40" style={{ color: routeColor(index, currentDay.id, currentDay.colorIndex) }}>路线 {index + 1}<span className="text-xs text-gray-500">{chain.includes(routePicker.markerId!) ? '已加入' : `${chain.length} 个地点`}</span></button>)}
-                        <button disabled={savingRoute} onClick={() => { void handleAddToRoute(routePicker.markerId!) }} className="min-h-[44px] w-full rounded-lg border border-dashed border-blue-300 text-sm text-blue-600">＋ 新建路线并加入</button>
+                        <button disabled={savingRoute} onClick={() => { void handleAddToRoute(routePicker.markerId!) }} className="min-h-[44px] w-full rounded-lg border border-dashed border-gray-300 text-sm text-gray-600">＋ 新建路线并加入</button>
                     </> : <>
-                        {currentDayMarkers.filter(marker => !currentDay.chains[routePicker.chainIndex!]?.includes(marker.id)).map(marker => <button key={marker.id} disabled={savingRoute} onClick={() => { void handleAddToRoute(marker.id, routePicker.chainIndex) }} className="min-h-[44px] w-full rounded-lg border px-3 py-2 text-left text-sm hover:bg-blue-50 disabled:opacity-40">{marker.content.title || '未命名地点'}</button>)}
+                        {currentDayMarkers.filter(marker => !currentDay.chains[routePicker.chainIndex!]?.includes(marker.id)).map(marker => <button key={marker.id} disabled={savingRoute} onClick={() => { void handleAddToRoute(marker.id, routePicker.chainIndex) }} className="min-h-[44px] w-full rounded-lg border px-3 py-2 text-left text-sm hover:bg-gray-50 disabled:opacity-40">{marker.content.title || '未命名地点'}</button>)}
                         {currentDayMarkers.every(marker => currentDay.chains[routePicker.chainIndex!]?.includes(marker.id)) && <p className="py-4 text-center text-sm text-gray-500">当天地点都已在这条路线中。</p>}
                     </>}
                 </div>

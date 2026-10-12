@@ -22,7 +22,7 @@ function getDayNumber(tripId: string, dayId: string, tripDays: ReturnType<typeof
 }
 
 export const ViewModeBanner = () => {
-    const { activeView, trips, tripDays, setActiveView } = useMapStore()
+    const { activeView, trips, tripDays, setActiveView, leftSidebar, interactionState } = useMapStore()
     const [dayDropdownOpen, setDayDropdownOpen] = useState(false)
     const bannerRef = useRef<HTMLDivElement>(null)
     const dropdownRef = useRef<HTMLDivElement>(null)
@@ -93,7 +93,10 @@ export const ViewModeBanner = () => {
                 'view-mode-banner fixed left-1/2 -translate-x-1/2 -translate-y-1/2 z-40',
                 'bg-white/95 backdrop-blur border border-gray-200 shadow-lg rounded-full',
                 'flex flex-nowrap items-center gap-1 px-3 py-1.5 text-sm whitespace-nowrap w-max max-w-[calc(100vw-96px)] sm:max-w-[90vw]',
-                'animate-fade-in'
+                'animate-fade-in',
+                interactionState.isSidebarOpen
+                    ? leftSidebar.isOpen ? 'lg:left-[calc(50%-10px)]' : 'lg:left-[calc(50%-210px)]'
+                    : leftSidebar.isOpen && 'lg:left-[calc(50%+200px)]'
             )}
             style={{ top: 'calc(env(safe-area-inset-top) + 36px)' }}
         >
@@ -102,7 +105,7 @@ export const ViewModeBanner = () => {
                 onClick={handleTripClick}
                 className={cn(
                     'min-w-0 outline-none font-medium transition-colors truncate max-w-[120px]',
-                    activeView.mode === 'trip' ? 'text-blue-600' : 'text-gray-600 hover:text-blue-500'
+                    activeView.mode === 'trip' ? 'text-accent-600' : 'text-gray-600 hover:text-accent-500'
                 )}
                 title={trip?.name}
             >
@@ -116,7 +119,7 @@ export const ViewModeBanner = () => {
                     <div ref={dropdownRef} className="relative min-w-0">
                         <button
                             onClick={() => setDayDropdownOpen(v => !v)}
-                            className="outline-none font-medium text-blue-600 max-w-[140px] sm:max-w-[240px] min-w-0 flex items-center gap-1"
+                            className="outline-none font-medium text-accent-600 max-w-[140px] sm:max-w-[240px] min-w-0 flex items-center gap-1"
                             aria-label="选择行程日期"
                             aria-expanded={dayDropdownOpen}
                             title={day.date}
@@ -141,7 +144,7 @@ export const ViewModeBanner = () => {
                                         className={cn(
                                             'w-full text-left px-4 py-2.5 text-sm transition-colors',
                                             d.id === activeView.dayId
-                                                ? 'bg-blue-50 text-blue-600 font-medium'
+                                                ? 'bg-accent-50 text-accent-600 font-medium'
                                                 : 'text-gray-700 hover:bg-gray-50'
                                         )}
                                     >

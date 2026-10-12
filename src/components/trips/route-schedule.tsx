@@ -16,10 +16,10 @@ const modes: { value: TransportMode; label: string }[] = [
 const icons = { walking: Footprints, cycling: Bike, driving: Car, taxi: Car, bus: Bus, subway: TrainFront, train: TrainFront, flight: Plane, ferry: Ship, other: Route }
 export const formatPlannedDuration = (minutes: number) => minutes > 0 && minutes % 60 === 0 ? `${minutes / 60}小时` : `${minutes}分钟`
 const distanceLabel = (distance: number) => distance < 1000 ? `${Math.round(distance)} m` : `${Number((distance / 1000).toFixed(1))} km`
-const field = 'mt-1.5 block w-full min-w-0 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm text-gray-800 focus:border-blue-400 focus:outline-none'
+const field = 'workspace-field mt-1.5'
 
 function Arrow() {
-    return <div aria-hidden="true" className="flex items-center justify-center py-0.5"><svg className="h-4 w-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg></div>
+    return <div aria-hidden="true" className="flex items-center justify-center py-0.5"><svg className="h-4 w-4 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg></div>
 }
 
 function ScheduleEditor({ day, route, stop, next, title, onClose }: { day: TripDay; route: RouteChain; stop: ChainStop; next?: ChainStop; title: string; onClose: () => void }) {
@@ -43,7 +43,7 @@ function ScheduleEditor({ day, route, stop, next, title, onClose }: { day: TripD
         {next && <div className="grid grid-cols-2 gap-3"><label className="text-xs text-gray-500">交通方式<select disabled={busy} className={field} value={mode} onChange={e => setMode(e.target.value as TransportMode)}>{modes.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}</select></label><label className="text-xs text-gray-500">线路 / 车次号<input disabled={busy} maxLength={120} className={field} value={serviceNumber} onChange={e => setServiceNumber(e.target.value)} /></label></div>}
         <div className="grid grid-cols-2 gap-3"><label className="text-xs text-gray-500">{next ? '出发时间' : '游览时间'}<input disabled={busy} type="time" className={field} value={time} onChange={e => setTime(e.target.value)} /></label><label className="text-xs text-gray-500">{next ? '交通时长' : '游玩时长'}<div className="relative"><input disabled={busy} type="number" min={0} step={1} className={`${field} pr-12`} value={duration} onChange={e => setDuration(e.target.value)} /><span className="absolute right-3 top-3 text-xs text-gray-400">分钟</span></div></label></div>
         <label className="block text-xs text-gray-500">备注<textarea disabled={busy} maxLength={4000} rows={2} className={`${field} resize-none`} value={note} onChange={e => setNote(e.target.value)} /></label>
-        <div className="flex items-center justify-end gap-2">{leg && <button disabled={busy} type="button" onClick={() => { void save(true) }} className="mr-auto py-2 text-xs text-gray-500">清除安排</button>}<button disabled={busy} type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-gray-500">取消</button><button disabled={busy} type="submit" className="rounded-lg bg-blue-600 px-5 py-2 text-sm text-white disabled:opacity-50">{busy ? '保存中…' : '保存'}</button></div>
+        <div className="flex items-center justify-end gap-2">{leg && <button disabled={busy} type="button" onClick={() => { void save(true) }} className="mr-auto py-2 text-xs text-gray-500">清除安排</button>}<button disabled={busy} type="button" onClick={onClose} className="workspace-secondary-button">取消</button><button disabled={busy} type="submit" className="workspace-primary-button">{busy ? '保存中…' : '保存'}</button></div>
     </form></Modal>
 }
 
@@ -71,7 +71,7 @@ export function RouteLeg({ day, route, fromId, toId, distance, editable }: { day
     const canEdit = editable && !!day && !!route && !!stop && !!next && valid
     const Icon = leg ? icons[leg.mode] : Route
     return <><Arrow />{(leg || distance !== null || canEdit) && <>
-        <div className="overflow-hidden rounded-lg border border-dashed border-gray-300 bg-gray-50/60">
+        <div className={leg || canEdit ? 'overflow-hidden rounded-xl border border-dashed border-gray-200 bg-gray-50/70' : 'border-0 bg-transparent'}>
             <button disabled={!canEdit} onClick={() => setOpen(true)} aria-label="编辑交通安排" className="route-schedule-button block w-full px-2 py-1.5 text-left text-[11px] text-gray-500 enabled:hover:bg-gray-100/70 disabled:cursor-default">
                 {!leg ? <span className="grid grid-cols-[1fr_auto_1fr] items-center gap-1">
                     <span className="text-left tabular-nums">{distance !== null && distanceLabel(distance)}</span>

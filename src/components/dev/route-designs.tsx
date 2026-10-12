@@ -35,7 +35,7 @@ export function RouteDesigns() {
     const emptyRoute = { ...route, legs: [] }
     return <main className="h-screen overflow-y-auto bg-gray-100">
         {ready && <LeftSidebar onFlyTo={() => {}} onFitMarkers={() => {}} routeProvider="google" addMarkerEnabled={edit} onToggleAddMarker={() => setEdit(value => !value)} />}
-        <div className="hidden max-w-[760px] space-y-5 p-8 lg:ml-[380px] lg:block">
+        <div className="hidden max-w-[760px] space-y-5 p-8 lg:ml-[420px] lg:block">
             <h1 className="text-lg font-semibold">正式组件 · 未设置交通安排</h1>
             {[{ label: '浏览模式 · 无距离 / 无交通安排', distance: null, editable: false }, { label: '浏览模式 · 只有规划距离', distance: 650, editable: false }, { label: '编辑模式 · 等待填写', distance: null, editable: true }].map(item => <section key={item.label} className="rounded-xl bg-white p-4"><h2 className="mb-3 text-sm text-gray-500">{item.label}</h2><div className="mx-auto max-w-[300px]"><div className="rounded-xl border border-gray-200 bg-white p-3 text-sm">浅草寺</div><RouteLeg day={day} route={emptyRoute} fromId="asakusa" toId="ueno" distance={item.distance} editable={item.editable} /><div className="rounded-xl border border-gray-200 bg-white p-3 text-sm">上野公园</div></div></section>)}
         </div>

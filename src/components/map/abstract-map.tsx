@@ -16,7 +16,7 @@ import { SearchResultMarker, searchResultKey } from './search-result-marker'
 import { searchService, searchDestinationPlaces, SearchResult } from '@/lib/api/search-service'
 import { mergeSearchResults, type MapSearchResult } from '@/lib/map/search-results'
 import { useMapStore } from '@/store/map-store'
-import { MarkerCoordinates, MARKER_ICONS } from '@/types/marker'
+import { MarkerCoordinates } from '@/types/marker'
 import type { BasemapProviderType } from '@/types/map-provider'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import { MapMarker } from './map-marker'
@@ -24,6 +24,7 @@ import { MapPopup } from './map-popup'
 import { ConnectionLines } from './connection-lines'
 import { AddMarkerModal } from '@/components/modal/add-marker-modal'
 import { EditMarkerModal } from '@/components/modal/edit-marker-modal'
+import { PlaceSearchPanel } from './place-search-panel'
 import { LeftSidebar } from '@/components/sidebar/left-sidebar'
 import { Sidebar } from '@/components/sidebar/sidebar'
 import { ViewModeBanner } from '@/components/map/view-mode-banner'
@@ -159,6 +160,9 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     }, [])
 
     // 右下角搜索栏状态
+    const [searchOpen, setSearchOpen] = useState(false)
+    const [searchTarget, setSearchTarget] = useState<{ tripId: string; dayId: string | null } | null>(null)
+    const [addingSearchKey, setAddingSearchKey] = useState<string | null>(null)
     const [fabQuery, setFabQuery] = useState('')
     const [providerResults, setProviderResults] = useState<SearchResult[]>([])
     const [providerQuery, setProviderQuery] = useState('')
@@ -166,54 +170,6 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     const selectedSearchRef = useRef<string | null>(null)
     const [fabQueryError, setFabQueryError] = useState('')
     const [isSearching, setIsSearching] = useState(false)
-
-    // 用户定位状态
-    type GeoState = 'idle' | 'loading' | 'active'
-    const [geoState, setGeoState] = useState<GeoState>('idle')
-    const geoWatchRef = useRef<number | null>(null)
-    const [userLocation, setUserLocation] = useState<{ lng: number; lat: number } | null>(null)
-    const hasGeolocation = typeof navigator !== 'undefined' && 'geolocation' in navigator
-
-    const handleGeoClick = useCallback(() => {
-        if (!hasGeolocation) return
-        if (geoState === 'loading') return
-
-        if (geoState === 'active' && userLocation) {
-            // 已定位，重新飞到当前位置
-            flyMap({ center: [userLocation.lng, userLocation.lat], zoom: 15, duration: 800 })
-            return
-        }
-
-        setGeoState('loading')
-        if (geoWatchRef.current !== null) {
-            navigator.geolocation.clearWatch(geoWatchRef.current)
-        }
-        geoWatchRef.current = navigator.geolocation.watchPosition(
-            (pos) => {
-                const loc = { lng: pos.coords.longitude, lat: pos.coords.latitude }
-                setUserLocation(loc)
-                setGeoState(prev => {
-                    if (prev === 'loading') {
-                        flyMap({ center: [loc.lng, loc.lat], zoom: 15, duration: 800 })
-                    }
-                    return 'active'
-                })
-            },
-            (err) => {
-                if (err.code === err.PERMISSION_DENIED) {
-                    // 用户明确拒绝权限，才提示
-                    setGeoState('idle')
-                    toast.error('无法获取位置，请检查定位权限')
-                }
-                // POSITION_UNAVAILABLE / TIMEOUT：信号抖动，静默处理
-                // 已有位置时保持 active；否则退回 idle
-                else {
-                    setGeoState(prev => prev === 'active' ? 'active' : 'idle')
-                }
-            },
-            { enableHighAccuracy: true, timeout: 10000 }
-        )
-    }, [geoState, userLocation, hasGeolocation, flyMap])
 
     const {
         markers,
@@ -253,23 +209,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     const fabResults = useMemo(() => mergeSearchResults(fabQuery, markers, providerQuery === fabQuery.trim() ? providerResults : []), [fabQuery, markers, providerQuery, providerResults])
     const searchOverlayResults = useMemo(() => fabResults.filter(result => !result.markerId), [fabResults])
 
-    // 监听标记同步失败事件
-    useEffect(() => {
-        const handleSyncFailed = () => {
-            toast.error('标记保存失败，请检查网络后重试', { duration: 5000 })
-        }
-        window.addEventListener('syncMarkerFailed', handleSyncFailed)
-        return () => window.removeEventListener('syncMarkerFailed', handleSyncFailed)
-    }, [])
-
-    // 自定义关闭标记详情函数
-    const handleCloseSidebar = useCallback(() => {
-        // 发送事件通知侧边栏重置添加模式
-        const resetAddModeEvent = new CustomEvent('resetAddMode')
-        window.dispatchEvent(resetAddModeEvent)
-
-        closeSidebar()
-    }, [closeSidebar])
+    const handleCloseSidebar = useCallback(() => closeSidebar(), [closeSidebar])
 
     // 地图初始化成功后设置状态
     const handleMapLoad = useCallback(() => {
@@ -309,17 +249,17 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     const handleFlyTo = useCallback((coordinates: { longitude: number; latitude: number }, zoom?: number) => {
         if (mapRef.current || amapRef.current) {
             // popup 显示在标记下方，标记上移让 popup 视觉居中（offset 负 y = 目标点在视口中心上方）
-            flyMap({ center: [coordinates.longitude, coordinates.latitude], offset: [0, -80], zoom, duration: flyDuration(coordinates) })
+            flyMap({ center: [coordinates.longitude, coordinates.latitude], offset: [useMapStore.getState().leftSidebar.isOpen && window.innerWidth >= 1024 ? 200 : 0, -80], zoom, duration: flyDuration(coordinates) })
         }
     }, [flyDuration, flyMap])
     const handleFitMarkers = useCallback((ids: string[]) => {
         const state = useMapStore.getState()
-        const width = window.innerWidth - (state.leftSidebar.isOpen && window.innerWidth >= 1024 ? 360 : 0)
-        const camera = routeCamera(state.markers.filter(marker => ids.includes(marker.id)), width, window.innerHeight)
+        const width = window.innerWidth - (state.leftSidebar.isOpen && window.innerWidth >= 1024 ? 400 : 0)
+        const camera = routeCamera(state.markers.filter(marker => ids.includes(marker.id)), width, window.innerHeight, isAmap ? 256 : 512)
         if (!camera) return
         state.closePopup()
         if (window.innerWidth < 1024) state.closeLeftSidebar()
-        const offset = width !== window.innerWidth ? 180 : 0
+        const offset = width !== window.innerWidth ? 200 : 0
         const longitude = camera.longitude
         flyMap({ center: [longitude, camera.latitude], zoom: camera.zoom, duration: 1000, offset: [offset, 0] })
     }, [flyMap, isAmap])
@@ -332,15 +272,15 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         // Fit the unobscured rectangle, including the existing left sidebar.
         const mobilePanel = panel && panel.width >= viewportWidth - 1
         if (mobilePanel) state.closeLeftSidebar()
-        const left = state.leftSidebar.isOpen && viewportWidth >= 1024 ? 360 : 0
+        const left = state.leftSidebar.isOpen && viewportWidth >= 1024 ? 400 : 0
         const right = panel && !mobilePanel ? panel.left : viewportWidth
         const bottom = mobilePanel ? panel.top : viewportHeight
-        const camera = routeCamera(places, Math.max(120, right - left), Math.max(160, bottom))
+        const camera = routeCamera(places, Math.max(120, right - left), Math.max(160, bottom), isAmap ? 256 : 512)
         if (!camera) return
         state.closePopup()
         flyMap({ center: [camera.longitude, camera.latitude], zoom: places.length === 1 ? 15 : camera.zoom,
             duration: flyDuration(camera), offset: [(left + right - viewportWidth) / 2, (bottom - viewportHeight) / 2] })
-    }, [flyMap, flyDuration])
+    }, [flyMap, flyDuration, isAmap])
 
     const startupCameraApplied = useRef(false)
     useEffect(() => {
@@ -391,6 +331,62 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         handleFlyTo(marker.coordinates)
     }, [activeView.mode, activeView.dayId, activeView.focusFirstMarker, tripDays, markers, handleFlyTo, mapInitialized])
 
+    const searchTrip = trips.find(trip => trip.id === (searchOpen ? searchTarget?.tripId : activeView.tripId))
+    const searchDestinations = searchOpen ? tripDestinations(searchTrip) : activeDestinations
+    const searchScopeKey = `${searchTarget?.tripId ?? destinationKey}:${searchDestinations.map(item => `${item.longitude}:${item.latitude}`).join('|')}`
+    const searchTargetDay = tripDays.find(day => day.id === searchTarget?.dayId)
+    const searchDayNumber = tripDays.filter(day => day.tripId === searchTarget?.tripId).sort((a, b) => a.date.localeCompare(b.date)).findIndex(day => day.id === searchTarget?.dayId) + 1
+    const searchLocationLabel = searchTarget?.dayId
+        ? searchTargetDay ? searchTargetDay.title || `第${searchDayNumber}天` : '日期已删除'
+        : '未分配日期'
+    const searchTargetLabel = searchTarget ? `${searchTrip?.name || '旅行'} · ${searchLocationLabel}` : null
+    const openPlaceSearch = () => {
+        const state = useMapStore.getState()
+        setSearchTarget(state.activeView.tripId ? { tripId: state.activeView.tripId, dayId: state.activeView.mode === 'day' ? state.activeView.dayId : null } : null)
+        setSearchOpen(true)
+        state.openLeftSidebar()
+        state.closeSidebar()
+        state.closePopup()
+    }
+    const closePlaceSearch = () => {
+        setSearchOpen(false)
+        setFabQuery('')
+        setProviderResults([])
+        setSearchTarget(null)
+        closePopup()
+        useMapStore.getState().openLeftSidebar()
+    }
+    useEffect(() => {
+        if (!searchOpen || addMarkerModal.isOpen || editMarkerModal.isOpen) return
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape' && !event.defaultPrevented) closePlaceSearch()
+        }
+        document.addEventListener('keydown', handleEscape)
+        return () => document.removeEventListener('keydown', handleEscape)
+    }, [searchOpen, addMarkerModal.isOpen, editMarkerModal.isOpen])
+    const isSearchResultAdded = (result: MapSearchResult) => {
+        if (!result.markerId) return false
+        if (!searchTarget) return true
+        if (searchTarget.dayId) return !!searchTargetDay?.markerIds.includes(result.markerId)
+        return !!searchTrip?.markerIds?.includes(result.markerId) || tripDays.some(day => day.tripId === searchTarget.tripId && day.markerIds.includes(result.markerId!))
+    }
+    const addSearchResult = async (result: MapSearchResult) => {
+        if (addingSearchKey || isSearchResultAdded(result)) return
+        if (!result.markerId) {
+            placeLookupEpoch.current++
+            setCurrentPlaceAddress(result.address)
+            setCurrentPlaceName(result.name)
+            openAddMarkerModal(result.coordinates, result.name, result.placeReferences)
+            return
+        }
+        setAddingSearchKey(searchResultKey(result))
+        try {
+            if (searchTarget?.dayId) await addMarkerToDay(searchTarget.tripId, searchTarget.dayId, result.markerId)
+            else if (searchTarget) await useMapStore.getState().setTripMarker(searchTarget.tripId, result.markerId, true)
+        } catch (error) { toast.error(error instanceof Error ? error.message : '添加失败，请重试') }
+        finally { setAddingSearchKey(null) }
+    }
+
     // 右下角搜索：防抖自动搜索（输入≥2字）
     useEffect(() => {
         const trimmedQuery = fabQuery.trim()
@@ -434,8 +430,8 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                     south: Math.max(-90, bounds.south - (bounds.north - bounds.south) * 0.2),
                     north: Math.min(90, bounds.north + (bounds.north - bounds.south) * 0.2),
                 } : undefined
-                const results = activeDestinations.length
-                    ? await searchDestinationPlaces(trimmedQuery, activeDestinations, controller.signal)
+                const results = searchDestinations.length
+                    ? await searchDestinationPlaces(trimmedQuery, searchDestinations, controller.signal)
                     : await searchService.searchPlaces(trimmedQuery, 20, 'zh-CN', 'CN', { bounds: searchBounds, signal: controller.signal })
                 if (controller.signal.aborted) return
                 setProviderResults(results)
@@ -453,7 +449,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             clearTimeout(searchTimeout)
             controller.abort()
         }
-    }, [destinationKey, fabQuery, isAmap, closePopup])
+    }, [searchScopeKey, fabQuery, isAmap, closePopup])
 
     const handleFabResultClick = useCallback((result: MapSearchResult) => {
         selectedSearchRef.current = searchResultKey(result)
@@ -468,14 +464,11 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             const { tripDays, setHighlightedDay, activeView } = useMapStore.getState()
             if (activeView.mode !== 'day') setHighlightedDay(tripDays.find(day => day.markerIds.includes(result.markerId!))?.id ?? null)
         }
-        // The same fixed zoom applies on list and map selection; no delayed popup.
-        const viewport = window.visualViewport
-        const visibleTop = viewport?.offsetTop ?? 0
-        const visibleBottom = visibleTop + (viewport?.height ?? window.innerHeight)
-        const panelTop = window.innerWidth < 1024 ? searchPanelRef.current?.getBoundingClientRect().top : undefined
-        const targetY = panelTop === undefined ? window.innerHeight / 2 : (visibleTop + Math.max(visibleTop, Math.min(panelTop, visibleBottom))) / 2
+        const desktop = window.innerWidth >= 1024
+        const sidebarWidth = desktop ? document.querySelector('.left-sidebar')?.getBoundingClientRect().width ?? 400 : 0
+        if (!desktop) useMapStore.getState().closeLeftSidebar()
         flyMap({ center: [result.coordinates.longitude, result.coordinates.latitude], zoom: 16,
-            offset: [0, targetY - window.innerHeight / 2], duration: flyDuration(result.coordinates) })
+            offset: [sidebarWidth / 2, -60], duration: flyDuration(result.coordinates) })
     }, [openPopup, selectMarker, flyMap, flyDuration])
 
     // 静默重试加载数据
@@ -691,35 +684,13 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             const marker = markers.find(m => m.id === markerId)
             if (!marker) return
 
-            // 检查是否处于添加模式 - 通过自定义事件获取状态
-            let isAddingMode = false
-            const checkEvent = new CustomEvent('checkAddingMode', {
-                detail: { callback: (result: boolean) => { isAddingMode = result } }
-            })
-            window.dispatchEvent(checkEvent)
-
-            // 等待回调执行
-            setTimeout(() => {
-                if (isAddingMode) {
-                    closePopup()
-                    // 触发添加标记事件
-                    const addEvent = new CustomEvent('addMarkerToChain', {
-                        detail: { markerId }
-                    })
-                    window.dispatchEvent(addEvent)
-                    return
-                }
-
-                // 选中标记 + 弹出 popup（携带标记坐标，显示操作按钮）
-                selectMarker(markerId)
-                openPopup(marker.coordinates)
-                // 激活该标记所属的 day 连线
-                const { tripDays, setHighlightedDay, activeView } = useMapStore.getState()
-                if (activeView.mode !== 'day') {
-                    const day = tripDays.find(d => d.markerIds.includes(markerId))
-                    setHighlightedDay(day?.id ?? null)
-                }
-            }, 0)
+            selectMarker(markerId)
+            openPopup(marker.coordinates)
+            const { tripDays, setHighlightedDay, activeView } = useMapStore.getState()
+            if (activeView.mode !== 'day') {
+                const day = tripDays.find(d => d.markerIds.includes(markerId))
+                setHighlightedDay(day?.id ?? null)
+            }
         } catch (err) {
             console.error('Marker click error:', err)
         }
@@ -743,65 +714,59 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
     const handleViewMarker = useCallback((markerId: string) => {
         try {
             selectMarker(markerId)
+            closePopup()
             openSidebar()
+            const state = useMapStore.getState()
+            const marker = state.markers.find(item => item.id === markerId)
+            if (marker && window.innerWidth >= 1024) {
+                flyMap({ center: [marker.coordinates.longitude, marker.coordinates.latitude], offset: [(state.leftSidebar.isOpen ? 400 : 0) / 2 - 210, -40], duration: 500 })
+            }
         } catch (err) {
             console.error('View marker error:', err)
         }
-    }, [selectMarker, openSidebar])
+    }, [selectMarker, openSidebar, closePopup, flyMap])
 
     const handleDeleteMarker = useCallback((markerId: string) => {
         if (useMapStore.getState().editMode.isEnabled) setPendingMarkerDelete(markerId)
     }, [closePopup])
 
+    const createdPlaceRef = useRef<string | null>(null)
+    useEffect(() => { if (!addMarkerModal.isOpen) createdPlaceRef.current = null }, [addMarkerModal.isOpen])
     const handleSaveNewMarker = useCallback(async (data: {
         coordinates: MarkerCoordinates
         name: string
         iconType: MarkerIconType
         address?: string
         placeReferences?: PlaceReferences
+        headerImage?: string
+        markdownContent: string
     }) => {
-        try {
-            const { activeView: view } = useMapStore.getState()
-            const tripId = view.tripId
-            const dayId = view.dayId
-
-            await createMarkerFromModal({
-                ...data,
-                // Day/Trip 模式：等 API 返回真实 ID 后再归属，避免 tempId 污染
-                onSynced: tripId && dayId ? async (realMarkerId) => {
-                    try {
-                        await addMarkerToDay(tripId, dayId, realMarkerId)
-                        toast.success('标记已创建并加入今天行程')
-                    } catch {
-                        toast.success('标记已创建')
-                    }
-                } : tripId ? async (realMarkerId) => {
-                    try { await useMapStore.getState().setTripMarker(tripId, realMarkerId, true) }
-                    catch { toast.error('地点已创建，但加入旅行失败') }
-                } : undefined,
-            })
-
-            // 没有旅行模式时只提示创建成功（onSynced 为空时执行）
-            if (!tripId || !dayId) {
-                // toast 由 add-marker-modal 已处理，无需重复
-            }
-        } catch (err) {
-            console.error('Save new marker error:', err)
+        const { activeView: view } = useMapStore.getState()
+        const tripId = searchOpen ? searchTarget?.tripId : view.tripId
+        const dayId = searchOpen ? searchTarget?.dayId : view.dayId
+        const markerId = createdPlaceRef.current ?? await createMarkerFromModal(data)
+        if (createdPlaceRef.current) {
+            await updateMarkerFromModal({ markerId, title: data.name, iconType: data.iconType,
+                headerImage: data.headerImage, markdownContent: data.markdownContent })
         }
-    }, [createMarkerFromModal, addMarkerToDay])
+        createdPlaceRef.current = markerId
+        try {
+            if (tripId && dayId) await addMarkerToDay(tripId, dayId, markerId)
+            else if (tripId) await useMapStore.getState().setTripMarker(tripId, markerId, true)
+        } catch {
+            throw new Error('地点已保存，加入行程失败。再次保存可重试加入。')
+        }
+        closePopup()
+    }, [createMarkerFromModal, updateMarkerFromModal, addMarkerToDay, searchOpen, searchTarget, closePopup])
 
-    const handleUpdateMarker = useCallback((data: {
+    const handleUpdateMarker = useCallback(async (data: {
         markerId: string
         title?: string
         headerImage?: string
         markdownContent: string
         iconType?: MarkerIconType
     }) => {
-        try {
-            updateMarkerFromModal(data)
-        } catch (err) {
-            console.error('Update marker error:', err)
-        }
+        await updateMarkerFromModal(data)
     }, [updateMarkerFromModal])
 
     const handleRetry = useCallback(() => {
@@ -845,7 +810,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
         <div className="fixed inset-0 map-container">
             {/* 数据加载指示器（非阻塞） */}
             {isLoading && (
-                <div className="absolute top-4 right-4 z-50 bg-blue-600 text-white px-3 py-2 rounded-md shadow-lg">
+                <div className="absolute top-4 right-4 z-50 bg-accent-600 text-white px-3 py-2 rounded-md shadow-lg">
                     <div className="flex items-center space-x-2">
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                         <span className="text-sm">同步中...</span>
@@ -900,7 +865,8 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
             <ViewModeBanner />
 
             {/* 左侧边栏 */}
-            <LeftSidebar onFlyTo={handleFlyTo} onFitMarkers={handleFitMarkers} routeProvider={routeProvider} addMarkerEnabled={addMarkerEnabled} onToggleAddMarker={toggleAddMarker} />
+            <LeftSidebar onFlyTo={handleFlyTo} onFitMarkers={handleFitMarkers} routeProvider={routeProvider} addMarkerEnabled={addMarkerEnabled} onToggleAddMarker={toggleAddMarker} onSearchPlaces={openPlaceSearch} searchPanel={searchOpen ? <PlaceSearchPanel ref={searchPanelRef} open={searchOpen} query={fabQuery} results={fabResults} selectedKey={selectedSearchKey} busy={isSearching} addingKey={addingSearchKey} error={fabQueryError} targetLabel={searchTargetLabel} isAdded={isSearchResultAdded}
+                onClose={closePlaceSearch} onQuery={query => { setFabQuery(query); setFabQueryError('') }} onSelect={handleFabResultClick} onAdd={result => { void addSearchResult(result) }} /> : undefined} />
 
             {pendingMarkerDelete && <Modal title="删除这个地点？" onClose={() => setPendingMarkerDelete(null)} busy={deletingMarker}>
                 <p className="text-sm text-gray-600">「{markers.find(marker => marker.id === pendingMarkerDelete)?.content.title || '未命名地点'}」将从地图及所有行程中删除。</p>
@@ -931,7 +897,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                     onSearchResultClick={handleFabResultClick}
                     selectedMarkerId={selectedMarkerId}
                     popupCoordinates={isPopupOpen ? popupCoordinates : null}
-                    userLocation={userLocation}
+                    userLocation={null}
                     onMove={next => { setViewState(previous => ({ ...previous, ...next })); saveViewState(next) }}
                     onLoad={handleMapLoad}
                     onClick={(coordinates, originalEvent) => handleMapClick({ lngLat: { lng: coordinates.longitude, lat: coordinates.latitude }, originalEvent, canonical: true })}
@@ -942,6 +908,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                         basemap="amap"
                         embedded
                         selectedMarkerId={selectedMarkerId}
+                        hideAssignment={searchOpen}
                         onAddMarker={handleAddMarker}
                         onViewMarker={handleViewMarker}
                         onDeleteMarker={handleDeleteMarker}
@@ -1019,6 +986,7 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                         coordinates={popupCoordinates}
                         basemap={basemap}
                         selectedMarkerId={selectedMarkerId}
+                        hideAssignment={searchOpen}
                         onAddMarker={handleAddMarker}
                         onViewMarker={handleViewMarker}
                         onDeleteMarker={handleDeleteMarker}
@@ -1031,142 +999,8 @@ export const AbstractMap = ({ renderer, amapJsKey, amapSecurityCode, routeProvid
                         }}
                     />
                 )}
-                {/* 用户当前位置蓝点 */}
-                {userLocation && (
-                    <MapboxMarker longitude={toDisplay({ longitude: userLocation.lng, latitude: userLocation.lat }).longitude} latitude={toDisplay({ longitude: userLocation.lng, latitude: userLocation.lat }).latitude} anchor="center">
-                        <div className="relative flex items-center justify-center">
-                            <div className="w-4 h-4 rounded-full bg-blue-500 border-2 border-white shadow-md" />
-                        </div>
-                    </MapboxMarker>
-                )}
                 </MapLibreComponent>
                 </React.Fragment>}
-
-            {/* 右下角：搜索栏 */}
-            <div ref={searchPanelRef} className="fixed bottom-6 right-4 left-4 lg:left-auto z-30 flex flex-col gap-2">
-                {fabQueryError && <div role="status" className="rounded-xl bg-white px-4 py-2 text-sm text-red-600 shadow">{fabQueryError}</div>}
-                        {/* 搜索结果列表（向上弹出，与输入框等宽） */}
-                        {fabResults.length > 0 && (
-                            <div className="w-full lg:hidden bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-scale-in">
-                                <div className="max-h-64 overflow-y-auto custom-scrollbar">
-                                    {fabResults.map(r => (
-                                        <button
-                                            key={searchResultKey(r)}
-                                            aria-pressed={selectedSearchKey === searchResultKey(r)}
-                                            onClick={() => handleFabResultClick(r)}
-                                            className={cn("w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors text-left border-b border-gray-50 last:border-0", selectedSearchKey === searchResultKey(r) && "bg-blue-50")}
-                                        >
-                                            <span className="text-blue-500 flex-shrink-0">
-                                                {r.markerId ? <span className="text-base">{MARKER_ICONS[r.iconType || 'location'].emoji}</span> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                </svg>}
-                                            </span>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="text-sm font-medium text-gray-900 truncate">{r.name}{r.markerId && <span className="ml-2 text-xs font-normal text-gray-400">已添加</span>}</div>
-                                                {r.address && <div className="text-xs text-gray-400 truncate mt-0.5">{r.address}</div>}
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-
-                {/* 搜索输入框 + 定位按钮 同一排 */}
-                <div className="flex items-center gap-2">
-                    <div className="relative min-w-0 flex-1 lg:w-72 lg:flex-none">
-                        {/* 搜索结果列表（向上弹出，与输入框等宽） */}
-                        {fabResults.length > 0 && (
-                            <div className="hidden lg:block absolute bottom-full mb-2 inset-x-0 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-scale-in">
-                                <div className="max-h-64 overflow-y-auto custom-scrollbar">
-                                    {fabResults.map(r => (
-                                        <button
-                                            key={searchResultKey(r)}
-                                            aria-pressed={selectedSearchKey === searchResultKey(r)}
-                                            onClick={() => handleFabResultClick(r)}
-                                            className={cn("w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-50 transition-colors text-left border-b border-gray-50 last:border-0", selectedSearchKey === searchResultKey(r) && "bg-blue-50")}
-                                        >
-                                            <span className="text-blue-500 flex-shrink-0">
-                                                {r.markerId ? <span className="text-base">{MARKER_ICONS[r.iconType || 'location'].emoji}</span> : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                </svg>}
-                                            </span>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="text-sm font-medium text-gray-900 truncate">{r.name}{r.markerId && <span className="ml-2 text-xs font-normal text-gray-400">已添加</span>}</div>
-                                                {r.address && <div className="text-xs text-gray-400 truncate mt-0.5">{r.address}</div>}
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-
-                        <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                            {isSearching ? (
-                                <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                </svg>
-                            )}
-                        </div>
-                        <input
-                            type="text"
-                            value={fabQuery}
-                            onChange={e => {
-                                setFabQuery(e.target.value)
-                                if (fabQueryError) setFabQueryError('')
-                                if (!e.target.value.trim()) setProviderResults([])
-                            }}
-                            onKeyDown={e => {
-                                if (e.key === 'Escape') { setFabQuery(''); setProviderResults([]) }
-                                if (e.key === 'Enter' && fabResults.length > 0) handleFabResultClick(fabResults[0])
-                            }}
-                            placeholder="搜索地点…"
-                            className="w-full lg:w-72 h-12 pl-9 pr-8 bg-white rounded-[14px] shadow-lg border border-gray-200 text-sm placeholder-gray-400 focus:outline-none transition-all"
-                        />
-                        {fabQuery && !isSearching && (
-                            <button
-                                onClick={() => { setFabQuery(''); setProviderResults([]) }}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition-colors"
-                            >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        )}
-                    </div>
-
-                    {/* 定位按钮 — PWA only */}
-                    {hasGeolocation && (
-                        <button
-                            onClick={handleGeoClick}
-                            className="w-12 h-12 rounded-full shadow-lg border flex-shrink-0 flex items-center justify-center bg-white border-gray-200 text-gray-500 hover:bg-gray-50 focus:outline-none touch-manipulation transition-colors duration-150"
-                            aria-label="定位到当前位置"
-                            title="定位到当前位置"
-                        >
-                            {geoState === 'loading' ? (
-                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                                    {/* 外圆 */}
-                                    <circle cx="12" cy="12" r="6" />
-                                    {/* 中心点 */}
-                                    <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
-                                    {/* 十字臂 */}
-                                    <line x1="12" y1="2"  x2="12" y2="6" />
-                                    <line x1="12" y1="18" x2="12" y2="22" />
-                                    <line x1="2"  y1="12" x2="6"  y2="12" />
-                                    <line x1="18" y1="12" x2="22" y2="12" />
-                                </svg>
-                            )}
-                        </button>
-                    )}
-                </div>
-            </div>
 
             {/* 新增标记弹窗 */}
             <AddMarkerModal

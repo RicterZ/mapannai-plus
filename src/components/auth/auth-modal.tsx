@@ -110,7 +110,7 @@ export function AuthModal() {
               onChange={(e) => { setValue(e.target.value); setError('') }}
               placeholder="输入 API Token"
               autoComplete="off"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent placeholder:text-gray-400"
             />
             {error && (
               <p className="mt-1.5 text-xs text-red-500">{error}</p>
@@ -120,7 +120,7 @@ export function AuthModal() {
           <button
             type="submit"
             disabled={isVerifying || !value.trim()}
-            className="w-full py-2 px-4 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full py-2 px-4 bg-accent-600 text-white text-sm font-medium rounded-lg hover:bg-accent-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {isVerifying ? '验证中…' : '确认'}
           </button>

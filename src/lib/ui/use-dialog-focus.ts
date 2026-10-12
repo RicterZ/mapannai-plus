@@ -14,7 +14,7 @@ export function useDialogFocus(open: boolean, onClose: () => void, busy = false)
         if (!dialog) return
         const elements = () => Array.from(dialog.querySelectorAll<HTMLElement>(
             'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [contenteditable="true"], [tabindex="0"]',
-        )).filter(element => element.getClientRects().length > 0)
+        )).filter(element => element.getClientRects().length > 0 && !element.matches(':disabled'))
         dialog.focus({ preventScroll: true })
         const handle = (event: KeyboardEvent) => {
             const dialogs = document.querySelectorAll('[role="dialog"]')

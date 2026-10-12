@@ -1,114 +1,18 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import { createPortal } from 'react-dom'
-import { MarkerIconType, MARKER_ICONS } from '@/types/marker'
+import { PlaceIcon } from '@/components/ui/place-icon'
+
+import { MARKER_ICONS, type MarkerIconType } from '@/types/marker'
 import { cn } from '@/utils/cn'
 
-interface IconSelectorProps {
+export function IconSelector({ selectedIcon = 'location', onSelect, className }: {
     selectedIcon?: MarkerIconType
     onSelect: (iconType: MarkerIconType) => void
     className?: string
+}) {
+    return <div role="group" aria-label="地点分类" className={cn('grid grid-cols-2 gap-1.5', className)}>
+        {Object.entries(MARKER_ICONS).map(([type, icon]) => <button key={type} type="button" aria-pressed={selectedIcon === type} onClick={() => onSelect(type as MarkerIconType)} title={icon.description} className={cn('flex min-h-9 items-center gap-2 rounded-lg border px-2 py-2 text-left text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-300', selectedIcon === type ? 'border-accent-300 bg-accent-50 text-gray-900' : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 hover:bg-gray-50')}>
+            <PlaceIcon emoji={icon.emoji} size={20} /><span>{icon.name}</span>
+        </button>)}
+    </div>
 }
-
-export const IconSelector = ({ selectedIcon = 'location', onSelect, className }: IconSelectorProps) => {
-    const [isOpen, setIsOpen] = useState(false)
-    const [position, setPosition] = useState({ top: 0, left: 0, width: 0 })
-    const buttonRef = useRef<HTMLButtonElement>(null)
-
-    const handleSelect = (iconType: MarkerIconType) => {
-        onSelect(iconType)
-        setIsOpen(false)
-    }
-
-    useEffect(() => {
-        if (isOpen && buttonRef.current) {
-            const rect = buttonRef.current.getBoundingClientRect()
-            const menuMinWidth = 200
-            // Fixed positioning uses viewport coords — do NOT add scroll offsets
-            const rawLeft = rect.left
-            const rightEdge = rawLeft + menuMinWidth
-            const left = rightEdge > window.innerWidth
-                ? Math.max(0, window.innerWidth - menuMinWidth - 8)
-                : rawLeft
-            setPosition({
-                top: rect.bottom,
-                left,
-                width: rect.width
-            })
-        }
-    }, [isOpen])
-
-    return (
-        <div className={cn('relative', className)}>
-            {/* 选择器按钮 */}
-            <button
-                ref={buttonRef}
-                type="button"
-                onClick={() => setIsOpen(!isOpen)}
-                className="w-full flex items-center justify-between px-3 py-2.5 border border-gray-300 rounded-xl bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 h-10"
-            >
-                <div className="flex items-center space-x-2">
-                    <span className="text-lg">{(MARKER_ICONS[selectedIcon] || MARKER_ICONS['location']).emoji}</span>
-                    <span className="text-sm text-gray-700">{(MARKER_ICONS[selectedIcon] || MARKER_ICONS['location']).name}</span>
-                </div>
-                <svg
-                    className={cn('w-4 h-4 text-gray-400 transition-transform', isOpen && 'rotate-180')}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-            </button>
-
-            {/* 下拉菜单 - 使用Portal渲染到body */}
-            {isOpen && createPortal(
-                <>
-                    {/* 背景遮罩 */}
-                    <div
-                        className="fixed inset-0 z-[110]"
-                        onClick={() => setIsOpen(false)}
-                    />
-
-                    {/* 选项列表 */}
-                    <div 
-                        className="fixed z-[120] bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto"
-                        style={{
-                            top: position.top,
-                            left: position.left,
-                            width: position.width,
-                            minWidth: '200px'
-                        }}
-                    >
-                        <div className="py-1">
-                            {Object.entries(MARKER_ICONS).map(([iconType, config]) => (
-                                <button
-                                    key={iconType}
-                                    type="button"
-                                    onClick={() => handleSelect(iconType as MarkerIconType)}
-                                    className={cn(
-                                        'w-full flex items-center px-3 py-2 text-left hover:bg-gray-100 transition-colors',
-                                        selectedIcon === iconType && 'bg-blue-50 text-blue-700'
-                                    )}
-                                >
-                                    <span className="text-lg mr-3">{config.emoji}</span>
-                                    <div className="flex-1">
-                                        <div className="text-sm font-medium">{config.name}</div>
-                                        <div className="text-xs text-gray-500">{config.description}</div>
-                                    </div>
-                                    {selectedIcon === iconType && (
-                                        <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                        </svg>
-                                    )}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </>,
-                document.body
-            )}
-        </div>
-    )
-} 

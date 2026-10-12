@@ -174,9 +174,7 @@ async function main() {
         try {
             await useMapStore.getState().loadMarkersFromDataset()
             assert.deepEqual(useMapStore.getState().markers.find(m => m.id === 'copied')!.placeReferences, references)
-            const uiId = await new Promise<string>((resolve, reject) => {
-                useMapStore.getState().createMarkerFromModal({ coordinates: { longitude: 80, latitude: 25 }, name: 'Web search', iconType: 'location', placeReferences: { apple, google }, onSynced: resolve }).catch(reject)
-            })
+            const uiId = await useMapStore.getState().createMarkerFromModal({ coordinates: { longitude: 80, latitude: 25 }, name: 'Web search', iconType: 'location', placeReferences: { apple, google } })
             assert.deepEqual((await api(`/api/markers/${uiId}`)).body.placeReferences, { apple, google })
             // The ordinary Dataset save never resends old references as an explicit patch.
             const uiMarker = useMapStore.getState().markers.find(m => m.id === uiId)!

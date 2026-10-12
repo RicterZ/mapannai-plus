@@ -1,5 +1,7 @@
 'use client'
 
+import { PlaceIcon } from '@/components/ui/place-icon'
+
 import React, { useState, useCallback, useSyncExternalStore } from 'react'
 import { Marker, MARKER_ICONS } from '@/types/marker'
 import { cn } from '@/utils/cn'
@@ -75,7 +77,7 @@ export const MapMarker = React.memo(function MapMarker({
                 shouldRenderAsDot 
                     ? 'hover:scale-[0.36] shadow-none' 
                     : 'hover:scale-125 hover:opacity-100 shadow-lg hover:shadow-xl',
-                'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
+                'focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2',
                 // 临时标记样式
                 isTemporary && !hasSyncError
                     ? 'bg-yellow-500/75 hover:bg-yellow-500 animate-pulse' // 同步中的临时标记
@@ -83,9 +85,9 @@ export const MapMarker = React.memo(function MapMarker({
                     ? 'bg-red-500/75 hover:bg-red-500' // 同步失败的标记
                     : isSelected
                     ? shouldRenderAsDot 
-                        ? 'bg-blue-600 scale-[0.36] z-10' // 圆点状态时，选中圆圈也缩小
-                        : 'bg-blue-600 scale-110 z-10 ring-2 ring-blue-600 ring-offset-2' // 正常状态时，选中圆圈放大
-                    : markerColor
+                        ? 'bg-accent-600 scale-[0.36] z-10' // 圆点状态时，选中圆圈也缩小
+                        : 'bg-white scale-110 z-10 ring-2 ring-accent-600 ring-offset-2' // 正常状态时，选中圆圈放大
+                    : shouldRenderAsDot ? markerColor : 'bg-white hover:bg-gray-50'
             )}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
@@ -104,16 +106,14 @@ export const MapMarker = React.memo(function MapMarker({
             }}
         >
             {!shouldRenderAsDot && (
-                <div className="w-4 h-4 flex items-center justify-center">
-                    <span className="text-white text-xs filter drop-shadow-sm">
-                        {iconConfig.emoji}
-                    </span>
+                <div className="w-[22px] h-[22px] flex items-center justify-center">
+                    <PlaceIcon emoji={iconConfig.emoji} size={22} />
                 </div>
             )}
 
             {/* Selection indicator */}
             {isSelected && !shouldRenderAsDot && (
-                <div className="absolute -inset-1 bg-blue-400 rounded-full opacity-30" />
+                <div className="pointer-events-none absolute -inset-1 rounded-full ring-2 ring-accent-300/40" />
             )}
 
             {/* Hover effect indicator */}

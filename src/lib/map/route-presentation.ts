@@ -1,6 +1,6 @@
 import type { Marker } from '@/types/marker'
 
-const colors = ['#1d4ed8', '#be123c', '#7e22ce', '#007d73', '#c2410c', '#a21caf', '#334155', '#0369a1']
+const colors = ['#526f5d', '#a86660', '#807398', '#517f85', '#9e7949', '#956f87', '#717c4b', '#627c96']
 // Persisted palette slots keep adjacent days distinct and survive date edits.
 export function routeColor(index: number, dayId?: string, colorIndex?: number): string {
     if (!dayId) return colors[index % colors.length]
@@ -16,7 +16,7 @@ export function routeColor(index: number, dayId?: string, colorIndex?: number): 
     hash ^= hash >>> 16
     const hue = (hash >>> 0) % 360
     const lightness = [0.42, 0.31, 0.51, 0.36, 0.46, 0.27][index % 6]
-    const saturation = 0.72
+    const saturation = 0.38
     const a = saturation * Math.min(lightness, 1 - lightness)
     const channel = (n: number) => {
         const k = (n + hue / 30) % 12
@@ -31,7 +31,7 @@ export function shortAddress(address?: string): string {
 }
 
 // Web Mercator bounds, with room for the sidebar and map controls.
-export function routeCamera(markers: Marker[], width: number, height: number) {
+export function routeCamera(markers: Marker[], width: number, height: number, tileSize = 256) {
     if (!markers.length) return null
     const xs = markers.map(m => (m.coordinates.longitude + 180) / 360)
     const ys = markers.map(m => {
@@ -39,6 +39,6 @@ export function routeCamera(markers: Marker[], width: number, height: number) {
         return (1 - Math.log(Math.tan(latitude) + 1 / Math.cos(latitude)) / Math.PI) / 2
     })
     const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys)
-    const zoom = Math.min(16, Math.log2(Math.max(120, width - 100) / (256 * Math.max(maxX - minX, 0.00001))), Math.log2(Math.max(120, height - 220) / (256 * Math.max(maxY - minY, 0.00001))))
+    const zoom = Math.min(16, Math.log2(Math.max(120, width - 100) / (tileSize * Math.max(maxX - minX, 0.00001))), Math.log2(Math.max(120, height - 220) / (tileSize * Math.max(maxY - minY, 0.00001))))
     return { longitude: (minX + maxX) * 180 - 180, latitude: Math.atan(Math.sinh(Math.PI * (1 - minY - maxY))) * 180 / Math.PI, zoom: Math.max(2, zoom) }
 }

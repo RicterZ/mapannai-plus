@@ -12,7 +12,7 @@ import { ChatMarkdown } from './chat-markdown'
 import { aiSettingsSchema, repairInterruptedMessages, toolLabels, type ChatEvent, type ChatMessage } from '@/lib/ai/protocol'
 import { defaultSettings, emptyHistory, HISTORY_KEY, newConversation, readHistory, readSettings, writeSettings, type LocalHistory, type LocalSettings } from '@/lib/ai/local-history'
 
-const fieldClass = 'w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500'
+const fieldClass = 'w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-accent-500'
 const iconClass = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-40'
 
 export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string[], panel: DOMRect | null) => void }) {
@@ -185,7 +185,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
 
     return <>
         <button onClick={() => setOpen(true)} className="absolute right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-700 shadow-lg hover:bg-gray-50" style={{ top: 'calc(env(safe-area-inset-top) + env(safe-area-inset-top) + 12px)' }} aria-label="打开 AI 行程规划">
-            <MessageCircle size={18} />{busy && <span className="absolute right-2 top-2 h-2 w-2 animate-pulse rounded-full bg-blue-500" />}
+            <MessageCircle size={18} />{busy && <span className="absolute right-2 top-2 h-2 w-2 animate-pulse rounded-full bg-accent-500" />}
         </button>
         {hydrated && createPortal(<>
             <div ref={panelRef} role="dialog" aria-modal="false" aria-hidden={!open} aria-label="AI 行程规划" tabIndex={-1}
@@ -230,7 +230,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
                         <label className="block text-xs text-gray-600">API Key<input className={cn(fieldClass, 'mt-1')} type="password" value={draft.apiKey} onChange={e => setDraft(value => ({ ...value, apiKey: e.target.value }))} placeholder="API Key" autoComplete="off" /></label>
                         <label className="block text-xs text-gray-600">模型<input className={cn(fieldClass, 'mt-1')} required value={draft.model} onChange={e => setDraft(value => ({ ...value, model: e.target.value }))} placeholder="模型名称" autoComplete="off" /></label>
                         <label className="flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" checked={draft.rememberKey} onChange={e => setDraft(value => ({ ...value, rememberKey: e.target.checked }))} />在本浏览器记住 Key</label>
-                        <button disabled={busy} className="w-full rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40">保存设置</button>
+                        <button disabled={busy} className="w-full rounded-xl bg-accent-600 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40">保存设置</button>
                     </form>}
                     {storageError && <div className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">{storageError}
                         {!storageReadable && <button className="ml-2 underline" disabled={busy} onClick={() => {
@@ -240,16 +240,16 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
                     </div>}
                     {conversation?.messages.map((message, index) => <ChatBubble key={index} message={message} />)}
                     {partial && <div className="min-w-0 rounded-2xl bg-gray-50 p-3 text-gray-800"><ChatMarkdown content={partial} /></div>}
-                    {busy && <p role="status" className="flex items-center gap-2 text-xs text-gray-500"><span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />{status}</p>}
+                    {busy && <p role="status" className="flex items-center gap-2 text-xs text-gray-500"><span className="h-2 w-2 animate-pulse rounded-full bg-accent-500" />{status}</p>}
                     {error && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">{error}</p>}
                 </div>
                 <form className="shrink-0 border-t border-gray-100 px-4 pt-2" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }} onSubmit={e => { e.preventDefault(); void send() }}>
-                    <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 pl-3 pr-1 transition-colors focus-within:border-blue-400 focus-within:bg-white">
+                    <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 pl-3 pr-1 transition-colors focus-within:border-accent-400 focus-within:bg-white">
                         <textarea ref={inputRef} aria-label="发给 AI 的消息" className="my-2 max-h-[120px] min-h-6 min-w-0 flex-1 resize-none border-0 bg-transparent p-0 text-sm leading-6 text-gray-800 outline-none placeholder:text-gray-400" rows={1} maxLength={30_000} disabled={busy} value={text} onChange={e => setText(e.target.value)} placeholder="输入消息…" onKeyDown={e => {
                             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && window.matchMedia('(pointer: fine)').matches) { e.preventDefault(); void send() }
                         }} />
                         {busy ? <button type="button" onClick={() => requestRef.current?.abort()} className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-600" aria-label="停止回复"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 transition-colors group-hover:bg-gray-200"><Square size={14} /></span></button>
-                            : <button type="submit" disabled={!text.trim()} className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-blue-600 disabled:text-gray-300" aria-label="发送消息"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 transition-colors group-hover:bg-blue-100 group-disabled:bg-transparent"><Send size={16} /></span></button>}
+                            : <button type="submit" disabled={!text.trim()} className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-accent-600 disabled:text-gray-300" aria-label="发送消息"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-50 transition-colors group-hover:bg-accent-100 group-disabled:bg-transparent"><Send size={16} /></span></button>}
                     </div>
                 </form>
             </div>
@@ -271,6 +271,6 @@ function ChatBubble({ message }: { message: ChatMessage }) {
     }
     if (!message.content) return null
     return message.role === 'user'
-        ? <div className="ml-6 whitespace-pre-wrap break-words rounded-2xl bg-blue-50 p-3 text-sm leading-6 text-blue-950">{message.content}</div>
+        ? <div className="ml-6 whitespace-pre-wrap break-words rounded-2xl bg-accent-50 p-3 text-sm leading-6 text-accent-950">{message.content}</div>
         : <div className="mr-2 min-w-0 rounded-2xl bg-gray-50 p-3 text-gray-800"><ChatMarkdown content={message.content} /></div>
 }
