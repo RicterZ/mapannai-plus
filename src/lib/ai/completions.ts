@@ -36,6 +36,8 @@ export async function readCompletion(response: Response, onDelta: (text: string)
             if (part.function?.arguments) call.function.arguments += part.function.arguments
             calls.set(part.index, call)
         }
+        const payloadSize = content.length + Array.from(calls.values()).reduce((size, call) => size + call.id.length + call.function.name.length + call.function.arguments.length, 0)
+        if (payloadSize > 1_000_000) throw new Error('AI 正文或工具参数过长，请分批规划')
         if (choice.finish_reason) {
             if (choice.finish_reason === 'length') throw new Error('AI 回复达到长度限制，请缩小本次规划范围')
             finished = true
@@ -47,11 +49,13 @@ export async function readCompletion(response: Response, onDelta: (text: string)
             const { done, value } = await reader.read()
             if (done) break
             total += value.byteLength
-            if (total > 2_000_000) throw new Error('AI 回复过长，请缩小规划范围')
+            // Tiny deltas and reasoning frames can outweigh the actual answer by orders of magnitude.
+            if (total > 20_000_000) throw new Error('AI 流式响应数据过多，请分批规划')
             buffer += decoder.decode(value, { stream: true })
             buffer = buffer.replace(/\r\n/g, '\n')
             let end: number
             while ((end = buffer.indexOf('\n\n')) !== -1) { consume(buffer.slice(0, end)); buffer = buffer.slice(end + 2) }
+            if (buffer.length > 1_000_000) throw new Error('AI 流式数据帧过大')
         }
         buffer += decoder.decode()
         if (buffer.trim()) consume(buffer)
