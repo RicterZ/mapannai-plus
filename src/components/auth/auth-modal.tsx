@@ -96,7 +96,7 @@ export function AuthModal() {
       <div role="dialog" aria-modal="true" aria-label="访问验证" className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
         {/* 标题 */}
         <div className="mb-5 text-center">
-          <div className="text-3xl mb-2">🗺️</div>
+          <img src="/icons/places/map.svg" alt="" className="mx-auto mb-2 h-10 w-10" />
           <h2 className="text-xl font-semibold text-gray-900">マップ案内</h2>
           <p className="mt-1 text-sm text-gray-500">请输入访问 Token 以继续使用</p>
         </div>

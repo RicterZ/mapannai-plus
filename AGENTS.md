@@ -265,3 +265,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - Google 境外底图默认使用 `google-map-sdk.ts` 的浅色旅行配色（薄荷公园、浅蓝水域、杏色主干道），通过内嵌 JSON styles 设置；保留交通与 POI 标签，不改变行程覆盖物、坐标或服务选择，无新增环境变量。
 
 - AI 创建地点最终标题只保存核实的地点本名，不添加自定义区域、日期或备注；本名中的区域保留。创建工具带城市搜索后，对 status=created 的结果用 update_marker 清理搜索前缀；已有收藏不擅自改名。网页提示词与 MCP workflow 保持该规则一致。
+
+- 网页 AI 独有 change_title 工具在了解旅游意图后修改当前会话标题，服务端严格校验1–60字并发送 title 事件，前端按发起请求的会话ID更新本地历史与会话列表；不写数据库、不触发行程刷新，不作为公共MCP工具。启动加载与认证提示使用 /icons/places/map.svg。

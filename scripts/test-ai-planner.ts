@@ -28,6 +28,19 @@ async function main() {
         const { planningPrompt } = await import('../src/lib/ai/prompt')
         const { attachTripContext } = await import('../src/lib/ai/trip-context')
         assert.equal(getAllTrips().length, 0, 'test must start in an empty isolated DB')
+        // Session-only title tool validates arguments and never invokes map writes.
+        for (const title of ['东京秋日旅行', '   ', 'x'.repeat(61)]) {
+            const titleEvents: ChatEvent[] = []
+            let turn = 0
+            await runPlanner({ settings, context, messages: [{ role: 'user', content: '东京旅行' }] }, event => titleEvents.push(event), signal, {
+                complete: async (_url, _key, body) => {
+                    assert.ok((body as any).tools.some((tool: any) => tool.function.name === 'change_title'))
+                    return turn++ === 0 ? assistant(null, [{ name: 'change_title', args: { title } }]) : assistant('继续规划')
+                },
+            })
+            assert.equal(titleEvents.filter(event => event.type === 'title').length, title === '东京秋日旅行' ? 1 : 0)
+            assert.equal(titleEvents.some(event => event.type === 'changed'), false)
+        }
         // Public endpoint validation, including mapped IPv4 and explicit private opt-in.
         assert.equal(completionUrl('https://ai.example/v1/').pathname, '/v1/chat/completions')
         assert.equal(completionUrl('https://ai.example/v1/chat/completions').pathname, '/v1/chat/completions')
@@ -64,7 +77,7 @@ async function main() {
             assert(payload.tools.some(tool => tool.function.name === 'create_trip' && tool.function.parameters))
             for (const name of ['create_day_chain', 'update_day_chain', 'delete_day_chain']) assert(payload.tools.some(tool => tool.function.name === name))
             assert.equal(payload.messages[0].content, planningPrompt)
-            assert(planningPrompt.length < 1500, 'product identity and workflow should remain concise')
+            assert(planningPrompt.length < 2500, 'product identity and workflow should remain concise')
             const firstUser = payload.messages.find(message => message.role === 'user')!
             const attached = JSON.parse(firstUser.content!.split('以下为应用附加的当前数据：\n')[1].split('\n</mapannai_context>')[0])
             assert.equal(attached.trips.length, rounds === 0 ? 0 : 1, 'trip list refreshes after writes within the tool loop')

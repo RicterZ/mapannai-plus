@@ -7,7 +7,7 @@ import type { BasemapProviderType } from '@/types/map-provider'
 
 function MapLoading({ error = false, onRetry }: { error?: boolean; onRetry?: () => void }) {
     return <div role="status" className="fixed inset-0 flex flex-col items-center justify-center gap-3 bg-slate-50 text-sm text-gray-500">
-        <img src="/icon-192.png" alt="" className="h-14 w-14 rounded-2xl" />
+        <img src="/icons/places/map.svg" alt="" className="h-14 w-14 rounded-2xl" />
         <p>{error ? '暂时无法连接，请检查网络后重试' : '加载地图中…'}</p>
         {error && <button onClick={onRetry} className="rounded-lg bg-blue-600 px-4 py-2 text-white">重试</button>}
     </div>

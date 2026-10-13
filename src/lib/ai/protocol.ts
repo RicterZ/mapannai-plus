@@ -32,6 +32,7 @@ export type ChatEvent =
     | { type: 'delta'; text: string }
     | { type: 'message'; message: ChatMessage }
     | { type: 'status'; name: string }
+    | { type: 'title'; title: string }
     | { type: 'changed' }
     | { type: 'complete' }
     | { type: 'error'; message: string }
@@ -64,6 +65,7 @@ export function repairInterruptedMessages(messages: ChatMessage[]): ChatMessage[
 }
 
 export const toolLabels: Record<string, string> = {
+    change_title: '修改会话标题',
     list_markers: '查看已收藏地点', create_marker: '收藏地点', update_marker: '更新地点', delete_marker: '删除地点',
     search_places: '搜索地点', get_place_details: '查询地点详情', get_directions: '查询路线', get_walking_directions: '查询步行路线',
     list_trips: '查看已有旅行', get_trip_detail: '查看旅行安排', create_trip: '创建旅行', add_day_to_trip: '添加行程日',

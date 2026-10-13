@@ -1,9 +1,16 @@
+import { z } from 'zod'
 import { chatMessageSchema, repairInterruptedMessages, type ChatEvent, type ChatRequest } from './protocol'
 import { connectPlanningTools, readOnlyTools } from './mcp-tools'
 import { completionUrl, requestCompletion } from './endpoint'
 import { readCompletion } from './completions'
 import { planningPrompt } from './prompt'
 import { attachTripContext } from './trip-context'
+
+const changeTitleSchema = z.object({ title: z.string().trim().min(1).max(60) }).strict()
+const changeTitleTool = { type: 'function' as const, function: {
+    name: 'change_title', description: '修改当前网页会话的标题，概括用户的旅游意图。',
+    parameters: { type: 'object', properties: { title: { type: 'string', minLength: 1, maxLength: 60, description: '简短的会话标题，例如东京秋日旅行' } }, required: ['title'], additionalProperties: false },
+} }
 
 type Dependencies = {
     connect?: typeof connectPlanningTools
@@ -14,7 +21,8 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
     const url = completionUrl(request.settings.baseUrl)
     const bridge = await (deps.connect || connectPlanningTools)()
     const history = repairInterruptedMessages(request.messages)
-    const available = new Set(bridge.tools.map(tool => tool.function.name))
+    const tools = [...bridge.tools, changeTitleTool]
+    const available = new Set(tools.map(tool => tool.function.name))
     try {
         for (let round = 0; round < 16; round++) {
             signal.throwIfAborted()
@@ -23,7 +31,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             const upstreamSignal = AbortSignal.any([signal, timeout])
             const response = await (deps.complete || requestCompletion)(url, request.settings.apiKey, {
                 model: request.settings.model, messages: [{ role: 'system', content: planningPrompt }, ...attachTripContext(history, request.context)],
-                tools: bridge.tools, tool_choice: 'auto', stream: true,
+                tools, tool_choice: 'auto', stream: true,
             }, upstreamSignal)
             const assistant = chatMessageSchema.parse(await readCompletion(response, text => emit({ type: 'delta', text }), upstreamSignal))
             if (assistant.role !== 'assistant') throw new Error('AI 回复格式无效')
@@ -45,8 +53,14 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                     if (!available.has(call.function.name)) throw new Error('未提供此工具')
                     const args = JSON.parse(call.function.arguments)
                     if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('工具参数必须是对象')
-                    invoked = true
-                    result = await bridge.call(call.function.name, args, signal)
+                    if (call.function.name === 'change_title') {
+                        const { title } = changeTitleSchema.parse(args)
+                        emit({ type: 'title', title })
+                        result = { content: [{ type: 'text', text: JSON.stringify({ title }) }] }
+                    } else {
+                        invoked = true
+                        result = await bridge.call(call.function.name, args, signal)
+                    }
                 } catch {
                     if (signal.aborted) throw new Error('请求已停止；正在执行的工具可能已保存数据，请查询后继续')
                     result = { isError: true, content: [{ type: 'text', text: '工具执行失败或参数无效。先检查参数并查询当前数据，避免重复写入。' }] }

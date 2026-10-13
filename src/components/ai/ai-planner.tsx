@@ -137,6 +137,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
                 updateConversation(current.id, value => ({ ...value, messages: [...value.messages, item.message], updatedAt: new Date().toISOString() }))
             }
             if (item.type === 'status') setStatus(toolLabels[item.name] ? `${toolLabels[item.name]}…` : '正在处理行程…')
+            if (item.type === 'title') updateConversation(current.id, value => ({ ...value, title: item.title, updatedAt: new Date().toISOString() }))
             if (item.type === 'changed') void refreshMap()
             if (item.type === 'complete') completed = true
             if (item.type === 'error') throw new Error(item.message)
