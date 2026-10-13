@@ -1,4 +1,4 @@
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -18,12 +18,17 @@ COPY . .
 
 RUN npm run build
 
-FROM node:20-slim AS runner
+FROM node:22-slim AS runner
 
 RUN groupadd --system --gid 1001 nodejs && \
     useradd --system --uid 1001 --gid nodejs nextjs
 
 WORKDIR /app
+
+RUN npm install --global @brave/brave-search-mcp-server@2.1.4 firecrawl-mcp@3.29.1 && npm cache clean --force
+ENV BRAVE_MCP_TRANSPORT=stdio
+ENV BRAVE_MCP_ENABLED_TOOLS=brave_web_search
+ENV HTTP_STREAMABLE_SERVER=false
 
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static

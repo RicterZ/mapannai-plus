@@ -77,7 +77,8 @@ async function main() {
             assert(payload.tools.some(tool => tool.function.name === 'create_trip' && tool.function.parameters))
             for (const name of ['create_day_chain', 'update_day_chain', 'delete_day_chain']) assert(payload.tools.some(tool => tool.function.name === name))
             assert.equal(payload.messages[0].content, planningPrompt)
-            assert(planningPrompt.length < 2500, 'product identity and workflow should remain concise')
+            assert(planningPrompt.length < 4000, 'personality, workflow and safety rules should remain concise')
+            for (const rule of ['每轮只问1–2个', '必须调用 change_title', 'Web搜索 → 地点安排 → 建立标记', '各天地点核实、标记就绪后', '界面已经展示路段距离、起始点和终点', '没有补充就省略note']) assert(planningPrompt.includes(rule), rule)
             const firstUser = payload.messages.find(message => message.role === 'user')!
             const attached = JSON.parse(firstUser.content!.split('以下为应用附加的当前数据：\n')[1].split('\n</mapannai_context>')[0])
             assert.equal(attached.trips.length, rounds === 0 ? 0 : 1, 'trip list refreshes after writes within the tool loop')

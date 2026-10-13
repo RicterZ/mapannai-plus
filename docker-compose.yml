@@ -12,42 +12,9 @@ services:
       - "3000:3000"
     env_file:
       - .env
-    environment:
-      BRAVE_MCP_URL: http://brave-mcp:8080/mcp
-      FIRECRAWL_MCP_URL: http://firecrawl-mcp:3000/mcp
     restart: unless-stopped
     volumes:
       - mapannai_data:/app/data
-
-  # Official web tools start with the app. No public ports.
-  brave-mcp:
-    build:
-      context: ./docker/web-tools
-      args:
-        MCP_PACKAGE: '@brave/brave-search-mcp-server@2.1.4'
-    command: [brave-search-mcp-server]
-    environment:
-      BRAVE_API_KEY: ${BRAVE_API_KEY:-}
-      BRAVE_MCP_TRANSPORT: http
-      BRAVE_MCP_HOST: 0.0.0.0
-      BRAVE_MCP_PORT: '8080'
-      BRAVE_MCP_ENABLED_TOOLS: brave_web_search
-    restart: unless-stopped
-
-  firecrawl-mcp:
-    build:
-      context: ./docker/web-tools
-      args:
-        MCP_PACKAGE: firecrawl-mcp@3.29.1
-    command: [firecrawl-mcp]
-    environment:
-      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
-      HTTP_STREAMABLE_SERVER: 'true'
-      HOST: 0.0.0.0
-      PORT: '3000'
-      FIRECRAWL_NO_SEARCH_FEEDBACK: '1'
-      FIRECRAWL_NO_ENDPOINT_FEEDBACK: '1'
-    restart: unless-stopped
 
 volumes:
   mapannai_data:

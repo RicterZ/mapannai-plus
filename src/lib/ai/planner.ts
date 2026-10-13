@@ -61,7 +61,8 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         invoked = true
                         result = await bridge.call(call.function.name, args, signal)
                     }
-                } catch {
+                } catch (error) {
+                    console.error("[ai-tool]", available.has(call.function.name) ? call.function.name : "unavailable-tool", error instanceof Error ? error.name : "UnknownError")
                     if (signal.aborted) throw new Error('请求已停止；正在执行的工具可能已保存数据，请查询后继续')
                     result = { isError: true, content: [{ type: 'text', text: '工具执行失败或参数无效。先检查参数并查询当前数据，避免重复写入。' }] }
                 } finally {

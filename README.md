@@ -112,9 +112,7 @@ Stopping a reply does not undo saved itinerary changes, and an executing tool ma
 
 ## Connect an external AI assistant
 
-Optional internet research is shared by the web AI and external MCP clients: `search_web` finds sources through the official Brave MCP, and `fetch_web` reads pages through the official Firecrawl MCP. Set `BRAVE_API_KEY` and `FIRECRAWL_API_KEY` in the server's `.env`, then run `docker compose up -d --build`. The two pinned official npm servers run in separate Node 22 containers with no published ports; the main app stays on Node 20. A tool is available only when its key and MCP endpoint are configured. Searches and pages are processed by third-party services and may incur charges; do not submit private information. Search snippets are not full-page verification, and responses may be truncated.
-
-For development or non-Compose deployments, run the same official packages under Node 22 with Streamable HTTP and configure the server-reachable `BRAVE_MCP_URL` / `FIRECRAWL_MCP_URL` described in `env.example`. Keep these unauthenticated MCP services on a trusted private network; never expose their ports publicly. After changing configuration, restart the app and reconnect external MCP clients.
+Configure `BRAVE_API_KEY` and `FIRECRAWL_API_KEY` in the server `.env` to enable `search_web` and `fetch_web`. The Node 22 application container includes the pinned official Brave and Firecrawl MCP packages and calls them over stdio; no additional containers, ports or MCP URLs are needed. Run `docker compose up -d --build`. Retrieval uses third-party services and may incur charges. For non-Docker deployments, install `@brave/brave-search-mcp-server@2.1.4` and `firecrawl-mcp@3.29.1` globally under Node 22.
 
 Add `https://your-domain/api/mcp` to an MCP client supporting **Streamable HTTP**, or use `http://localhost:3000/api/mcp` locally. With authentication enabled, set the request header `Authorization: Bearer YOUR_TOKEN`.
 
