@@ -112,6 +112,10 @@ location /osm-tiles/ {
 
 ## 连接外部 AI 助手
 
+网页 AI 与外部 MCP 客户端共用可选联网工具：`search_web` 通过 Brave 官方 MCP 查找资料，`fetch_web` 通过 Firecrawl 官方 MCP 读取网页。在服务器 `.env` 填写 `BRAVE_API_KEY` 和 `FIRECRAWL_API_KEY` 后，运行 `docker compose up -d --build`。两个固定版本的官方 npm 服务在独立 Node 22 容器中运行，不公开端口，主应用仍使用 Node 20；只有配置对应 Key 和 MCP 地址才提供工具。搜索和网页内容经第三方服务处理，可能产生费用，请勿提交私人信息。搜索摘要不代表核实全文，返回内容可能截断。
+
+本地开发或非 Compose 部署时，在 Node 22 下运行同版本官方包并开启 Streamable HTTP，按 `env.example` 配置服务端可达的 `BRAVE_MCP_URL` / `FIRECRAWL_MCP_URL`。这两个 MCP 服务不带认证，只能放在可信私有网络，不要将端口公开。配置变更后重启应用，外部 MCP 客户端重新连接。
+
 在支持 **Streamable HTTP** 的 MCP 客户端中添加服务地址 `https://your-domain/api/mcp`；本地地址为 `http://localhost:3000/api/mcp`。启用认证时配置请求头 `Authorization: Bearer YOUR_TOKEN`。
 
 使用 `mcpServers` 配置格式的客户端可参考：
