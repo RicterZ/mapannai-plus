@@ -88,6 +88,8 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 
 ## 数据与业务约定
 
+- `src/instrumentation.ts` 在 Node 服务启动时注册地址补全任务，启动即扫描，之后每轮完成一小时后重扫；进程内单例、不重叠、串行限速。只处理有效 WGS-84 坐标且地址为空的 marker，国内高德优先、错误/无有效地址回退 Google，境外直接 Google；复用 provider 坐标转换，与地图点击输入一致。写入时比较原坐标并再次检查空地址，避免覆盖人工修改；不更新名称、坐标或 POI 引用。无需新增环境变量，需要常驻 Node；多副本会各自扫描，部署应保持单实例以免重复计费。验证：`npx tsx scripts/test-marker-address-backfill.ts` 使用隔离 SQLite 和 HTTP mock。
+
 - 数据库默认 `./data/mapannai.db`，可通过 `SQLITE_PATH` 指定。Docker 默认数据目录 `/app/data`，需要持久化挂载。
 - schema 初始化 / 迁移入口是 `src/lib/db/index.ts`。新增字段需兼容现有数据库，优先非破坏性迁移。
 - `Trip.destinations` 为有序 `{name,latitude,longitude}[]`，只保存所选省市名称与 WGS-84 中心坐标，不保存行政区边界、POI 引用或创建 Marker；最多20项，六位精度坐标不重复。`destination` 保留首项/空时null的旧客户端投影。SQLite 现有 destination JSON TEXT 保存数组，读取历史对象时转为单元素数组，无破坏性迁移；旧旅行为空列表。省略字段更新保留全部目的地，显式 destinations=[] 清除，旧 destination 对象/null 写入兼容。

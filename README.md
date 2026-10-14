@@ -166,4 +166,6 @@ git diff --check
 
 Stop the development server in the same directory before building to avoid conflicts in `.next`. `npm start` serves a completed build; this is also an option for running without Docker, with the `data` directory persisted. If changing Node versions causes a SQLite native dependency ABI error, run `npm rebuild better-sqlite3`.
 
+The Node server fills missing marker addresses in the background on startup, then scans again one hour after each completed pass. It uses AMap first in China with Google fallback, and Google directly overseas. Coordinates and existing addresses are preserved. Configure the corresponding map service keys; bulk lookups may incur API charges and require a continuously running Node server.
+
 The project uses Next.js, React, TypeScript, and SQLite. See [AGENTS.md](AGENTS.md) for development conventions, source responsibilities, and validation requirements. Environment settings are maintained in [env.example](env.example).
