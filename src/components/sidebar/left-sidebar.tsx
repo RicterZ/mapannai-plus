@@ -1568,7 +1568,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                             <input type="checkbox" checked={deleteExclusiveMarkers} disabled={deleting || exclusiveCount === 0} onChange={event => setDeleteExclusiveMarkers(event.target.checked)} />
                             同时删除独占地点（{exclusiveCount} 个）
                         </label>
-                        <p className="mt-1 text-xs text-gray-500">关联多个旅行或多个日期的地点会保留；未勾选时保留全部地点。</p>
+                        <p className="mt-1 text-xs text-gray-500">{isTrip ? '其他旅行仍在使用的地点会保留；仅在本旅行多天出现的地点也会删除。' : '其他日期或旅行仍在使用的地点会保留。'}未勾选时保留全部地点。</p>
                         <div className="mt-5 flex justify-end gap-2">
                             <button type="button" autoFocus onClick={() => setPendingDeletion(null)} disabled={deleting} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600">取消</button>
                             <button type="button" onClick={handleConfirmDeletion} disabled={deleting} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50">{deleting ? '删除中…' : '确认删除'}</button>
