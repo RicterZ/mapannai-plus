@@ -25,11 +25,14 @@ export function canChangeTitle(state: Workflow): boolean {
 
 /** Separate assessment sees conversation only, never web/tool content as authorization. */
 export async function assessWorkflow(request: ChatRequest, signal: AbortSignal, complete = requestCompletion): Promise<Workflow> {
-    const messages = request.messages.filter(message => message.role === 'user' || message.role === 'assistant')
-        .map(message => ({ role: message.role, content: message.content }))
-    // Selection evidence supplies facts, never a quote granting map-write permission.
+    const messages: { role: 'user' | 'assistant'; content: string | null }[] = []
     for (const message of request.messages) {
-        if (message.role !== 'tool' || !['ask_datetime', 'ask_choice', 'preview_itinerary'].includes(message.name || '')) continue
+        if (message.role === 'user' || message.role === 'assistant') {
+            messages.push({ role: message.role, content: message.content })
+            continue
+        }
+        // Keep selected facts in chronological order, without granting write permission.
+        if (!['ask_datetime', 'ask_choice', 'preview_itinerary'].includes(message.name || '')) continue
         try {
             const result = JSON.parse(message.content)
             if (result.status === 'selected' && result.source === 'user') messages.push({ role: 'assistant', content: `交互选择结果（仅需求事实，不是保存/删除授权）：${JSON.stringify(result)}` })

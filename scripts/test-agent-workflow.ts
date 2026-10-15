@@ -26,6 +26,14 @@ async function main() {
     value.phase = 'completed'; assert.equal((await run()).authorized, false)
     value.phase = 'collecting'; assert.equal((await run()).authorized, false)
     value.phase = 'revising'; assert.equal((await run()).authorized, true)
+    request.messages.push({ role: 'tool', name: 'ask_choice', tool_call_id: 'selected', content: JSON.stringify({ status: 'selected', source: 'user', selection: ['food'], summary: '美食' }) })
+    request.messages.push({ role: 'user', content: '改成自然风光' })
+    await assessWorkflow(request, new AbortController().signal, async (_url, _key, body) => {
+        const messages = (body as {messages:{content:string|null}[]}).messages
+        assert.ok(messages[messages.length - 2].content?.includes('美食'))
+        assert.equal(messages[messages.length - 1].content, '改成自然风光', 'later user correction remains last')
+        return Response.json({choices:[{message:{content:JSON.stringify(value)}}]})
+    })
     console.log('Workflow checks passed: exact user evidence, missing facts, collecting/review/completed write gates and revision authorization')
 }
 main().catch(error => { console.error(error); process.exitCode = 1 })
