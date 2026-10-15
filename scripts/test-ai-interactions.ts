@@ -23,7 +23,8 @@ async function main() {
  await assert.rejects(withInteractions(()=>abort.abort(),()=>requestInteraction('ask_datetime',{question:'日期',mode:'date',timezone:'Asia/Tokyo'},abort.signal)))
  assert.equal((await requestInteraction('ask_datetime',{question:'日期',mode:'date',timezone:'Asia/Tokyo'},new AbortController().signal) as {status:string}).status,'unsupported')
  const start=Date.now()
- const timed=await withInteractions(()=>{},()=>requestInteraction('ask_datetime',{question:'日期',mode:'date',timezone:'Asia/Tokyo'},new AbortController().signal)) as {status:string}
+ const timed=await withInteractions(()=>{},()=>requestInteraction('ask_datetime',{question:'日期',mode:'date',timezone:'Asia/Tokyo'},new AbortController().signal)) as {status:string;instruction:string}
+ assert.ok(timed.instruction.includes('等待用户回复'));assert.ok(timed.instruction.includes('不要再次弹卡'))
  assert.equal(timed.status,'timed_out');assert.ok(Date.now()-start>=59000)
  console.log('Interaction tests passed: validation, one-shot tokens, cancellation, legacy fallback and real 60s timeout')
 }

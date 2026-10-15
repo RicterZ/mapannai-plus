@@ -164,7 +164,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                 let result: unknown
                 let invoked = false
                 try {
-                    if (awaitingFreeText) throw new Error('用户拒绝选项，请仅文字询问并等待回复')
+                    if (awaitingFreeText) throw new Error('用户拒选或超时，请仅文字询问并等待回复')
                     if (!available.has(call.function.name)) throw new Error('未提供此工具')
                     if (call.function.name === 'record_plan_skeleton') throw new Error('骨架由程序阶段节点生成，不接受直接调用')
                     if (workflow) {
@@ -179,7 +179,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                     if (reviewSubmitted && !readOnlyTools.has(call.function.name) && call.function.name !== 'change_title') throw new Error('本轮已提交审阅，等待用户反馈')
                     if (interactionTools.some(tool => tool.function.name === call.function.name)) {
                         result = await requestInteraction(call.function.name, args, signal)
-                        if ((result as { status?: string }).status === 'declined') awaitingFreeText = true
+                        if (['declined', 'timed_out'].includes((result as { status?: string }).status || '')) awaitingFreeText = true
                     } else if (call.function.name === 'finish_planning_day') {
                         const { tripId, dayId } = z.object({ tripId: z.string(), dayId: z.string() }).strict().parse(args)
                         const verified = verifySavedDay(await detail(tripId), dayId, pendingDates()[0])

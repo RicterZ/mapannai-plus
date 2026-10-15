@@ -292,7 +292,7 @@ function ToolProgress({ messages, active, status }: { messages: Extract<ChatMess
                 const failed = toolFailed(message)
                 let selection = ''
                 if (['ask_choice', 'ask_datetime', 'preview_itinerary'].includes(message.name || '')) {
-                    try { const value = JSON.parse(message.content); selection = value.status === 'selected' ? value.summary || '已提交选择' : value.status === 'declined' ? '都不选，改用文字说明' : value.status === 'timed_out' ? '超时未选择，AI 暂拟' : value.status === 'unsupported' ? '当前客户端不支持，请文字补充' : '' } catch {}
+                    try { const value = JSON.parse(message.content); selection = value.status === 'selected' ? value.summary || '已提交选择' : value.status === 'declined' ? '都不选，改用文字说明' : value.status === 'timed_out' ? '超时未选择，改用文字说明' : value.status === 'unsupported' ? '当前客户端不支持，请文字补充' : '' } catch {}
                 }
                 return <li key={`${message.tool_call_id}-${index}`} className={cn('leading-5', failed && 'text-amber-700')}>
                     {failed ? '⚠' : '✓'} {toolLabels[message.name || ''] || '处理行程'}{failed ? '未完成，请查看回复' : '已返回结果'}

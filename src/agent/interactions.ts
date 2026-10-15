@@ -26,7 +26,7 @@ export async function requestInteraction(name: string, args: Record<string, unkn
         const cleanup = () => { clearTimeout(timer); pending.delete(id); signal.removeEventListener('abort', abort) }
         const finish = (value: unknown) => { cleanup(); resolve(value) }
         const abort = () => { cleanup(); reject(new Error('请求已停止')) }
-        const timer = setTimeout(() => finish({ status: 'timed_out', selection: null, source: 'none', instruction: '用户未选择。仅可明确标注可撤回的草案假设，不代表用户同意、写入授权或实际预订事实。' }), 60_000)
+        const timer = setTimeout(() => finish({ status: 'timed_out', selection: null, source: 'none', instruction: '用户60秒未选择。现在仅用文字问一个开放问题并结束本轮，等待用户回复；不要再次弹卡、默认选择、自行安排或执行写入。' }), 60_000)
         pending.set(id, { token, deadline, input, resolve: finish })
         signal.addEventListener('abort', abort, { once: true })
         emit({ id, token, deadline, input })

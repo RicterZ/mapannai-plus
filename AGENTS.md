@@ -329,3 +329,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - Agent请求重放仅针对显式conversationId/requestId（UUID）且请求正文/配置一致的同次请求；网页每次发送生成新requestId并携带本地会话UUID，title永远不参与身份。旧客户端缺任一ID时每次分配独立执行ID，绝不能按同文输入跨设备/会话重放历史；v2哈希隔离旧日志。scripts/test-agent-recovery.ts覆盖会话隔离、不同发送、旧客户端和同请求重放。不提供聊天多端同步；UUID不是用户认证边界，API认证规则不变。
 
 - ask_choice单/多选固定提供“都不选，文字说明”，不由LLM生成options；工具说明和提示词明确告知此入口。提交action=none返回declined（非超时/已选），本轮后续tool_choice=none且执行端禁止工具，要求只文字开放询问并等待下一条消息；历史显示拒选结果。scripts/test-ai-interactions.ts覆盖拒选解析及返回状态。
+
+- 交互60秒超时与主动拒选采用同一文字询问门禁：保留timed_out/declined状态区别，但都将本轮tool_choice设为none、执行端禁止后续工具，要求只问一个开放问题后等待用户回复。不得以超时为理由自行安排或假设继续；所有交互类型适用。
