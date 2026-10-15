@@ -175,3 +175,5 @@ git diff --check
 项目使用 Next.js、React、TypeScript 与 SQLite。开发约定、源码职责和验证要求见 [AGENTS.md](AGENTS.md)；环境变量说明统一维护在 [env.example](env.example)。
 
 诊断时可在同一 `.env` 开启 `AGENT_TRACE_ENABLED`，脱敏 transcript 写入现有 Agent 数据库；仍含私人对话，不要公开，详见 [Agent 服务](docs/agent-service.md)。
+
+网页 AI 可通过聊天内日期时间、单选/多选和逐日草案预览卡片收集反馈；等待最多30秒，超时只允许明确标注的草案假设，不代表用户授权保存、删除或预订。旧客户端仍可文字对话。

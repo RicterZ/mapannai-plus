@@ -1,0 +1,43 @@
+'use client'
+import { useEffect, useState } from 'react'
+import type { InteractionPrompt } from '@/lib/ai/interaction'
+import { validateSelection } from '@/lib/ai/interaction'
+import { DateCalendar } from './date-calendar'
+import { fetchWithAuth } from '@/lib/fetch-with-auth'
+
+export function InteractionCard({ prompt }: { prompt: InteractionPrompt }) {
+    const [remaining, setRemaining] = useState(Math.max(0, Math.ceil((prompt.deadline - Date.now()) / 1000)))
+    const [selected, setSelected] = useState<string[]>([])
+    const [start, setStart] = useState(''), [end, setEnd] = useState('')
+    const [dateTarget, setDateTarget] = useState<'start' | 'end'>('start')
+    const [day, setDay] = useState(0), [feedback, setFeedback] = useState('')
+    const [done, setDone] = useState(false), [saving, setSaving] = useState(false), [error, setError] = useState('')
+    useEffect(() => { const timer = setInterval(() => setRemaining(Math.max(0, Math.ceil((prompt.deadline - Date.now()) / 1000))), 250); return () => clearInterval(timer) }, [prompt.deadline])
+    const input = prompt.input, disabled = done || !remaining || saving
+    async function submit(value: unknown) {
+        try { validateSelection(input, value) } catch { setError('请完成有效选择后提交'); return }
+        setSaving(true); setError('')
+        try {
+            const response = await fetchWithAuth('/api/ai/interactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: prompt.id, token: prompt.token, selection: value }) })
+            if (!response.ok) throw new Error(response.status === 409 ? '此选择已结束，请在聊天中补充。' : '提交失败，请重试')
+            setDone(true)
+        } catch (error) { setError(error instanceof Error ? error.message : '提交失败') } finally { setSaving(false) }
+    }
+    const field = 'min-w-0 w-full rounded-lg border border-gray-200 bg-white p-2 text-sm'
+    const button = 'rounded-lg border border-gray-200 px-3 py-2 text-xs disabled:opacity-40'
+    return <section className="min-w-0 rounded-xl border border-gray-200 bg-white" aria-label={input.question}>
+        <div className="p-4"><div className="mb-2 flex justify-between text-xs text-gray-500"><span>{input.kind === 'ask_choice' ? '选择偏好' : input.kind === 'ask_datetime' ? '日期与时间' : '行程草案 · 尚未保存'}</span><span>{done ? '已提交' : remaining ? `等待选择 · ${remaining}s` : '未收到选择'}</span></div>
+            <h3 className="mb-3 text-base font-semibold text-gray-800">{input.question}</h3>
+            <fieldset disabled={disabled} className="min-w-0 space-y-2">
+                {input.kind === 'ask_choice' && input.options.map(option => <label key={option.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${selected.includes(option.id) ? 'border-slate-400 bg-slate-50' : 'border-gray-200'}`}>
+                    <input type={input.multiple ? 'checkbox' : 'radio'} name={prompt.id} checked={selected.includes(option.id)} className="mt-1 accent-slate-600" onChange={() => setSelected(value => input.multiple ? value.includes(option.id) ? value.filter(id => id !== option.id) : value.length < input.maxSelections ? [...value, option.id] : value : [option.id])} />
+                    <span><span className="block text-sm">{option.label}</span>{option.description && <span className="text-xs text-gray-500">{option.description}</span>}</span>
+                </label>)}
+                {input.kind === 'ask_datetime' && <><p className="text-xs text-gray-500">目的地当地时间 · {input.timezone}</p><label className="block text-xs">{input.mode.endsWith('_range') ? '开始' : '日期 / 时间'}<input aria-label="开始日期时间" className={field} type={input.mode.startsWith('datetime') ? 'datetime-local' : input.mode === 'time' ? 'time' : 'date'} value={start} onFocus={() => setDateTarget('start')} onChange={e => setStart(e.target.value)} /></label>{input.mode.endsWith('_range') && <label className="block text-xs">结束<input aria-label="结束日期时间" className={field} type={input.mode.startsWith('datetime') ? 'datetime-local' : 'date'} min={start} value={end} onFocus={() => setDateTarget('end')} onChange={e => setEnd(e.target.value)} /></label>}{input.mode !== 'time' && <DateCalendar value={(dateTarget === 'end' ? end : start).slice(0,10)} onChange={date => { const old = dateTarget === 'end' ? end : start; const value = input.mode.startsWith('datetime') ? `${date}T${old.slice(11) || '12:00'}` : date; if (dateTarget === 'end') setEnd(value); else { setStart(value); if (input.mode.endsWith('_range')) setDateTarget('end') } }} />}</>}
+                {input.kind === 'preview_itinerary' && <><h4 className="text-base font-semibold">{input.title}</h4><div className="flex gap-2 overflow-x-auto" role="tablist" aria-label="行程日期">{input.days.map((item, index) => <button key={index} type="button" role="tab" aria-selected={day === index} className={`${button} shrink-0 ${day === index ? 'border-slate-500 bg-slate-50' : ''}`} onClick={() => setDay(index)}>{item.date.slice(5)}</button>)}</div><h5 className="pt-2 text-sm font-medium">{input.days[day].title}</h5><ol className="space-y-2 text-sm">{input.days[day].places.map((place, index) => <li key={index} className="flex gap-3"><span className="text-slate-400">{index + 1}</span>{place}</li>)}</ol><textarea aria-label="调整意见" className={field} placeholder="想调整哪里？（可选）" value={feedback} onChange={e => setFeedback(e.target.value)} maxLength={2000} /></>}
+            </fieldset>
+            {error && <p role="alert" className="mt-2 text-xs text-amber-700">{error}</p>}
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 px-4 py-3"><span className="text-xs text-gray-500">{done ? '选择已交给 AI，继续规划' : !remaining ? '超时由 AI 暂拟，不代表确认或授权' : '30 秒未选择，AI 将暂拟草案'}</span><div className="flex gap-2">{input.kind === 'preview_itinerary' && <button disabled={disabled} className={button} onClick={() => void submit({ action: 'revise', feedback })}>想调整</button>}<button disabled={disabled} className={`${button} bg-slate-600 text-white`} onClick={() => void submit(input.kind === 'ask_choice' ? selected : input.kind === 'ask_datetime' ? { start, ...(input.mode.endsWith('_range') ? { end } : {}) } : { action: 'continue', feedback })}>{saving ? '提交中…' : input.kind === 'preview_itinerary' ? '按这个继续' : '确认选择'}</button></div></div>
+    </section>
+}

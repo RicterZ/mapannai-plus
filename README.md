@@ -175,3 +175,5 @@ The Node server fills missing marker addresses in the background on startup, the
 The project uses Next.js, React, TypeScript, and SQLite. See [AGENTS.md](AGENTS.md) for development conventions, source responsibilities, and validation requirements. Environment settings are maintained in [env.example](env.example).
 
 For debugging, enable `AGENT_TRACE_ENABLED` in the same `.env` to record redacted transcripts in the existing Agent database. These still contain private conversations; do not publish them. See [Agent service](docs/agent-service.md).
+
+Web AI can request date/time, single/multiple choice and daily draft previews inside chat. Selections wait up to 30 seconds; timeout allows explicit draft assumptions, not permission to save, delete or book. Legacy clients retain text chat compatibility.

@@ -1,3 +1,4 @@
+import type { InteractionPrompt } from './interaction'
 import { z } from 'zod'
 
 export const toolCallSchema = z.object({
@@ -17,6 +18,7 @@ export const aiSettingsSchema = z.object({
 })
 export const chatRequestSchema = z.object({
     settings: aiSettingsSchema,
+    supportsInteractions: z.boolean().optional(),
     messages: z.array(chatMessageSchema).min(1).max(200),
     context: z.object({
         localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -29,6 +31,7 @@ export type AiSettings = z.infer<typeof aiSettingsSchema>
 export type ToolCall = z.infer<typeof toolCallSchema>
 export type ChatRequest = z.infer<typeof chatRequestSchema>
 export type ChatEvent =
+    | { type: 'interaction'; prompt: InteractionPrompt }
     | { type: 'delta'; text: string }
     | { type: 'message'; message: ChatMessage }
     | { type: 'status'; name: string }
@@ -65,6 +68,7 @@ export function repairInterruptedMessages(messages: ChatMessage[]): ChatMessage[
 }
 
 export const toolLabels: Record<string, string> = {
+    ask_datetime: '选择日期时间', ask_choice: '选择偏好', preview_itinerary: '预览行程',
     change_title: '修改会话标题',
     record_plan_skeleton: '制定全程骨架', finish_planning_day: '核实当天安排', submit_trip_review: '提交行程审阅',
     update_trip: '更新旅行', update_trip_day: '更新每日安排', delete_trip_day: '删除行程日',

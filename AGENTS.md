@@ -319,3 +319,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 诊断开关未设置时开发默认开启、生产默认关闭；`AGENT_TRACE_ENABLED=true/false` 显式覆盖。生产镜像设置 `NODE_ENV=production`。
 
 - AI聊天连续工具结果合并为默认折叠的进度块，执行中显示当前动作和已返回数，完成后汇总操作数，失败数量始终可见；展开按原始执行顺序逐条显示操作和结果，不合并同名操作、不显示倍数，不渲染原始工具参数/内部ID。用户/助手正文保持独立阅读顺序，空正文工具调用不拆分进度。scripts/test-ai-tool-display.ts 验证分组和错误识别；无新增环境变量。
+
+- 网页交互工具 ask_datetime / ask_choice / preview_itinerary 使用聊天内卡片，Agent进程内一次性等待30秒，服务端截止时间与能力token校验，选择/超时/取消互斥。超时及旧客户端unsupported不构成用户确认或写入授权，不编造实际日期与预订。旧客户端不发送supportsInteractions时即时返回unsupported；新客户端通过原NDJSON interaction事件和受原认证保护的POST /api/ai/interactions提交，内部仍回环通信。停止/断线取消等待；当前不做checkpoint或刷新后恢复卡片。选择结果留在原工具历史，敏感交互token不保存到执行日志。scripts/test-ai-interactions.ts包含真实30秒超时验证。无新增环境变量。

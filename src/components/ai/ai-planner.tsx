@@ -1,5 +1,7 @@
 'use client'
 
+import type { InteractionPrompt } from '@/lib/ai/interaction'
+import { InteractionCard } from './interaction-card'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { MessageCircle, Plus, Settings, Square, Trash2, X, Send, ChevronDown } from 'lucide-react'
@@ -29,6 +31,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
     const [text, setText] = useState('')
     const [busy, setBusy] = useState(false)
     const [partial, setPartial] = useState('')
+    const [interaction, setInteraction] = useState<InteractionPrompt | null>(null)
     const [status, setStatus] = useState('正在思考…')
     const [error, setError] = useState<string | null>(null)
     const requestRef = useRef<AbortController | null>(null)
@@ -124,6 +127,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
         const controller = new AbortController()
         requestRef.current = controller
         followRef.current = true
+        setInteraction(null)
         setBusy(true); setError(null); setPartial(''); setStatus('正在思考…'); setText('')
         setHistory(previous => ({ ...previous, activeId: current.id, conversations: [
             { ...current, title: current.messages.length ? current.title : content.slice(0, 40), messages, updatedAt: new Date().toISOString() },
@@ -132,6 +136,8 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
         let preview = '', completed = false
         let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
         const event = (item: ChatEvent) => {
+            if (item.type === 'interaction') { setInteraction(item.prompt); setStatus('等待你的选择…') }
+            if (item.type === 'message' && item.message.role === 'tool') setInteraction(null)
             if (item.type === 'delta') { preview += item.text; setPartial(preview); setStatus('正在回复…') }
             if (item.type === 'message') {
                 if (item.message.role === 'assistant') { preview = ''; setPartial('') }
@@ -150,7 +156,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
             const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
             const response = await fetchWithAuth('/api/ai/chat', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-                body: JSON.stringify({ settings: { baseUrl: settings.baseUrl, apiKey: settings.apiKey, model: settings.model }, messages,
+                body: JSON.stringify({ supportsInteractions: true, settings: { baseUrl: settings.baseUrl, apiKey: settings.apiKey, model: settings.model }, messages,
                     context: { localDate, tripId: active.tripId, dayId: active.dayId } }),
             })
             if (!response.ok) {
@@ -227,6 +233,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
                     {groupChatMessages(conversation?.messages || []).map((group, index, groups) => group.type === 'message'
                         ? <ChatBubble key={index} message={group.message} />
                         : <ToolProgress key={index} messages={group.messages} active={busy && index === groups.length - 1} status={status} />)}
+                    {interaction && busy && <InteractionCard key={interaction.id} prompt={interaction} />}
                     {partial && <div className="min-w-0 rounded-2xl bg-gray-50 p-3 text-gray-800"><ChatMarkdown content={partial} /></div>}
                     {busy && <p role="status" className="flex items-center gap-2 text-xs text-gray-500"><span className="h-2 w-2 animate-pulse rounded-full bg-accent-500" />{status}</p>}
                     {error && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">{error}</p>}
@@ -281,8 +288,13 @@ function ToolProgress({ messages, active, status }: { messages: Extract<ChatMess
         <ul className="mt-1 space-y-1 border-t border-gray-100 pt-2">
             {messages.map((message, index) => {
                 const failed = toolFailed(message)
+                let selection = ''
+                if (['ask_choice', 'ask_datetime', 'preview_itinerary'].includes(message.name || '')) {
+                    try { const value = JSON.parse(message.content); selection = value.status === 'selected' ? value.summary || '已提交选择' : value.status === 'timed_out' ? '超时未选择，AI 暂拟' : value.status === 'unsupported' ? '当前客户端不支持，请文字补充' : '' } catch {}
+                }
                 return <li key={`${message.tool_call_id}-${index}`} className={cn('leading-5', failed && 'text-amber-700')}>
                     {failed ? '⚠' : '✓'} {toolLabels[message.name || ''] || '处理行程'}{failed ? '未完成，请查看回复' : '已返回结果'}
+                    {selection && <span className="mt-1 block break-words text-gray-500">{selection}</span>}
                 </li>
             })}
         </ul>

@@ -1,3 +1,4 @@
+import { withInteractions, answerInteraction } from './interactions'
 import { createServer, type IncomingMessage } from 'node:http'
 import { timingSafeEqual } from 'node:crypto'
 import { WebSocketServer, WebSocket } from 'ws'
@@ -42,12 +43,14 @@ export function createAgentServer(planner = runPlanner, store = new RunStore()) 
             }, async () => {
                 traceAgent('request', input)
                 try {
-                    await planner(input, event => {
+                    const invoke = () => planner(input, event => {
                         if (event.type !== 'delta') traceAgent('event', event)
                         store.append(id, event, input.settings.apiKey)
                         if (event.type === 'complete') { store.finish(id, 'completed'); completed = true }
                         emit(event)
                     }, signal)
+                    if (input.supportsInteractions) await withInteractions(prompt => emit({ type: 'interaction', prompt }), invoke)
+                    else await invoke()
                 } catch (error) {
                     traceAgent('failure', { name: error instanceof Error ? error.name : 'UnknownError',
                         message: error instanceof Error ? error.message : '', stack: error instanceof Error ? error.stack : '' })
@@ -58,6 +61,17 @@ export function createAgentServer(planner = runPlanner, store = new RunStore()) 
     }
     const server = createServer(async (req, res) => {
         if (req.url === '/health' && req.method === 'GET') { res.writeHead(200).end('ok'); return }
+        if (req.url === '/interactions' && req.method === 'POST') {
+            if (!authorized(req.headers.authorization?.replace(/^Bearer /, ''))) { res.writeHead(401).end(); return }
+            try {
+                let body = ''
+                for await (const chunk of req) { body += chunk; if (body.length > 16000) { res.writeHead(413).end(); return } }
+                const value = JSON.parse(body)
+                const ok = answerInteraction(value.id, value.token, value.selection)
+                res.writeHead(ok ? 200 : 409).end()
+            } catch { res.writeHead(400).end() }
+            return
+        }
         if (req.url !== '/chat' || req.method !== 'POST') { res.writeHead(404).end(); return }
         if (!authorized(req.headers.authorization?.replace(/^Bearer /, ''))) { res.writeHead(401).end(); return }
         const abort = new AbortController()

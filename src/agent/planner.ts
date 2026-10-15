@@ -1,3 +1,5 @@
+import { interactionTools } from '../lib/ai/interaction'
+import { requestInteraction } from './interactions'
 import { z } from 'zod'
 import { chatMessageSchema, repairInterruptedMessages, type ChatEvent, type ChatRequest, type ToolCall } from '../lib/ai/protocol'
 import { connectRemoteTools, readOnlyTools } from './remote-tools'
@@ -31,7 +33,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
     })
     const history = repairInterruptedMessages(request.messages)
     let workflow: Workflow | undefined
-    const tools = [...bridge.tools, changeTitleTool, ...progressTools]
+    const tools = [...bridge.tools, changeTitleTool, ...progressTools, ...interactionTools]
     const available = new Set(tools.map(tool => tool.function.name))
     const completed = completedDates(history)
     let reviewSubmitted = false
@@ -155,14 +157,16 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                     if (workflow) {
                         if (call.function.name === 'change_title') {
                             if (!canChangeTitle(workflow)) throw new Error('关键需求未齐，先继续收集信息，不能改标题')
-                        } else if (!readOnlyTools.has(call.function.name) && !workflow.authorized) {
+                        } else if (!readOnlyTools.has(call.function.name) && !interactionTools.some(tool => tool.function.name === call.function.name) && call.function.name !== 'finish_planning_day' && !workflow.authorized) {
                             throw new Error('当前阶段尚未授权地图写入，请继续收集信息或等待用户批准')
                         }
                     }
                     const args = JSON.parse(call.function.arguments)
                     if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('工具参数必须是对象')
                     if (reviewSubmitted && !readOnlyTools.has(call.function.name) && call.function.name !== 'change_title') throw new Error('本轮已提交审阅，等待用户反馈')
-                    if (call.function.name === 'finish_planning_day') {
+                    if (interactionTools.some(tool => tool.function.name === call.function.name)) {
+                        result = await requestInteraction(call.function.name, args, signal)
+                    } else if (call.function.name === 'finish_planning_day') {
                         const { tripId, dayId } = z.object({ tripId: z.string(), dayId: z.string() }).strict().parse(args)
                         const verified = verifySavedDay(await detail(tripId), dayId, pendingDates()[0])
                         completed.add(verified.date)
