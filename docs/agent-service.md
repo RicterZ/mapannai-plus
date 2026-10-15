@@ -15,9 +15,9 @@ npm run dev
 
 打开原网页即可聊天；客户端无需更新请求结构。旧 `/api/ai/chat`、`ChatEvent` 和 NDJSON 内容保持不变，Web 在服务端将 WebSocket 事件转换成 NDJSON。旧 MCP 客户端也能继续使用原工具参数。
 
-Compose 部署前先生成 `AGENT_TOKEN` 并写入部署端 `.env`，不要提交它。执行 `docker compose up -d --build mapannai` 会同时启动 agent。Agent 不映射宿主机端口，也不挂载地图数据库；Web 依赖 Agent 健康检查启动。Agent 无需依赖 Web 启动，收到聊天时才建立 MCP 连接。
+Docker / Compose 仅构建和启动 `mapannai` 一个容器，入口 `scripts/start-services.cjs` 管理 Web 与 Agent 两个独立 Node 进程。Agent 只监听容器内回环地址，不公开端口；内部 WebSocket / MCP 地址由入口按端口生成。任一进程退出会停止另一个并让容器退出，由 restart 策略重启；SIGTERM 同时转发给两者。
 
-生产自定义 `deploy.sh` 不在仓库，已按本次部署授权升级为同时构建 Web/Agent，并使用独立 Compose override 更新两个服务。原脚本与既有 override 已备份；内部 env 放在构建上下文之外，Agent 使用独立持久化目录，不对公网映射端口。
+所有服务配置统一在项目 `.env`；生产路径为 `/root/docker-services/build/mapannai-public/.env`。不再使用额外的 Agent env 或 Compose override。地图数据库与独立 Agent 执行日志均持久化在原 `/app/data` 挂载内（不同文件）；Agent 仍仅通过 MCP 访问地图业务，不直接操作地图数据库。部署继续使用原服务器 `deploy.sh`，只构建一个镜像、更新一个服务。
 
 ## 进程边界
 

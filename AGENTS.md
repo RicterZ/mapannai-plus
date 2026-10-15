@@ -252,7 +252,7 @@ ssh -p 2222 -o BatchMode=yes root@server \
   'bash /root/docker-services/build/mapannai-public/deploy.sh'
 ```
 
-部署脚本位于服务器，不在本仓库。当前脚本使用 set -euo pipefail，构建 mapannai 与 mapannai-agent 两个镜像，通过生产 docker-compose.yml + docker-compose.mapannai-agent.yml 仅更新相关服务。内部凭据在构建上下文外的 /root/docker-services/mapannai-agent.env，Agent 数据独立挂载 /root/docker-services/data/mapannai-agent；勿输出这些凭据。等待构建与容器重建完成，再检查 `mapannai` 容器运行状态及容器内 `http://127.0.0.1:3000/` 的 HTTP 状态；不要在脚本仍运行时宣布部署成功。文档更新不需要重建生产服务。
+部署脚本位于服务器，不在本仓库。脚本使用 set -euo pipefail，拉取后仅构建 mapannai 镜像并通过生产 docker-compose.yml 更新 mapannai 一个服务，再检查并重载 nginx。Web 与 Agent 在同一容器中作为两个独立进程运行，由 scripts/start-services.cjs 管理；任一退出会终止另一进程并退出容器，由 Docker 重启。Agent 仅监听回环，内部地址由入口生成，不暴露额外端口。配置统一在 /root/docker-services/build/mapannai-public/.env，禁止增加额外 Agent env 或 Compose override；.env 不进入构建上下文。原地图数据挂载不变，agent.db 同目录独立保存。等待构建、容器更新完成，再检查 Web 与 Agent 健康及公网 HTTP 状态，不得提前宣称部署成功。
 
 路径及明确的不可规划结果保存在 SQLite `direction_cache`，Web / MCP 共用。高德超范围或无有效结果时默认先尝试 Google；两家均明确无路线以及跨境路段才显示虚线贝塞尔曲线、WGS-84 两点距离及 null 耗时，不自动或手动重试。公共交通正常结果和 NO_ROUTE 仍按1小时过期；临时失败不缓存最终结果。坐标、模式或服务策略变化后使用新缓存键。
 
@@ -288,7 +288,7 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - LangGraph 当前为 model/tools 有界执行图，业务规划阶段仍由提示词引导；尚无强制审批、持久化 checkpoint、跨重启恢复或可靠事件重放，不得宣称已经具备。断线/停止传播取消，已保存数据不回滚。完整设计与限制见 `docs/agent-service.md`。
 - Agent 非回环监听必须配置独立 AGENT_TOKEN，不在 URL/浏览器发送内部凭据；Web 认证沿用现有 middleware。API_TOKEN 仅用于 Agent 到 Web MCP，模型 Key 仅用于单次执行，不落盘。联网工具保留在 MCP 服务端以兼容现有外部客户端。
 - 新工具参数保持向后兼容：create_trip.dayTitles 可选；update_trip_day 仅改标题且校验旅行归属；create_trip/create_day_chain 的可选 operationId 在 SQLite tool_operations 中与业务写入同事务保存，复用不同参数拒绝，旧调用不带则保持原行为。其他写工具尚未全部幂等，不允许对整个图盲目自动重试。
-- `npx tsx scripts/test-agent-service.ts` 启动真实独立子进程、本地模型 mock、HTTP MCP 和隔离 SQLite，验证 Web 协议兼容、WebSocket、标题和幂等；不等于真实模型/地图 SDK/生产部署验证。部署前需同步服务器自定义 Compose 与构建脚本，旧脚本只构建 Web，不能直接照旧宣称部署完成。
+- `npx tsx scripts/test-agent-service.ts` 启动真实独立子进程、本地模型 mock、HTTP MCP 和隔离 SQLite，验证 Web 协议兼容、WebSocket、标题和幂等；不等于真实模型/地图 SDK/生产部署验证。生产部署只构建同一镜像，须检查容器内两个进程，不能只验证 Web。
 
 - Agent assess 节点独立评估需求、缺项和用户授权原句；无授权、有关键缺项或收集/骨架/审阅/完成阶段只提供只读工具，执行端再次检查工具白名单。授权原句必须来自 user 消息，不能从工具结果推断。此轮没有 checkpoint，不能称为跨重启可恢复；`scripts/test-agent-workflow.ts` 检查阶段门禁。
 

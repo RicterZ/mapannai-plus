@@ -12,39 +12,10 @@ services:
       - "3000:3000"
     env_file:
       - .env
-    environment:
-      AGENT_URL: http://agent:3100
-      AGENT_TOKEN: ${AGENT_TOKEN:?Set AGENT_TOKEN for the internal agent service}
-    depends_on:
-      agent:
-        condition: service_healthy
     restart: unless-stopped
 
     volumes:
       - mapannai_data:/app/data
 
-  agent:
-    build:
-      context: .
-      dockerfile: Dockerfile.agent
-    environment:
-      AGENT_HOST: 0.0.0.0
-      AGENT_TOKEN: ${AGENT_TOKEN:?Set AGENT_TOKEN for the internal agent service}
-      AGENT_MCP_URL: http://mapannai:3000/api/mcp
-      AGENT_SQLITE_PATH: /app/data/agent.db
-      API_TOKEN: ${API_TOKEN:-}
-      AI_ALLOW_PRIVATE_ENDPOINTS: ${AI_ALLOW_PRIVATE_ENDPOINTS:-false}
-    restart: unless-stopped
-
-    volumes:
-      - agent_data:/app/data
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3100/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
 volumes:
-  agent_data:
   mapannai_data:

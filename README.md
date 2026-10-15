@@ -166,7 +166,7 @@ git diff --check
 
 Stop the development server in the same directory before building to avoid conflicts in `.next`. `npm start` serves a completed build; this is also an option for running without Docker, with the `data` directory persisted. If changing Node versions causes a SQLite native dependency ABI error, run `npm rebuild better-sqlite3`.
 
-Web AI runs in a separate Node Agent while retaining the existing browser chat API. For local use, run `npm run agent:start` alongside `npm run dev`. For Compose, set the internal `AGENT_TOKEN` in `.env` before building and starting Web and Agent. See [Agent service](docs/agent-service.md) for setup, limitations, and acceptance checks.
+Web AI runs in a separate Node Agent while retaining the existing browser chat API. For local use, run `npm run agent:start` alongside `npm run dev`. Docker starts Web and Agent as two processes in one container; all configuration stays in the repository `.env`, and both databases persist under `/app/data`. No Agent container or extra env file is needed. See [Agent service](docs/agent-service.md) for setup, limitations, and acceptance checks.
 
 The Node server fills missing marker addresses in the background on startup, then scans again one hour after each completed pass. It uses AMap first in China with Google fallback, and Google directly overseas. Coordinates and existing addresses are preserved. Configure the corresponding map service keys; bulk lookups may incur API charges and require a continuously running Node server.
 
