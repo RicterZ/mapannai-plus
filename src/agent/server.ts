@@ -6,6 +6,7 @@ import { completionUrl } from '../lib/ai/endpoint'
 import { runPlanner } from './planner'
 import { RunStore } from './run-store'
 import { agentErrorMessage } from './errors'
+import { traceAgent, withAgentTrace, agentTraceEnabled } from '../lib/ai/trace'
 
 const MAX_BODY = 2_000_000
 function authorized(value: unknown) {
@@ -36,11 +37,23 @@ export function createAgentServer(planner = runPlanner, store = new RunStore()) 
         active++
         let completed = false
         try {
-            await planner(input, event => {
-                store.append(id, event, input.settings.apiKey)
-                if (event.type === 'complete') { store.finish(id, 'completed'); completed = true }
-                emit(event)
-            }, signal)
+            await withAgentTrace({ secrets: [input.settings.apiKey, ...Object.entries(process.env).filter(([key]) => /KEY|TOKEN|SECRET|PASSWORD|SECURITY_CODE/i.test(key)).map(([, value]) => value || '')],
+                write: (kind, payload) => { if (agentTraceEnabled()) store.trace(id, kind, payload) },
+            }, async () => {
+                traceAgent('request', input)
+                try {
+                    await planner(input, event => {
+                        if (event.type !== 'delta') traceAgent('event', event)
+                        store.append(id, event, input.settings.apiKey)
+                        if (event.type === 'complete') { store.finish(id, 'completed'); completed = true }
+                        emit(event)
+                    }, signal)
+                } catch (error) {
+                    traceAgent('failure', { name: error instanceof Error ? error.name : 'UnknownError',
+                        message: error instanceof Error ? error.message : '', stack: error instanceof Error ? error.stack : '' })
+                    throw error
+                }
+            })
         } finally { store.finish(id, completed ? 'completed' : 'interrupted'); active-- }
     }
     const server = createServer(async (req, res) => {

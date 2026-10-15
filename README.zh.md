@@ -171,3 +171,5 @@ git diff --check
 构建前停止同一目录下的开发服务，避免争用 `.next`。`npm start` 使用已完成的构建；不使用 Docker 时，也可用这种方式运行服务并持久化 `data` 目录。更换 Node 版本后若 SQLite 原生依赖报 ABI 错误，可运行 `npm rebuild better-sqlite3`。
 
 项目使用 Next.js、React、TypeScript 与 SQLite。开发约定、源码职责和验证要求见 [AGENTS.md](AGENTS.md)；环境变量说明统一维护在 [env.example](env.example)。
+
+诊断时可在同一 `.env` 开启 `AGENT_TRACE_ENABLED`，脱敏 transcript 写入现有 Agent 数据库；仍含私人对话，不要公开，详见 [Agent 服务](docs/agent-service.md)。

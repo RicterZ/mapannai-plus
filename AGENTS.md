@@ -309,3 +309,7 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - 需求评估与 title/skeleton 的只读结构化生成同样使用流式 Chat Completions（兼容返回普通 JSON 的服务），避免依赖上游非流式支持；JSON/Schema 不合格仅修复重试一次，不重试网络请求或地图写入。失败日志区分固定 HTTP 状态类别与 StructuredOutputError，不记录模型正文或凭据。验证 `npx tsx scripts/test-agent-structured-completion.ts`。
 
 - 只读结构化阶段剥离工具调用后必须同时移除 null/空白正文消息，不能向上游发送无 tool_calls 且 content=null 的助手消息；保留其他文本原序。test-agent-workflow 与 test-agent-structured-completion 覆盖带工具历史的输入及修复请求。
+
+- 可选 AGENT_TRACE_ENABLED=true 将诊断 transcript 写入现有 agent.db 的 trace_records 表，按 run_id 关联输入、节点、模型请求/完整已解析回复、工具事件、HTTP错误摘要和异常栈；不记录逐token帧/隐藏推理。模型Key与环境凭据、敏感字段和签名URL脱敏，DB权限600；仍包含私人对话，严禁输出原文到公共日志。保留7天（启动/写入清理），每run上限2000万字符，不影响执行日志幂等，不自动重试未知写入。用 scripts/test-agent-trace.ts 验证；旧失败无法补录，不能宣称已还原历史根因。
+
+诊断开关未设置时开发默认开启、生产默认关闭；`AGENT_TRACE_ENABLED=true/false` 显式覆盖。生产镜像设置 `NODE_ENV=production`。

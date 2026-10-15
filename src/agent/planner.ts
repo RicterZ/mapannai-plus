@@ -9,6 +9,7 @@ import { assessWorkflow, workflowInstruction, canChangeTitle, type Workflow } fr
 import { completedDates, verifySavedDay, progressTools } from './day-progress'
 import { AgentStageError } from './errors'
 import { generateStage } from './plan-stages'
+import { traceAgent } from '../lib/ai/trace'
 
 const changeTitleSchema = z.object({ title: z.string().trim().min(1).max(60) }).strict()
 const changeTitleTool = { type: 'function' as const, function: {
@@ -47,6 +48,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
         const State = Annotation.Root({ done: Annotation<boolean>(), calls: Annotation<ToolCall[]>(), workflow: Annotation<Workflow | undefined>(), titleReady: Annotation<boolean>(), outlineReady: Annotation<boolean>() })
         const executionNode = () => reviewSubmitted || workflow?.phase === 'review' || workflow?.phase === 'completed' ? 'review' : workflow?.authorized ? 'planning' : 'collecting'
         const runModel = async () => {
+            traceAgent('node', { name: executionNode(), round })
             if (round++ >= 16) throw new Error('本轮工具调用较多，已暂停。已完成的操作已保存，可继续发送消息规划剩余部分。')
             signal.throwIfAborted()
             if (history.length > 180) throw new Error('会话记录已较长，请新建会话继续规划；已完成的操作会保留。')
@@ -79,6 +81,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
         }
         const graph = new StateGraph(State)
         .addNode('assess', async () => {
+            traceAgent('node', { name: 'assess' })
             try {
                 workflow = await (deps.assess || assessWorkflow)(request, signal)
             } catch (error) {
@@ -96,6 +99,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             return { done: false, workflow }
         })
         .addNode('title', async state => {
+            traceAgent('node', { name: 'title' })
             if (!state.workflow) return { titleReady: true }
             const prior = history.some(message => message.role === 'tool' && message.name === 'change_title' && (() => {
                 try { const value = JSON.parse(message.content); return !value.isError && !!value.content } catch { return false }
@@ -112,6 +116,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             return { titleReady: true }
         })
         .addNode('skeleton', async state => {
+            traceAgent('node', { name: 'skeleton' })
             if (!state.titleReady) throw new Error('必须先完成标题阶段')
             if (!workflow) return { outlineReady: true }
             for (const message of [...history].reverse()) {
@@ -138,6 +143,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
         .addNode('planning', runModel)
         .addNode('review', runModel)
         .addNode('tools', async state => {
+            traceAgent('node', { name: 'tools' })
             for (const call of state.calls) {
                 signal.throwIfAborted()
                 emit({ type: 'status', name: call.function.name })

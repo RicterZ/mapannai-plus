@@ -138,3 +138,9 @@ npx tsx scripts/test-agent-recovery.ts
 Assessment, title and skeleton generation use streaming Chat Completions, while accepting non-stream JSON responses as well. Invalid JSON/schema output gets one read-only repair attempt; transport errors and map writes are not retried. Safe diagnostics distinguish upstream HTTP status from invalid structured output without logging response bodies or credentials. Run `npx tsx scripts/test-agent-structured-completion.ts` for the compatibility checks. No additional environment variables are required.
 
 Text-only stage requests omit null/blank turns after stripping tool calls. A tool-only assistant turn must not be sent as `content: null` without its original tool calls, which strict Chat Completions providers may reject with HTTP 400. Original text order is retained; tool results remain excluded from assessment evidence.
+
+### Private diagnostic transcript
+
+Set `AGENT_TRACE_ENABLED=true` in the same project `.env` to record private traces in `trace_records` in the existing Agent SQLite file. Records are linked by run ID and include incoming conversation/context, graph nodes, outgoing model messages/tools, parsed assistant responses, tool events, bounded upstream HTTP error details and exception stacks. Raw SSE frames and hidden reasoning are not recorded. Known credentials and signed URLs are redacted; the database remains private conversation data and is chmod 600. Retention is seven days, cleaned on startup/write, capped at 20 million characters per run; trace write failure does not replay or stop map operations. Old failures cannot be reconstructed retroactively. Test with `npx tsx scripts/test-agent-trace.ts`.
+
+诊断开关未设置时开发默认开启、生产默认关闭；`AGENT_TRACE_ENABLED=true/false` 显式覆盖。生产镜像设置 `NODE_ENV=production`。

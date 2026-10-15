@@ -8,6 +8,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { NextRequest } from 'next/server'
 import WebSocket from 'ws'
+import Database from 'better-sqlite3'
 
 async function listen(server: Server) {
     server.listen(0, '127.0.0.1'); await once(server, 'listening')
@@ -72,7 +73,7 @@ async function main() {
         process.env.AGENT_MCP_URL = (await listen(mcp)) + '/api/mcp'
         const modelUrl = await listen(model)
         agent = spawn(process.execPath, ['--import', 'tsx', 'src/agent/main.ts'], {
-            cwd: process.cwd(), env: { ...process.env, AGENT_HOST: '127.0.0.1', AGENT_PORT: '0', AGENT_SQLITE_PATH: path.join(directory, 'agent.db'), SQLITE_PATH: path.join(directory, 'agent-must-not-open.db') },
+            cwd: process.cwd(), env: { ...process.env, AGENT_HOST: '127.0.0.1', AGENT_PORT: '0', AGENT_TRACE_ENABLED: 'true', AGENT_SQLITE_PATH: path.join(directory, 'agent.db'), SQLITE_PATH: path.join(directory, 'agent-must-not-open.db') },
             stdio: ['ignore', 'pipe', 'pipe'],
         })
         process.env.AGENT_URL = await new Promise<string>((resolve, reject) => {
@@ -153,7 +154,7 @@ async function main() {
         assert(!(await unavailable.text()).includes(input.settings.apiKey))
         const requestsBeforeRestart = requests
         agent = spawn(process.execPath, ['--import', 'tsx', 'src/agent/main.ts'], {
-            cwd: process.cwd(), env: { ...process.env, AGENT_HOST: '127.0.0.1', AGENT_PORT: '0', AGENT_SQLITE_PATH: path.join(directory, 'agent.db') },
+            cwd: process.cwd(), env: { ...process.env, AGENT_HOST: '127.0.0.1', AGENT_PORT: '0', AGENT_TRACE_ENABLED: 'true', AGENT_SQLITE_PATH: path.join(directory, 'agent.db') },
             stdio: ['ignore', 'pipe', 'pipe'],
         })
         process.env.AGENT_URL = await new Promise<string>((resolve, reject) => {
@@ -168,6 +169,13 @@ async function main() {
         const replayEvents = (await replay.text()).trim().split('\n').map(line => JSON.parse(line))
         assert(replayEvents.some(event => event.type === 'complete'))
         assert.equal(requests, requestsBeforeRestart, 'restart replay must not rerun model or tools')
+        const traceDb = new Database(path.join(directory, 'agent.db'), { readonly: true })
+        try {
+            const rows = traceDb.prepare('SELECT kind,payload FROM trace_records').all() as {kind:string;payload:string}[]
+            for (const kind of ['request', 'model-request', 'model-response', 'node', 'event']) assert(rows.some(row => row.kind === kind), `missing trace: ${kind}`)
+            assert(!JSON.stringify(rows).includes('mock-key'), 'trace must not persist model key')
+            assert(!JSON.stringify(rows).includes('isolated-agent-token'), 'trace must not persist internal token')
+        } finally { traceDb.close() }
         console.log('Agent checks passed: separate Node process, real HTTP MCP + isolated SQLite, tool titles, atomic idempotency, unchanged Web NDJSON, WebSocket auth/chat, cancellation propagation, LangGraph model/tools loop.')
     } finally {
         await bridge?.close()

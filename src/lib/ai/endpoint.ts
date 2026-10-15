@@ -1,3 +1,5 @@
+import { traceAgent } from './trace'
+import { randomUUID } from 'node:crypto'
 import { lookup } from 'node:dns'
 import { isIP } from 'node:net'
 import { request as httpRequest } from 'node:http'
@@ -32,6 +34,8 @@ export function completionUrl(baseUrl: string, allowPrivate = process.env.AI_ALL
 
 /** Validate the address resolved for this connection; do not follow redirects with a key. */
 export function requestCompletion(url: URL, apiKey: string, body: unknown, signal: AbortSignal, allowPrivate = process.env.AI_ALLOW_PRIVATE_ENDPOINTS === 'true'): Promise<Response> {
+    const callId = randomUUID(), started = Date.now()
+    traceAgent('model-request', { callId, url: url.toString(), body })
     return new Promise((resolve, reject) => {
         const send = url.protocol === 'https:' ? httpsRequest : httpRequest
         const req = send(url, {
@@ -49,8 +53,12 @@ export function requestCompletion(url: URL, apiKey: string, body: unknown, signa
             },
         }, response => {
             const status = response.statusCode || 502
+            traceAgent('model-headers', { callId, status, elapsedMs: Date.now() - started })
+            response.on('end', () => traceAgent('model-end', { callId, elapsedMs: Date.now() - started }))
             if (status !== 200) {
-                response.resume()
+                let detail = '', bytes = 0
+                response.on('data', chunk => { bytes += chunk.length; if (bytes <= 16000) detail += chunk.toString() })
+                response.on('end', () => traceAgent('model-http-error', { callId, status, detail }))
                 const error = new Error(`AI API 返回 HTTP ${status}，请检查地址、Key、模型及工具调用支持`)
                 error.name = `ModelHTTP${status}`
                 reject(error)
@@ -67,7 +75,10 @@ export function requestCompletion(url: URL, apiKey: string, body: unknown, signa
             })
             resolve(new Response(stream, { headers: { 'Content-Type': String(response.headers['content-type'] || '') } }))
         })
-        req.on('error', () => reject(new Error(signal.aborted ? 'AI 请求已停止或超时' : '无法连接 AI API，请检查地址与网络配置')))
+        req.on('error', () => {
+            traceAgent('model-network-error', { callId, elapsedMs: Date.now() - started, aborted: signal.aborted })
+            reject(new Error(signal.aborted ? 'AI 请求已停止或超时' : '无法连接 AI API，请检查地址与网络配置'))
+        })
         req.end(JSON.stringify(body))
     })
 }

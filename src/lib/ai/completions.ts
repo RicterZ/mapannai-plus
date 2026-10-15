@@ -1,3 +1,4 @@
+import { traceAgent } from './trace'
 import { toolCallSchema, type ChatMessage, type ToolCall } from './protocol'
 
 type Assistant = Extract<ChatMessage, { role: 'assistant' }>
@@ -10,6 +11,7 @@ export async function readCompletion(response: Response, onDelta: (text: string)
         const assistant: Assistant = { role: 'assistant', content: message.content || null }
         if (message.tool_calls?.length) assistant.tool_calls = message.tool_calls.map((call: unknown) => toolCallSchema.parse(call))
         if (assistant.content) onDelta(assistant.content)
+        traceAgent('model-response', assistant)
         return assistant
     }
     const reader = response.body?.getReader()
@@ -62,6 +64,8 @@ export async function readCompletion(response: Response, onDelta: (text: string)
         if (!received || !finished) throw new Error('AI 回复中断，请重试；已完成的操作会保留')
         const tool_calls = Array.from(calls.entries()).sort(([a], [b]) => a - b).map(([, call]) => toolCallSchema.parse(call))
         if (!content && !tool_calls.length) throw new Error('AI API 返回空回复')
-        return { role: 'assistant', content: content || null, ...(tool_calls.length ? { tool_calls } : {}) }
+        const assistant: Assistant = { role: 'assistant', content: content || null, ...(tool_calls.length ? { tool_calls } : {}) }
+        traceAgent('model-response', assistant)
+        return assistant
     } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
 }

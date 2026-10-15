@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3'
 import { createHash } from 'node:crypto'
-import { mkdirSync } from 'node:fs'
+import { chmodSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import type { ChatEvent, ChatRequest } from '../lib/ai/protocol'
 
@@ -10,11 +10,16 @@ export class RunStore {
     constructor(filename = process.env.AGENT_SQLITE_PATH || './data/agent.db') {
         mkdirSync(path.dirname(filename), { recursive: true })
         this.db = new Database(filename)
+        if (filename !== ':memory:') chmodSync(filename, 0o600)
         this.db.pragma('journal_mode = WAL')
         this.db.exec(`CREATE TABLE IF NOT EXISTS runs (
             id TEXT PRIMARY KEY, status TEXT NOT NULL, events TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL
         )`)
         this.db.prepare("UPDATE runs SET status = 'interrupted' WHERE status = 'running'").run()
+        this.db.exec(`CREATE TABLE IF NOT EXISTS trace_records (
+            id INTEGER PRIMARY KEY, run_id TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL
+        ); CREATE INDEX IF NOT EXISTS trace_run ON trace_records(run_id)`)
+        this.db.prepare("DELETE FROM trace_records WHERE created_at < ?").run(new Date(Date.now() - 7 * 86400_000).toISOString())
     }
     key(request: ChatRequest) {
         // Key material is hashed only; model credentials never enter journal rows.
@@ -44,6 +49,12 @@ export class RunStore {
     }
     finish(id: string, status: 'completed' | 'interrupted') {
         this.db.prepare('UPDATE runs SET status = ?, updated_at = ? WHERE id = ?').run(status, new Date().toISOString(), id)
+    }
+    trace(id: string, kind: string, payload: string) {
+        this.db.prepare('DELETE FROM trace_records WHERE created_at < ?').run(new Date(Date.now() - 7 * 86400_000).toISOString())
+        const size = (this.db.prepare('SELECT COALESCE(SUM(length(payload)), 0) AS size FROM trace_records WHERE run_id = ?').get(id) as { size: number }).size
+        if (size + payload.length > 20_000_000) return
+        this.db.prepare('INSERT INTO trace_records(run_id,kind,payload,created_at) VALUES (?,?,?,?)').run(id, kind, payload, new Date().toISOString())
     }
     close() { this.db.close() }
 }

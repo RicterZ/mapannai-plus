@@ -171,3 +171,5 @@ Web AI runs in a separate Node Agent while retaining the existing browser chat A
 The Node server fills missing marker addresses in the background on startup, then scans again one hour after each completed pass. It uses AMap first in China with Google fallback, and Google directly overseas. Coordinates and existing addresses are preserved. Configure the corresponding map service keys; bulk lookups may incur API charges and require a continuously running Node server.
 
 The project uses Next.js, React, TypeScript, and SQLite. See [AGENTS.md](AGENTS.md) for development conventions, source responsibilities, and validation requirements. Environment settings are maintained in [env.example](env.example).
+
+For debugging, enable `AGENT_TRACE_ENABLED` in the same `.env` to record redacted transcripts in the existing Agent database. These still contain private conversations; do not publish them. See [Agent service](docs/agent-service.md).
