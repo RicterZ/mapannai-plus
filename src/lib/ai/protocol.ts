@@ -33,6 +33,7 @@ export type AiSettings = z.infer<typeof aiSettingsSchema>
 export type ToolCall = z.infer<typeof toolCallSchema>
 export type ChatRequest = z.infer<typeof chatRequestSchema>
 export type ChatEvent =
+    | { type: 'partial'; text: string }
     | { type: 'interaction'; prompt: InteractionPrompt }
     | { type: 'delta'; text: string }
     | { type: 'message'; message: ChatMessage }

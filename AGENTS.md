@@ -335,3 +335,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - 规划保存边界：完整未保存草案通过preview_itinerary确认后才允许地图写入；单独“保存”意图不足以绕过草案确认。continue只批准该草案，不授权其他删除/预订/付款。保存全程核实后submit_trip_review返回真实savedOverview，前端自动展示可切日期概览，进入图内chatting节点；system和工具列表保持固定，chatting的tool_choice=none且执行端拒绝工具。新任务/修改由assess流转回规划且需新草案确认。测试scripts/test-plan-review.ts、test-draft-write-gate.ts及day-loop；当前审批基于会话工具历史，不是签名版本化计划，不宣称完整审批系统。
 
 - 骨架日期检查先验证有限时间戳再转换ISO；真实日期、连续唯一及可提取的已确认ISO范围校验在结构化输出修复重试内进行，禁止占位日期导致RangeError。评估日期为空时回收集并禁止写入；修改当前旅行且日期为空时先只读获取真实日期骨架。历史骨架仅在日期一致时复用。scripts/test-plan-dates.ts覆盖非法日期、闰年、跨年、范围及修复。
+
+- 新Web聊天使用后台任务API POST /api/ai/runs、GET /api/ai/runs/{id}?after=序号、DELETE显式停止；执行与订阅连接解耦，断网/刷新不取消任务。每run独立随机能力token放x-run-token（不在URL），原API认证叠加；游标和会话归属及待交互卡片保存在浏览器，消息与游标同步落盘后续拉，不用同文匹配其他端。原/api/ai/chat保持旧流兼容。事件持久化到原agent.db，模型Key仅内存；完整消息和每秒累计partial支持追上生成。进程/容器重启仅保留已落盘结果、运行任务标interrupted，不自动重放未知写入或承诺完整checkpoint恢复。后台交互仍60秒截止，离线超时转文字询问。scripts/test-background-runs.ts覆盖独立运行、能力隔离、游标、显式取消及重启读取。

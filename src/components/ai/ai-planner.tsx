@@ -2,6 +2,7 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import type { InteractionPrompt } from '@/lib/ai/interaction'
+import { PENDING_RUN_KEY, startBackground, pollBackground, cancelBackground, type PendingRun } from '@/lib/ai/background-client'
 import { SavedOverview } from './saved-overview'
 import { InteractionCard } from './interaction-card'
 import { useEffect, useRef, useState } from 'react'
@@ -36,6 +37,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
     const [interaction, setInteraction] = useState<InteractionPrompt | null>(null)
     const [status, setStatus] = useState('正在思考…')
     const [error, setError] = useState<string | null>(null)
+    const pendingRef = useRef<PendingRun | null>(null)
     const requestRef = useRef<AbortController | null>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -118,21 +120,25 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
         })().finally(() => { refreshRef.current = null })
         return refreshRef.current
     }
-    async function send() {
+    useEffect(() => {
+        if (!hydrated || requestRef.current) return
+        try { const raw=localStorage.getItem(PENDING_RUN_KEY); if(raw){const run=JSON.parse(raw) as PendingRun;if(run.id && history.conversations.some(item=>item.id===run.conversationId))void send(run)} } catch {}
+    }, [hydrated])
+    async function send(resume?: PendingRun) {
         const content = text.trim()
-        if (!content || requestRef.current) return
-        if (!aiSettingsSchema.safeParse(settings).success) { setShowSettings(true); setError('请先填写 API 地址与模型'); return }
+        if ((!content && !resume) || requestRef.current) return
+        if (!resume && !aiSettingsSchema.safeParse(settings).success) { setShowSettings(true); setError('请先填写 API 地址与模型'); return }
         if (!conversation && history.conversations.length >= 20) { toast.error('请先删除一个旧会话'); return }
-        const current = conversation || newConversation()
-        const messages: ChatMessage[] = [...repairInterruptedMessages(current.messages), { role: 'user', content }]
+        const current = (resume ? history.conversations.find(item=>item.id===resume.conversationId) : conversation) || newConversation()
+        const messages: ChatMessage[] = resume ? current.messages : [...repairInterruptedMessages(current.messages), { role: 'user', content }]
         if (messages.length > 180) { setError('这个会话已较长，请新建会话继续规划；原记录会保留。'); return }
         const requestId = uuidv4()
         const controller = new AbortController()
         requestRef.current = controller
         followRef.current = true
-        setInteraction(null)
+        setInteraction(resume?.prompt && resume.prompt.deadline > Date.now() ? resume.prompt : null)
         setBusy(true); setError(null); setPartial(''); setStatus('正在思考…'); setText('')
-        setHistory(previous => ({ ...previous, activeId: current.id, conversations: [
+        if (!resume) setHistory(previous => ({ ...previous, activeId: current.id, conversations: [
             { ...current, title: current.messages.length ? current.title : content.slice(0, 40), messages, updatedAt: new Date().toISOString() },
             ...previous.conversations.filter(item => item.id !== current.id),
         ] }))
@@ -141,6 +147,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
         const event = (item: ChatEvent) => {
             if (item.type === 'interaction') { setInteraction(item.prompt); setStatus('等待你的选择…') }
             if (item.type === 'message' && item.message.role === 'tool') setInteraction(null)
+            if (item.type === 'partial') { preview = item.text; setPartial(item.text) }
             if (item.type === 'delta') { preview += item.text; setPartial(preview); setStatus('正在回复…') }
             if (item.type === 'message') {
                 if (item.message.role === 'assistant') { preview = ''; setPartial('') }
@@ -151,42 +158,31 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
             if (item.type === 'title') updateConversation(current.id, value => ({ ...value, title: item.title, updatedAt: new Date().toISOString() }))
             if (item.type === 'changed') void refreshMap()
             if (item.type === 'complete') completed = true
-            if (item.type === 'error') throw new Error(item.message)
+            if (item.type === 'error') { setError(item.message) }
         }
         try {
             const active = useMapStore.getState().activeView
             const now = new Date()
             const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-            const response = await fetchWithAuth('/api/ai/chat', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-                body: JSON.stringify({ conversationId: current.id, requestId, supportsInteractions: true, settings: { baseUrl: settings.baseUrl, apiKey: settings.apiKey, model: settings.model }, messages,
-                    context: { localDate, tripId: active.tripId, dayId: active.dayId } }),
-            })
-            if (!response.ok) {
-                const result = await response.json().catch(() => ({}))
-                throw new Error(response.status === 401 ? '请先完成本站访问认证' : result.error || '聊天请求失败，请重试')
-            }
-            reader = response.body?.getReader()
-            if (!reader) throw new Error('未收到 AI 回复')
-            const decoder = new TextDecoder()
-            let buffer = ''
-            while (true) {
-                const chunk = await reader.read()
-                if (chunk.done) break
-                buffer += decoder.decode(chunk.value, { stream: true })
-                let end: number
-                while ((end = buffer.indexOf('\n')) !== -1) {
-                    const line = buffer.slice(0, end); buffer = buffer.slice(end + 1)
-                    if (line.trim()) event(JSON.parse(line))
-                }
-            }
-            buffer += decoder.decode()
-            if (buffer.trim()) event(JSON.parse(buffer))
-            if (!completed) throw new Error('连接已中断，已完成的操作会保留，请确认行程后继续')
+            const run = resume || { id: '', token: uuidv4()+uuidv4(), conversationId: current.id, cursor: 0 }
+            const save = () => { localStorage.setItem(HISTORY_KEY, JSON.stringify({ ...history, activeId:current.id, conversations: [{...current,messages:checkpointMessages},...history.conversations.filter(item=>item.id!==current.id)] })); localStorage.setItem(PENDING_RUN_KEY, JSON.stringify(run)) }
+            let checkpointMessages = [...messages]
+            pendingRef.current=run
+            localStorage.setItem(PENDING_RUN_KEY, JSON.stringify(run))
+            if(!run.id) run.id=await startBackground({conversationId:current.id,requestId,supportsInteractions:true,settings:{baseUrl:settings.baseUrl,apiKey:settings.apiKey,model:settings.model},messages,context:{localDate,tripId:active.tripId,dayId:active.dayId}},run.token,controller.signal)
+            localStorage.setItem(PENDING_RUN_KEY, JSON.stringify(run))
+            await pollBackground(run,controller.signal,item=>{
+                if(item.type==='interaction')run.prompt=item.prompt
+                if(item.type==='message'){checkpointMessages.push(item.message);if(item.message.role==='tool')delete run.prompt}
+                event(item)
+            },save)
+            localStorage.removeItem(PENDING_RUN_KEY);pendingRef.current=null
+            if (!completed && !resume) throw new Error('后台任务结束但未收到完成事件')
+
         } catch (failure) {
             setError(controller.signal.aborted ? '已停止。已完成的操作会保留；正在执行的操作可能仍会保存，请确认行程后继续。'
                 : failure instanceof Error ? failure.message : '请求失败，请重试')
-            if (preview) updateConversation(current.id, value => ({ ...value, messages: [...value.messages, { role: 'assistant', content: preview + '\n\n（回复已中断）' }] }))
+            if (preview && !pendingRef.current) updateConversation(current.id, value => ({ ...value, messages: [...value.messages, { role: 'assistant', content: preview + '\n\n（回复已中断）' }] }))
         } finally {
             await reader?.cancel().catch(() => {})
             reader?.releaseLock()
@@ -246,7 +242,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
                         <textarea ref={inputRef} aria-label="发给 AI 的消息" className="my-2 max-h-[120px] min-h-6 min-w-0 flex-1 resize-none border-0 bg-transparent p-0 text-sm leading-6 text-gray-800 outline-none placeholder:text-gray-400" rows={1} maxLength={30_000} disabled={busy} value={text} onChange={e => setText(e.target.value)} placeholder="输入消息…" onKeyDown={e => {
                             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && window.matchMedia('(pointer: fine)').matches) { e.preventDefault(); void send() }
                         }} />
-                        {busy ? <button type="button" onClick={() => requestRef.current?.abort()} className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-600" aria-label="停止回复"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 transition-colors group-hover:bg-gray-200"><Square size={14} /></span></button>
+                        {busy ? <button type="button" onClick={() => { const run=pendingRef.current; if(run?.id) void cancelBackground(run).then(()=>{localStorage.removeItem(PENDING_RUN_KEY);requestRef.current?.abort()}).catch(()=>setError('停止任务失败，请重试')); else requestRef.current?.abort() }} className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-600" aria-label="停止回复"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 transition-colors group-hover:bg-gray-200"><Square size={14} /></span></button>
                             : <button type="submit" disabled={!text.trim()} className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-accent-600 disabled:text-gray-300" aria-label="发送消息"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-50 transition-colors group-hover:bg-accent-100 group-disabled:bg-transparent"><Send size={16} /></span></button>}
                     </div>
                 </form>

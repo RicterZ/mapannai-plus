@@ -1,3 +1,4 @@
+import { BackgroundRuns } from './background-runs'
 import { withInteractions, answerInteraction } from './interactions'
 import { createServer, type IncomingMessage } from 'node:http'
 import { timingSafeEqual } from 'node:crypto'
@@ -19,6 +20,7 @@ function authorized(value: unknown) {
 }
 
 export function createAgentServer(planner = runPlanner, store = new RunStore()) {
+    const background = new BackgroundRuns(process.env.AGENT_SQLITE_PATH || './data/agent.db')
     let active = 0
     const execute = async (raw: unknown, emit: (event: ChatEvent) => void, signal: AbortSignal) => {
         if (active >= 4) throw new Error('Agent 忙碌，请稍后重试')
@@ -61,6 +63,26 @@ export function createAgentServer(planner = runPlanner, store = new RunStore()) 
     }
     const server = createServer(async (req, res) => {
         if (req.url === '/health' && req.method === 'GET') { res.writeHead(200).end('ok'); return }
+        if (req.url?.startsWith('/runs')) {
+            if (!authorized(req.headers.authorization?.replace(/^Bearer /, ''))) { res.writeHead(401).end(); return }
+            const capability = req.headers['x-run-token']
+            if (typeof capability !== 'string' || !/^[a-zA-Z0-9-]{32,100}$/.test(capability)) { res.writeHead(400).end(); return }
+            try {
+                const url = new URL(req.url, 'http://localhost')
+                if (url.pathname === '/runs' && req.method === 'POST') {
+                    let text=''; for await (const chunk of req) { text+=chunk; if(text.length>MAX_BODY){res.writeHead(413).end();return} }
+                    const input=chatRequestSchema.parse(JSON.parse(text)); completionUrl(input.settings.baseUrl)
+                    const id=background.start(input,capability,(emit,signal)=>execute(input,emit,signal))
+                    res.writeHead(202,{'Content-Type':'application/json'}).end(JSON.stringify({id}));return
+                }
+                const id=url.pathname.slice('/runs/'.length)
+                if(req.method==='DELETE'){res.writeHead(background.cancel(id,capability)?200:404).end();return}
+                const after=Number(url.searchParams.get('after') || 0)
+                if(!Number.isSafeInteger(after)||after<0){res.writeHead(400).end();return}
+                const result=background.read(id,capability,after)
+                res.writeHead(result?200:404,{'Content-Type':'application/json','Cache-Control':'no-store'}).end(JSON.stringify(result));return
+            } catch {res.writeHead(400).end();return}
+        }
         if (req.url === '/interactions' && req.method === 'POST') {
             if (!authorized(req.headers.authorization?.replace(/^Bearer /, ''))) { res.writeHead(401).end(); return }
             try {

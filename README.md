@@ -179,3 +179,5 @@ For debugging, enable `AGENT_TRACE_ENABLED` in the same `.env` to record redacte
 Web AI can request date/time, single/multiple choice and daily draft previews inside chat. Selections wait up to 60 seconds; timeout switches to a text question and waits for the user instead of making assumptions, not permission to save, delete or book. Legacy clients retain text chat compatibility.
 
 AI presents a full draft for confirmation before saving. After saving and verification, a real itinerary overview appears in chat; normal conversation remains in the workflow and can return to planning for new requests.
+
+Web AI tasks run in the background and reconnect to recorded results after refresh or network loss. Stop explicitly cancels. Container restarts interrupt active execution but retain recorded results; uncertain writes are never automatically replayed.
