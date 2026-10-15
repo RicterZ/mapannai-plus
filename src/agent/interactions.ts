@@ -18,11 +18,11 @@ export async function requestInteraction(name: string, args: Record<string, unkn
     if (!emit) return { status: 'unsupported', selection: null, source: 'none' }
     signal.throwIfAborted()
     return new Promise((resolve, reject) => {
-        const id = randomUUID(), token = randomUUID(), deadline = Date.now() + 30_000
+        const id = randomUUID(), token = randomUUID(), deadline = Date.now() + 60_000
         const cleanup = () => { clearTimeout(timer); pending.delete(id); signal.removeEventListener('abort', abort) }
         const finish = (value: unknown) => { cleanup(); resolve(value) }
         const abort = () => { cleanup(); reject(new Error('请求已停止')) }
-        const timer = setTimeout(() => finish({ status: 'timed_out', selection: null, source: 'none', instruction: '用户未选择。仅可明确标注可撤回的草案假设，不代表用户同意、写入授权或实际预订事实。' }), 30_000)
+        const timer = setTimeout(() => finish({ status: 'timed_out', selection: null, source: 'none', instruction: '用户未选择。仅可明确标注可撤回的草案假设，不代表用户同意、写入授权或实际预订事实。' }), 60_000)
         pending.set(id, { token, deadline, input, resolve: finish })
         signal.addEventListener('abort', abort, { once: true })
         emit({ id, token, deadline, input })

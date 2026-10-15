@@ -70,6 +70,17 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             }, upstreamSignal)
             const assistant = chatMessageSchema.parse(await readCompletion(response, text => emit({ type: 'delta', text }), upstreamSignal))
             if (assistant.role !== 'assistant') throw new Error('AI 回复格式无效')
+            // Reject mixed interaction batches before any side effects; let the model repair.
+            const interactionCalls = assistant.tool_calls?.filter(call => interactionTools.some(tool => tool.function.name === call.function.name)) || []
+            if (interactionCalls.length && assistant.tool_calls!.length > 1) {
+                history.push(assistant)
+                emit({ type: 'message', message: assistant })
+                for (const call of assistant.tool_calls!) {
+                    const message = chatMessageSchema.parse({ role: 'tool', name: call.function.name, tool_call_id: call.id, content: JSON.stringify({ isError: true, content: [{ type: 'text', text: '本批未执行任何操作。一次只能调用一个交互工具，不能混入其他调用；请先询问一个问题，收到结果再问下一个。' }] }) })
+                    history.push(message); emit({ type: 'message', message })
+                }
+                return { done: false, calls: [] }
+            }
             // Validate the entire batch before executing any side effects.
             const ids = new Set<string>()
             for (const call of assistant.tool_calls || []) {

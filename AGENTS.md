@@ -320,6 +320,8 @@ ssh -p 2222 -o BatchMode=yes root@server \
 
 - AI聊天连续工具结果合并为默认折叠的进度块，执行中显示当前动作和已返回数，完成后汇总操作数，失败数量始终可见；展开按原始执行顺序逐条显示操作和结果，不合并同名操作、不显示倍数，不渲染原始工具参数/内部ID。用户/助手正文保持独立阅读顺序，空正文工具调用不拆分进度。scripts/test-ai-tool-display.ts 验证分组和错误识别；无新增环境变量。
 
-- 网页交互工具 ask_datetime / ask_choice / preview_itinerary 使用聊天内卡片，Agent进程内一次性等待30秒，服务端截止时间与能力token校验，选择/超时/取消互斥。超时及旧客户端unsupported不构成用户确认或写入授权，不编造实际日期与预订。旧客户端不发送supportsInteractions时即时返回unsupported；新客户端通过原NDJSON interaction事件和受原认证保护的POST /api/ai/interactions提交，内部仍回环通信。停止/断线取消等待；当前不做checkpoint或刷新后恢复卡片。选择结果留在原工具历史，敏感交互token不保存到执行日志。scripts/test-ai-interactions.ts包含真实30秒超时验证。无新增环境变量。
+- 网页交互工具 ask_datetime / ask_choice / preview_itinerary 使用聊天内卡片，Agent进程内一次性等待60秒，服务端截止时间与能力token校验，选择/超时/取消互斥。超时及旧客户端unsupported不构成用户确认或写入授权，不编造实际日期与预订。旧客户端不发送supportsInteractions时即时返回unsupported；新客户端通过原NDJSON interaction事件和受原认证保护的POST /api/ai/interactions提交，内部仍回环通信。停止/断线取消等待；当前不做checkpoint或刷新后恢复卡片。选择结果留在原工具历史，敏感交互token不保存到执行日志。scripts/test-ai-interactions.ts包含真实60秒超时验证。无新增环境变量。
 
 - AI日期卡片参照iOS TripRangeCalendar/TripDateRange：单一日历两次点选起止，反向点选自动排序，同日可选，第三次开始新范围；跨月保留选择，端点圆形与中间连续浅色带，显示含首尾天数、明确选结束提示、“完成”仅收起日历而非提交。日期时间模式分离日历和时间，不默认为用户填写时间；不并排提供原生日期输入与自绘日历。scripts/test-calendar-range.ts验证范围算法，最终提交仍由服务端校验。
+
+- AI交互需求收集必须逐项：先落地时间、收到结果后问起飞时间、再问是否坐船等偏好，不在正文列多个问题或“顺便问”。支持卡片时必须调用对应工具；unsupported才退回文字，超时不代表不支持。交互等待60秒。模型一次混合多个调用且包含交互时，整批在执行前拒绝并要求逐项重发，任何写入均不执行；scripts/test-ai-question-policy.ts验证。

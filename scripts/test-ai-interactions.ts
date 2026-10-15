@@ -20,7 +20,7 @@ async function main() {
  assert.equal((await requestInteraction('ask_datetime',{question:'日期',mode:'date',timezone:'Asia/Tokyo'},new AbortController().signal) as {status:string}).status,'unsupported')
  const start=Date.now()
  const timed=await withInteractions(()=>{},()=>requestInteraction('ask_datetime',{question:'日期',mode:'date',timezone:'Asia/Tokyo'},new AbortController().signal)) as {status:string}
- assert.equal(timed.status,'timed_out');assert.ok(Date.now()-start>=29000)
- console.log('Interaction tests passed: validation, one-shot tokens, cancellation, legacy fallback and real 30s timeout')
+ assert.equal(timed.status,'timed_out');assert.ok(Date.now()-start>=59000)
+ console.log('Interaction tests passed: validation, one-shot tokens, cancellation, legacy fallback and real 60s timeout')
 }
 main().catch(e=>{console.error(e);process.exitCode=1})

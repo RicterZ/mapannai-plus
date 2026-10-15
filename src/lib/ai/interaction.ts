@@ -27,5 +27,5 @@ export function validateSelection(input: Interaction, value: unknown) {
 export const interactionTools = interactionSchema.options.map(schema => {
     const json = z.toJSONSchema(schema) as Record<string, unknown>
     const { kind: _kind, ...properties } = json.properties as Record<string, unknown>
-    return { type: 'function' as const, function: { name: schema.shape.kind.value, description: '向用户展示交互卡片并等待最多30秒。超时不代表选择或授权，不编造实际日期/预订；可明确标注假设后继续草案。preview仅为草案审阅，不授权保存或删除。', parameters: { ...json, properties, required: (json.required as string[]).filter(key => key !== 'kind') } } }
+    return { type: 'function' as const, function: { name: schema.shape.kind.value, description: '向用户展示交互卡片并等待最多60秒。超时不代表选择或授权，不编造实际日期/预订；可明确标注假设后继续草案。preview仅为草案审阅，不授权保存或删除。', parameters: { ...json, properties, required: (json.required as string[]).filter(key => key !== 'kind') } } }
 })
