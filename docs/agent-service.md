@@ -152,3 +152,5 @@ Set `AGENT_TRACE_ENABLED=true` in the same project `.env` to record private trac
 ### Replay identity and conversation isolation
 
 Replay requires both explicit UUID `conversationId` and `requestId`, plus identical request contents/configuration. Web uses its local conversation UUID and generates a fresh request UUID on each send. Legacy clients omitting either ID get a new execution identity on every request; identical text must never retrieve another client's run. The versioned hash excludes old content-only keys. Titles are presentation only, not identity. This is request replay isolation, not cross-device chat sync or an account authorization mechanism. No environment changes are required.
+
+Choice cards always include a built-in “none / explain in text” action, documented in the tool description so models do not add duplicate fallback options. It resolves as `declined`, not a selection or timeout. Remaining tool execution in that turn is blocked and the model is instructed to ask one open question in text and wait for a new user message.

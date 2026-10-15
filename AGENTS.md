@@ -327,3 +327,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - AI交互需求收集必须逐项：先落地时间、收到结果后问起飞时间、再问是否坐船等偏好，不在正文列多个问题或“顺便问”。支持卡片时必须调用对应工具；unsupported才退回文字，超时不代表不支持。交互等待60秒。模型一次混合多个调用且包含交互时，整批在执行前拒绝并要求逐项重发，任何写入均不执行；scripts/test-ai-question-policy.ts验证。
 
 - Agent请求重放仅针对显式conversationId/requestId（UUID）且请求正文/配置一致的同次请求；网页每次发送生成新requestId并携带本地会话UUID，title永远不参与身份。旧客户端缺任一ID时每次分配独立执行ID，绝不能按同文输入跨设备/会话重放历史；v2哈希隔离旧日志。scripts/test-agent-recovery.ts覆盖会话隔离、不同发送、旧客户端和同请求重放。不提供聊天多端同步；UUID不是用户认证边界，API认证规则不变。
+
+- ask_choice单/多选固定提供“都不选，文字说明”，不由LLM生成options；工具说明和提示词明确告知此入口。提交action=none返回declined（非超时/已选），本轮后续tool_choice=none且执行端禁止工具，要求只文字开放询问并等待下一条消息；历史显示拒选结果。scripts/test-ai-interactions.ts覆盖拒选解析及返回状态。

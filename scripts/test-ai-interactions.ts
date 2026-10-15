@@ -6,6 +6,10 @@ async function main() {
  assert.throws(()=>validateSelection(choice,['unknown']))
  assert.throws(()=>validateSelection(choice,['a','a']))
  assert.deepEqual(validateSelection(choice,['a','b']),['a','b'])
+ assert.deepEqual(validateSelection(choice,{action:'none'}),{action:'none'})
+ assert.throws(()=>validateSelection(choice,{action:'none',extra:true}))
+ const declined=await withInteractions(prompt=>{assert.equal(answerInteraction(prompt.id,prompt.token,{action:'none'}),true)},()=>requestInteraction('ask_choice',{question:'选择',options:[{id:'a',label:'甲'},{id:'b',label:'乙'}]},new AbortController().signal)) as {status:string;selection:unknown}
+ assert.equal(declined.status,'declined');assert.equal(declined.selection,null)
  const date=interactionSchema.parse({kind:'ask_datetime',question:'日期',mode:'date_range',timezone:'Asia/Tokyo'})
  assert.throws(()=>validateSelection(date,{start:'2026-02-30',end:'2026-03-02'}))
  assert.throws(()=>validateSelection(date,{start:'2026-03-02',end:'2026-03-01'}))

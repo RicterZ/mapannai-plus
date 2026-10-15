@@ -8,6 +8,10 @@ export function answerInteraction(id: string, token: string, value: unknown) {
     const item = pending.get(id)
     if (!item || item.token !== token || Date.now() >= item.deadline) return false
     const selected = validateSelection(item.input, value)
+    if (item.input.kind === 'ask_choice' && !Array.isArray(selected) && 'action' in selected && selected.action === 'none') {
+        item.resolve({ status: 'declined', selection: null, source: 'user', kind: 'ask_choice', summary: '都不选，改用文字说明', instruction: '用户明确拒绝这些选项。现在仅用文字问一个开放问题并结束本轮，等待用户回复；不要再次弹选择卡、默认选择或执行写入。' })
+        return true
+    }
     item.resolve({ status: 'selected', selection: selected, source: 'user', kind: item.input.kind, summary: item.input.kind === 'ask_choice' ? item.input.options.filter(option => (selected as string[]).includes(option.id)).map(option => option.label).join('、') : JSON.stringify(selected) })
     return true
 }
