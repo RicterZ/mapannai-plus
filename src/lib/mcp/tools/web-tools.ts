@@ -1,4 +1,3 @@
-import path from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
@@ -39,7 +38,7 @@ export async function callWebTool(endpoint: string, name: string, args: Record<s
     const transport = new StdioClientTransport({
       command: endpoint,
       args: [],
-      env: { ...Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)), ...(process.env.WEB_TOOLS_PROXY_URL ? { NODE_OPTIONS: `--require ${path.join(process.cwd(), 'scripts/web-mcp-proxy.cjs')}` } : {}) },
+      env: Object.fromEntries(Object.entries(process.env).filter((entry): entry is [string, string] => entry[1] !== undefined)),
       stderr: 'ignore',
     })
     await client.connect(transport)

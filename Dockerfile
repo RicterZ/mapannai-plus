@@ -36,7 +36,6 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist/agent.cjs ./agent.cjs
 COPY scripts/start-services.cjs ./start-services.cjs
-COPY scripts/web-mcp-proxy.cjs ./scripts/web-mcp-proxy.cjs
 COPY --from=builder /app/.next/static ./.next/static
 
 RUN mkdir -p ./public

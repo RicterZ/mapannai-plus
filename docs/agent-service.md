@@ -158,5 +158,3 @@ Choice cards always include a built-in “none / explain in text” action, docu
 ### Draft approval, saved overview and chatting
 
 Full drafts must be reviewed with `preview_itinerary` before any map writes. Explicit `continue` permits saving that draft, not arbitrary deletion, bookings or payments. Saving then verifies each day and the entire trip; `submit_trip_review` returns an overview read from actual saved days and marker names, automatically rendered in chat. The graph transitions into a real `chatting` node with the same system and tool definitions; execution rejects tools in this state. Assessment can route later modifications/new tasks back to planning with fresh draft approval. Approval currently relies on conversation tool history, not a signed/versioned plan object; do not claim a complete approval system.
-
-`WEB_TOOLS_PROXY_URL` optionally routes only the fixed web MCP subprocesses through an HTTP CONNECT proxy via an undici preload. It does not change model endpoint validation, internal MCP traffic or map provider requests. Set it in the same deployment `.env`, never publish credentials. Blank means direct access.
