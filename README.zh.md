@@ -96,7 +96,7 @@ location /osm-tiles/ {
 
 ## 在网页中用 AI 规划
 
-点击右上角 **AI 规划**，在设置中填写 API 地址、API Key 和模型名称。支持 OpenAI 兼容的 **Chat Completions** 接口及工具调用；地址可填写 API 基础地址（例如 `https://your-api.example/v1`）或完整的 `/chat/completions` 地址。仅提供 Responses、Anthropic Messages 等其他协议的服务需要兼容网关。
+点击右上角 **AI 规划**，在设置浮层中填写 API 地址、API Key 和模型名称。支持 OpenAI 兼容的 **Chat Completions** 接口及工具调用；地址可填写 API 基础地址（例如 `https://your-api.example/v1`）或完整的 `/chat/completions` 地址。仅提供 Responses、Anthropic Messages 等其他协议的服务需要兼容网关。
 
 可以先讨论偏好，再让 AI 创建或调整行程。AI 复用本站的 MCP 工具进行搜索、收藏地点、创建旅行和编排路线，操作结果会同步到地图。支持新建、切换和删除会话；删除聊天记录不删除已保存的旅行或地点。
 

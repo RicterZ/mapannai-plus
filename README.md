@@ -96,7 +96,7 @@ Restart the service after changing server settings; rebuild after changing `NEXT
 
 ## Plan with AI in the web app
 
-Open **AI 规划** in the top-right corner and enter your API URL, API key, and model name in settings. The integration supports OpenAI-compatible **Chat Completions** APIs with function tools. Enter either an API base URL such as `https://your-api.example/v1` or the full `/chat/completions` endpoint. Services offering only Responses, Anthropic Messages, or other protocols need a compatible gateway.
+Open **AI 规划** in the top-right corner and enter your API URL, API key, and model name in the settings dialog. The integration supports OpenAI-compatible **Chat Completions** APIs with function tools. Enter either an API base URL such as `https://your-api.example/v1` or the full `/chat/completions` endpoint. Services offering only Responses, Anthropic Messages, or other protocols need a compatible gateway.
 
 The assistant goes by **M酱**, and chats like an upbeat travel companion, without emoji and with occasional kaomoji.
 

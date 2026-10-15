@@ -9,6 +9,7 @@ import { useAiMapEffects } from '@/lib/ai/use-ai-map-effects'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import { cn } from '@/utils/cn'
 import { ChatMarkdown } from './chat-markdown'
+import { Modal } from '@/components/ui/modal'
 import { aiSettingsSchema, repairInterruptedMessages, toolLabels, type ChatEvent, type ChatMessage } from '@/lib/ai/protocol'
 import { defaultSettings, emptyHistory, HISTORY_KEY, newConversation, readHistory, readSettings, writeSettings, type LocalHistory, type LocalSettings } from '@/lib/ai/local-history'
 
@@ -216,23 +217,6 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
                 <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-4 py-4" onScroll={e => {
                     const node = e.currentTarget; followRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80
                 }}>
-                    {showSettings && <form className="space-y-3 rounded-2xl border border-gray-200 bg-gray-50 p-4" onSubmit={e => {
-                        e.preventDefault()
-                        if (!aiSettingsSchema.safeParse(draft).success) { toast.error('请填写有效的 API 地址、Key 和模型'); return }
-                        try {
-                            const url = new URL(draft.baseUrl)
-                            if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hash || url.search) throw new Error()
-                        } catch { toast.error('请填写有效的 HTTP(S) API 地址'); return }
-                        const next = { ...draft, baseUrl: draft.baseUrl.trim(), model: draft.model.trim() }
-                        setSettings(next); setDraft(next); setShowSettings(false)
-                        try { writeSettings(localStorage, next) } catch { toast.error('配置仅在当前页面生效，浏览器未能保存设置') }
-                    }}>
-                        <label className="block text-xs text-gray-600">API 地址<input className={cn(fieldClass, 'mt-1')} type="url" required value={draft.baseUrl} onChange={e => setDraft(value => ({ ...value, baseUrl: e.target.value }))} placeholder="https://your-api.example/v1" autoComplete="off" /></label>
-                        <label className="block text-xs text-gray-600">API Key<input className={cn(fieldClass, 'mt-1')} type="password" value={draft.apiKey} onChange={e => setDraft(value => ({ ...value, apiKey: e.target.value }))} placeholder="API Key" autoComplete="off" /></label>
-                        <label className="block text-xs text-gray-600">模型<input className={cn(fieldClass, 'mt-1')} required value={draft.model} onChange={e => setDraft(value => ({ ...value, model: e.target.value }))} placeholder="模型名称" autoComplete="off" /></label>
-                        <label className="flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" checked={draft.rememberKey} onChange={e => setDraft(value => ({ ...value, rememberKey: e.target.checked }))} />在本浏览器记住 Key</label>
-                        <button disabled={busy} className="w-full rounded-xl bg-accent-600 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40">保存设置</button>
-                    </form>}
                     {storageError && <div className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">{storageError}
                         {!storageReadable && <button className="ml-2 underline" disabled={busy} onClick={() => {
                             try { localStorage.removeItem(HISTORY_KEY); setHistory({ ...emptyHistory, conversations: [] }); setStorageReadable(true); setStorageError(null) }
@@ -254,6 +238,23 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
                     </div>
                 </form>
             </div>
+            {open && showSettings && <Modal title="AI 设置" onClose={() => setShowSettings(false)}><form className="space-y-3" onSubmit={e => {
+                e.preventDefault()
+                if (!aiSettingsSchema.safeParse(draft).success) { toast.error('请填写有效的 API 地址、Key 和模型'); return }
+                try {
+                    const url = new URL(draft.baseUrl)
+                    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hash || url.search) throw new Error()
+                } catch { toast.error('请填写有效的 HTTP(S) API 地址'); return }
+                const next = { ...draft, baseUrl: draft.baseUrl.trim(), model: draft.model.trim() }
+                setSettings(next); setDraft(next); setShowSettings(false)
+                try { writeSettings(localStorage, next) } catch { toast.error('配置仅在当前页面生效，浏览器未能保存设置') }
+            }}>
+                <label className="block text-xs text-gray-600">API 地址<input className={cn(fieldClass, 'mt-1')} type="url" required value={draft.baseUrl} onChange={e => setDraft(value => ({ ...value, baseUrl: e.target.value }))} placeholder="https://your-api.example/v1" autoComplete="off" /></label>
+                <label className="block text-xs text-gray-600">API Key<input className={cn(fieldClass, 'mt-1')} type="password" value={draft.apiKey} onChange={e => setDraft(value => ({ ...value, apiKey: e.target.value }))} placeholder="API Key" autoComplete="off" /></label>
+                <label className="block text-xs text-gray-600">模型<input className={cn(fieldClass, 'mt-1')} required value={draft.model} onChange={e => setDraft(value => ({ ...value, model: e.target.value }))} placeholder="模型名称" autoComplete="off" /></label>
+                <label className="flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" checked={draft.rememberKey} onChange={e => setDraft(value => ({ ...value, rememberKey: e.target.checked }))} />在本浏览器记住 Key</label>
+                <button disabled={busy} className="w-full rounded-xl bg-accent-600 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40">保存设置</button>
+            </form></Modal>}
         </>, document.body)}
     </>
 }
