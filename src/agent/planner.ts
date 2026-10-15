@@ -1,3 +1,4 @@
+import { validPlanDate, validatePlanDays } from './plan-dates'
 import { reviewState } from './plan-review'
 import { interactionTools } from '../lib/ai/interaction'
 import { requestInteraction } from './interactions'
@@ -109,6 +110,19 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         : '模型请求失败或超时，请检查 API 可用性后重试。'
                 throw new AgentStageError('workflow-assessment', kind, `需求评估失败：${reason}本次尚未执行地图写入。`)
             }
+            if (workflow && ['outline','planning','revising'].includes(workflow.phase)) {
+                if (!workflow.facts.dates.trim() && request.context.tripId && workflow.phase === 'revising') {
+                    const saved = await detail(request.context.tripId)
+                    if (saved.days?.length && saved.days.every((day: {date:string}) => validPlanDate(day.date))) {
+                        workflow = { ...workflow, facts: { ...workflow.facts, dates: `${saved.days[0].date} ~ ${saved.days[saved.days.length-1].date}` },
+                            dayOutline: saved.days.map((day: {date:string;title?:string}) => ({date:day.date,theme:day.title || '当日安排',constraints:''})) }
+                    }
+                }
+                if (!workflow.facts.dates.trim()) {
+                    workflow = { ...workflow, phase:'collecting', authorized:false, dayOutline:[], missing:Array.from(new Set([...workflow.missing,'请选择实际旅行日期；修改已有旅行时先明确目标旅行'])) }
+                    draftApproved = false
+                }
+            }
             if (workflow && (workflow.phase === 'revising' || workflow.phase === 'planning') && reviewState(history).completed) draftApproved = false
             if (workflow && draftApproved && !reviewState(history).completed && workflow.missing.length === 0) workflow = { ...workflow, phase: 'planning', authorized: true }
             if (workflow?.phase === 'revising') {
@@ -141,12 +155,17 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                 if (message.role !== 'tool' || message.name !== 'record_plan_skeleton') continue
                 try {
                     const saved = JSON.parse(message.content)
-                    if (saved.days?.length && workflow.phase !== 'revising') workflow = { ...workflow, dayOutline: saved.days }
+                    if (saved.days?.length && workflow.phase !== 'revising' && JSON.stringify(saved.days.map((day:{date:string})=>day.date)) === JSON.stringify(workflow.dayOutline.map(day=>day.date))) workflow = { ...workflow, dayOutline: saved.days }
                 } catch { /* Invalid history must not authorize writes. */ }
                 break
             }
+            if (workflow.dayOutline.length) {
+                try { validatePlanDays(workflow.dayOutline) } catch { workflow = { ...workflow, dayOutline: [] } }
+            }
             if (!workflow.dayOutline.length) {
-                const generated = await generateStage(request, workflow, 'skeleton', signal, deps.complete)
+                const generated = await generateStage(request, workflow, 'skeleton', signal, deps.complete).catch(error => {
+                    throw new AgentStageError('skeleton', error instanceof Error ? error.name : 'UnknownError', '行程骨架生成失败：日期无效、范围不符或模型请求失败；本阶段未执行地图写入，请确认旅行日期后继续。')
+                })
                 if (!('days' in generated)) throw new Error('骨架阶段结果无效')
                 workflow = { ...workflow, dayOutline: generated.days }
                 const id = `workflow_skeleton_${history.length}`
