@@ -1,6 +1,8 @@
 import type { InteractionPrompt } from './interaction'
 import { z } from 'zod'
 
+export const MAX_AI_HISTORY_MESSAGES = 1200
+
 export const toolCallSchema = z.object({
     id: z.string().min(1).max(200),
     type: z.literal('function'),
@@ -21,7 +23,7 @@ export const chatRequestSchema = z.object({
     conversationId: z.string().uuid().optional(),
     requestId: z.string().uuid().optional(),
     supportsInteractions: z.boolean().optional(),
-    messages: z.array(chatMessageSchema).min(1).max(200),
+    messages: z.array(chatMessageSchema).min(1).max(MAX_AI_HISTORY_MESSAGES),
     context: z.object({
         localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
         tripId: z.string().max(200).nullable(),

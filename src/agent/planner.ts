@@ -3,7 +3,7 @@ import { reviewState } from './plan-review'
 import { interactionTools } from '../lib/ai/interaction'
 import { requestInteraction } from './interactions'
 import { z } from 'zod'
-import { chatMessageSchema, repairInterruptedMessages, type ChatEvent, type ChatRequest, type ToolCall } from '../lib/ai/protocol'
+import { MAX_AI_HISTORY_MESSAGES, chatMessageSchema, repairInterruptedMessages, type ChatEvent, type ChatRequest, type ToolCall } from '../lib/ai/protocol'
 import { connectRemoteTools, readOnlyTools } from './remote-tools'
 import { completionUrl, requestCompletion } from '../lib/ai/endpoint'
 import { readCompletion } from '../lib/ai/completions'
@@ -17,7 +17,6 @@ import { traceAgent } from '../lib/ai/trace'
 
 const changeTitleSchema = z.object({ title: z.string().trim().min(1).max(60) }).strict()
 const MAX_MODEL_ROUNDS = 64
-const MAX_HISTORY_MESSAGES = 1200
 class WorkflowBlocked extends Error {}
 const changeTitleTool = { type: 'function' as const, function: {
     name: 'change_title', description: '修改当前网页会话的标题，概括用户的旅游意图。',
@@ -60,7 +59,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             traceAgent('node', { name: executionNode(), round })
             if (round++ >= MAX_MODEL_ROUNDS) throw new Error('本轮工具调用较多，已暂停。已完成的操作已保存，可继续发送消息规划剩余部分。')
             signal.throwIfAborted()
-            if (history.length > MAX_HISTORY_MESSAGES) throw new Error('会话记录已较长，请新建会话继续规划；已完成的操作会保留。')
+            if (history.length > MAX_AI_HISTORY_MESSAGES) throw new Error('会话记录已较长，请新建会话继续规划；已完成的操作会保留。')
             const timeout = AbortSignal.timeout(120_000)
             const upstreamSignal = AbortSignal.any([signal, timeout])
             let messages = history

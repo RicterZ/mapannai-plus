@@ -16,7 +16,7 @@ import { cn } from '@/utils/cn'
 import { groupChatMessages, toolFailed } from '@/lib/ai/tool-display'
 import { ChatMarkdown } from './chat-markdown'
 import { Modal } from '@/components/ui/modal'
-import { aiSettingsSchema, repairInterruptedMessages, toolLabels, type ChatEvent, type ChatMessage } from '@/lib/ai/protocol'
+import { MAX_AI_HISTORY_MESSAGES, aiSettingsSchema, repairInterruptedMessages, toolLabels, type ChatEvent, type ChatMessage } from '@/lib/ai/protocol'
 import { defaultSettings, emptyHistory, HISTORY_KEY, newConversation, readHistory, readSettings, writeSettings, type LocalHistory, type LocalSettings } from '@/lib/ai/local-history'
 
 const fieldClass = 'w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-accent-500'
@@ -132,7 +132,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
         if (!conversation && history.conversations.length >= 20) { toast.error('请先删除一个旧会话'); return }
         const current = (resume ? history.conversations.find(item=>item.id===resume.conversationId) : conversation) || newConversation()
         const messages: ChatMessage[] = resume ? current.messages : [...repairInterruptedMessages(current.messages), { role: 'user', content }]
-        if (messages.length > 180) { setError('这个会话已较长，请新建会话继续规划；原记录会保留。'); return }
+        if (messages.length > MAX_AI_HISTORY_MESSAGES) { setError('这个会话已较长，请新建会话继续规划；原记录会保留。'); return }
         const requestId = uuidv4()
         const controller = new AbortController()
         requestRef.current = controller

@@ -1,12 +1,12 @@
 import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
-import { aiSettingsSchema, chatMessageSchema, type AiSettings } from './protocol'
+import { MAX_AI_HISTORY_MESSAGES, aiSettingsSchema, chatMessageSchema, type AiSettings } from './protocol'
 
 export const HISTORY_KEY = 'mapannai:ai-history:v1'
 export const SETTINGS_KEY = 'mapannai:ai-settings:v1'
 const conversationSchema = z.object({
     id: z.string(), title: z.string(), updatedAt: z.string(),
-    messages: z.array(chatMessageSchema).max(250),
+    messages: z.array(chatMessageSchema).max(MAX_AI_HISTORY_MESSAGES + 20),
 })
 const historySchema = z.object({ version: z.literal(1), activeId: z.string().nullable(), conversations: z.array(conversationSchema).max(20) })
 const settingsSchema = aiSettingsSchema.extend({ rememberKey: z.boolean() })
