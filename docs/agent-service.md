@@ -17,7 +17,7 @@ npm run dev
 
 Compose 部署前先生成 `AGENT_TOKEN` 并写入部署端 `.env`，不要提交它。执行 `docker compose up -d --build mapannai` 会同时启动 agent。Agent 不映射宿主机端口，也不挂载地图数据库；Web 依赖 Agent 健康检查启动。Agent 无需依赖 Web 启动，收到聊天时才建立 MCP 连接。
 
-注意：生产服务器现有自定义 `deploy.sh` 不在仓库，原先只构建 Web 镜像。上线本变更前必须同步生产 Compose、增加 Agent 镜像构建及内部凭据，不能只执行旧部署脚本。此轮不自动修改生产配置。
+生产自定义 `deploy.sh` 不在仓库，已按本次部署授权升级为同时构建 Web/Agent，并使用独立 Compose override 更新两个服务。原脚本与既有 override 已备份；内部 env 放在构建上下文之外，Agent 使用独立持久化目录，不对公网映射端口。
 
 ## 进程边界
 
@@ -97,7 +97,7 @@ git diff --check
 4. 点击停止后继续询问保存状态，确认不声称已撤销、不重复建立已有旅行。
 5. 停止 Agent 后发送消息，检查错误提示；重新启动后使用原会话继续核实。
 
-验收通过前不替换生产部署。
+本次按用户授权部署至现有 HTTPS 入口，真实模型行为仍需人工验收；不要将 mock 测试当作真实模型质量保证。
 
 ## 阶段评估接入（进行中）
 

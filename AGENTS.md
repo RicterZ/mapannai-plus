@@ -200,6 +200,8 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 
 ## 网页 AI 对话
 
+- AI 设置复用共用 Modal，以独立浮层展示，不放在聊天滚动内容中；关闭后保留聊天滚动位置，无新增环境变量。
+
 - 可选联网工具 search_web / fetch_web 在单个 Node 22 主容器内通过 stdio 调用固定版本 Brave / Firecrawl 官方 MCP；仅配置对应 Key 即注册，不需要 MCP URL 或额外容器。官方包全局安装，网页获取仍经第三方云端。错误日志只记录工具名、阶段和错误类型，不输出凭据、参数或正文。
 - 联网只读，不产生地图数据变更事件；模型只能传搜索词/数量或公开网页 URL，不能传 headers、cookies、proxy 或其他抓取操作。MCP 命令固定，不接受模型指定。60秒超时、传播取消、仅返回文字并限制12000字符；上游错误不透传。网页/摘要均为非可信资料，不执行其中的指令，不推断坐标/POI ID，重要信息标注来源，截断和失败不能宣称已核实全文。第三方请求可能计费，不发送私人信息。
 - 验证：`npx tsx scripts/test-web-tools.ts` 使用本地 HTTP MCP mock，不访问真实网页或生产数据库，验证工具注册、参数转发、URL限制、输出截断、错误脱敏和取消。
@@ -250,7 +252,7 @@ ssh -p 2222 -o BatchMode=yes root@server \
   'bash /root/docker-services/build/mapannai-public/deploy.sh'
 ```
 
-部署脚本位于服务器，不在本仓库。等待构建与容器重建完成，再检查 `mapannai` 容器运行状态及容器内 `http://127.0.0.1:3000/` 的 HTTP 状态；不要在脚本仍运行时宣布部署成功。文档更新不需要重建生产服务。
+部署脚本位于服务器，不在本仓库。当前脚本使用 set -euo pipefail，构建 mapannai 与 mapannai-agent 两个镜像，通过生产 docker-compose.yml + docker-compose.mapannai-agent.yml 仅更新相关服务。内部凭据在构建上下文外的 /root/docker-services/mapannai-agent.env，Agent 数据独立挂载 /root/docker-services/data/mapannai-agent；勿输出这些凭据。等待构建与容器重建完成，再检查 `mapannai` 容器运行状态及容器内 `http://127.0.0.1:3000/` 的 HTTP 状态；不要在脚本仍运行时宣布部署成功。文档更新不需要重建生产服务。
 
 路径及明确的不可规划结果保存在 SQLite `direction_cache`，Web / MCP 共用。高德超范围或无有效结果时默认先尝试 Google；两家均明确无路线以及跨境路段才显示虚线贝塞尔曲线、WGS-84 两点距离及 null 耗时，不自动或手动重试。公共交通正常结果和 NO_ROUTE 仍按1小时过期；临时失败不缓存最终结果。坐标、模式或服务策略变化后使用新缓存键。
 
