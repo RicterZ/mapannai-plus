@@ -6,7 +6,14 @@ async function main() {
     const request: ChatRequest = { settings: { baseUrl: 'https://example.com/v1', apiKey: 'mock', model: 'mock' }, context: { localDate: '2026-10-15', tripId: null, dayId: null }, messages: [{ role: 'user', content: '先推荐一下东京' }] }
     const facts = Object.fromEntries(['destinations','dates','arrivalDeparture','companions','interests','budget','lodging','transportPace','fixedBookings','dietaryAccess'].map(key => [key, '']))
     let value = { phase: 'planning', facts, missing: [] as string[], assumptions: [], authorized: true, authorizationQuote: '保存东京旅行', dayOutline: [], affectedDays: [] }
-    const complete = async () => Response.json({ choices: [{ message: { role: 'assistant', content: JSON.stringify(value) } }] })
+    request.messages.push({ role: 'assistant', content: null, tool_calls: [{ id: 'call_mock', type: 'function', function: { name: 'change_title', arguments: '{}' } }] })
+    request.messages.push({ role: 'tool', tool_call_id: 'call_mock', content: '{}' })
+    const complete = async (_url: URL, _key: string, body: unknown) => {
+        const messages = (body as { messages: { role: string; content: unknown }[] }).messages
+        assert.ok(messages.every(message => typeof message.content === 'string' && message.content.trim().length > 0), 'tool-only assistant must not become an invalid null-content turn')
+        assert.ok(messages.every(message => message.role !== 'tool'), 'assessment excludes tool results')
+        return Response.json({ choices: [{ message: { role: 'assistant', content: JSON.stringify(value) } }] })
+    }
     for (const phase of ['collecting', 'review', 'completed'] as const) assert.equal(canChangeTitle({ ...value, phase } as any), false)
     assert.equal(canChangeTitle({ ...value, phase: 'outline', authorized: false } as any), true, 'title precedes outline without write authorization')
     assert.equal(canChangeTitle({ ...value, missing: ['到达时间'] } as any), false)

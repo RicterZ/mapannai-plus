@@ -307,3 +307,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - 图新增真实 title/skeleton 节点：assess 信息齐全后先生成标题并发 title 事件，成功后才生成骨架；收集/规划/审阅进入各自模型节点并复用固定工具集，骨架生成记录进入消息历史。脚本 test-agent-stage-order.ts 检查调用顺序及收集期拒绝改标题。仍无完整 checkpoint 自动续跑，不得混淆执行日志与图检查点。
 
 - 需求评估与 title/skeleton 的只读结构化生成同样使用流式 Chat Completions（兼容返回普通 JSON 的服务），避免依赖上游非流式支持；JSON/Schema 不合格仅修复重试一次，不重试网络请求或地图写入。失败日志区分固定 HTTP 状态类别与 StructuredOutputError，不记录模型正文或凭据。验证 `npx tsx scripts/test-agent-structured-completion.ts`。
+
+- 只读结构化阶段剥离工具调用后必须同时移除 null/空白正文消息，不能向上游发送无 tool_calls 且 content=null 的助手消息；保留其他文本原序。test-agent-workflow 与 test-agent-structured-completion 覆盖带工具历史的输入及修复请求。

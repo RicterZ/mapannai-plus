@@ -9,11 +9,19 @@ async function main() {
     let calls = 0
     const complete = async (_url: URL, _key: string, body: unknown) => {
         assert.equal((body as { stream: boolean }).stream, true)
+        const messages = (body as { messages: { role: string; content: string }[] }).messages
+        assert.ok(messages.every(message => typeof message.content === 'string' && message.content.trim().length > 0))
+        assert.deepEqual(messages.slice(0, 2), [{ role: 'system', content: 'JSON only' }, { role: 'user', content: '东京' }])
         calls++
         const content = calls === 1 ? 'not json' : '{"ready":false}'
         return new Response(`data: ${JSON.stringify({ choices: [{ delta: { content }, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`, { headers: { 'content-type': 'text/event-stream' } })
     }
-    assert.deepEqual(await structuredCompletion(request, [], schema, new AbortController().signal, complete), { ready: false })
+    assert.deepEqual(await structuredCompletion(request, [
+        { role: 'system', content: 'JSON only' },
+        { role: 'assistant', content: null },
+        { role: 'assistant', content: ' ' },
+        { role: 'user', content: '东京' },
+    ], schema, new AbortController().signal, complete), { ready: false })
     assert.equal(calls, 2)
     calls = 0
     await assert.rejects(structuredCompletion(request, [], schema, new AbortController().signal, async () => {

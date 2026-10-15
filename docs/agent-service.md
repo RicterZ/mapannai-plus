@@ -136,3 +136,5 @@ npx tsx scripts/test-agent-recovery.ts
 ### Structured generation compatibility
 
 Assessment, title and skeleton generation use streaming Chat Completions, while accepting non-stream JSON responses as well. Invalid JSON/schema output gets one read-only repair attempt; transport errors and map writes are not retried. Safe diagnostics distinguish upstream HTTP status from invalid structured output without logging response bodies or credentials. Run `npx tsx scripts/test-agent-structured-completion.ts` for the compatibility checks. No additional environment variables are required.
+
+Text-only stage requests omit null/blank turns after stripping tool calls. A tool-only assistant turn must not be sent as `content: null` without its original tool calls, which strict Chat Completions providers may reject with HTTP 400. Original text order is retained; tool results remain excluded from assessment evidence.
