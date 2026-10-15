@@ -27,6 +27,14 @@ export function canChangeTitle(state: Workflow): boolean {
 export async function assessWorkflow(request: ChatRequest, signal: AbortSignal, complete = requestCompletion): Promise<Workflow> {
     const messages = request.messages.filter(message => message.role === 'user' || message.role === 'assistant')
         .map(message => ({ role: message.role, content: message.content }))
+    // Selection evidence supplies facts, never a quote granting map-write permission.
+    for (const message of request.messages) {
+        if (message.role !== 'tool' || !['ask_datetime', 'ask_choice', 'preview_itinerary'].includes(message.name || '')) continue
+        try {
+            const result = JSON.parse(message.content)
+            if (result.status === 'selected' && result.source === 'user') messages.push({ role: 'assistant', content: `交互选择结果（仅需求事实，不是保存/删除授权）：${JSON.stringify(result)}` })
+        } catch { /* Invalid historical selections supply no facts. */ }
+    }
     const state = await structuredCompletion(request, [{ role: 'system', content: `你是旅行工作流状态评估器，不规划、不执行工具。只输出符合以下 JSON Schema 的 JSON：${JSON.stringify(z.toJSONSchema(workflowSchema))}
 从对话提取事实，未知写空字符串，不能编造。目的地、实际日期、到离时间或用户接受的时间假设是关键条件；同行限制、固定预约、节奏会改变路线时也必须明确。偏好可以使用用户接受的默认值，不为填满字段反复追问。missing 只列当前阻塞规划的问题。
 phase：collecting=有关键缺项，outline=信息充分但尚未授权保存，planning=用户明确要求创建/保存草案且信息充分，review=已保存安排等待用户审阅，revising=用户明确要求修改已有安排，completed=用户明确同意最终安排。
