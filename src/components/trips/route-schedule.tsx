@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Bike, Bus, Car, Clock3, Footprints, Plane, Ship, TrainFront, Route } from 'lucide-react'
 import { toast } from 'sonner'
 import { Modal } from '@/components/ui/modal'
@@ -17,10 +17,6 @@ const icons = { walking: Footprints, cycling: Bike, driving: Car, taxi: Car, bus
 export const formatPlannedDuration = (minutes: number) => minutes > 0 && minutes % 60 === 0 ? `${minutes / 60}小时` : `${minutes}分钟`
 const distanceLabel = (distance: number) => distance < 1000 ? `${Math.round(distance)} m` : `${Number((distance / 1000).toFixed(1))} km`
 const field = 'workspace-field mt-1.5'
-
-function Arrow() {
-    return <div aria-hidden="true" className="flex items-center justify-center py-0.5"><svg className="h-4 w-4 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg></div>
-}
 
 function ScheduleEditor({ day, route, stop, next, title, onClose }: { day: TripDay; route: RouteChain; stop: ChainStop; next?: ChainStop; title: string; onClose: () => void }) {
     const leg = next && route.legs.find(item => item.fromStopId === stop.id && item.toStopId === next.id)
@@ -55,8 +51,8 @@ export function StopSchedule({ day, route, markerId, editable }: { day?: TripDay
     if (!stop || !route || !day) return null
     const hasTime = !!stop.startTime || stop.durationMinutes !== undefined
     if (!hasTime && !editable) return null
-    return <><button disabled={!editable} onClick={() => setOpen(true)} aria-label="编辑游览安排" title={hasTime ? "编辑游览时间和时长" : "设置游览时间和时长"} className="route-schedule-button ml-auto flex shrink-0 items-center gap-1 rounded px-1 text-[11px] tabular-nums text-gray-500 enabled:hover:bg-gray-100 disabled:cursor-default">
-        {stop.startTime && <span>{stop.startTime}</span>}{stop.startTime && stop.durationMinutes !== undefined && <span className="text-gray-300">·</span>}{stop.durationMinutes !== undefined && <span>{formatPlannedDuration(stop.durationMinutes)}</span>}{!hasTime && editable && <span className="flex items-center gap-1 text-gray-400"><Clock3 aria-hidden="true" size={12} /><span>--:--</span></span>}
+    return <><button disabled={!editable} onClick={() => setOpen(true)} aria-label="编辑游览安排" title={hasTime ? "编辑游览时间和时长" : "设置游览时间和时长"} className="route-schedule-button ml-auto flex shrink-0 flex-col items-end gap-0.5 rounded px-1 text-[11px] tabular-nums text-gray-500 enabled:hover:bg-gray-100 disabled:cursor-default">
+        {stop.startTime && <span>{stop.startTime}</span>}{stop.durationMinutes !== undefined && <span>{formatPlannedDuration(stop.durationMinutes)}</span>}{!hasTime && editable && <span className="flex items-center gap-1 text-gray-400"><Clock3 aria-hidden="true" size={12} /><span>--:--</span></span>}
     </button>{open && <ScheduleEditor day={day} route={route} stop={stop} title="游览安排" onClose={() => setOpen(false)} />}</>
 }
 
@@ -70,19 +66,23 @@ export function RouteLeg({ day, route, fromId, toId, distance, editable }: { day
     useEffect(() => { setOpen(false) }, [day?.id, route?.id, stop?.id, next?.id])
     const canEdit = editable && !!day && !!route && !!stop && !!next && valid
     const Icon = leg ? icons[leg.mode] : Route
-    return <><Arrow />{(leg || distance !== null || canEdit) && <>
-        <div className={leg || canEdit ? 'overflow-hidden rounded-xl border border-dashed border-gray-200 bg-gray-50/70' : 'border-0 bg-transparent'}>
-            <button disabled={!canEdit} onClick={() => setOpen(true)} aria-label="编辑交通安排" className="route-schedule-button block w-full px-2 py-1.5 text-left text-[11px] text-gray-500 enabled:hover:bg-gray-100/70 disabled:cursor-default">
-                {!leg ? <span className="grid grid-cols-[1fr_auto_1fr] items-center gap-1">
-                    <span className="text-left tabular-nums">{distance !== null && distanceLabel(distance)}</span>
-                    {canEdit ? <span className="text-center text-gray-400">无交通安排</span> : <span />}
-                    <span />
-                </span> : <span className="flex min-w-0 items-start gap-1.5"><span className="flex min-w-0 flex-1 items-start gap-1">
-                    {distance !== null && <span className="shrink-0 tabular-nums">{distanceLabel(distance)}</span>}{distance !== null && leg && <span className="text-gray-300">·</span>}
-                    {leg && <><Icon size={13} className="shrink-0 text-gray-400" /><span className="shrink-0">{modes.find(m => m.value === leg.mode)?.label}</span>{leg.serviceNumber && <span className="min-w-0 flex-1 break-words font-medium text-gray-700" title={leg.serviceNumber}>{leg.serviceNumber}</span>}</>}
-                </span>{leg && <span className="ml-auto flex shrink-0 items-center gap-1 tabular-nums">{leg.startTime && <span>{leg.startTime}</span>}{leg.startTime && leg.durationMinutes !== undefined && <span className="text-gray-300">·</span>}{leg.durationMinutes !== undefined && <span>{formatPlannedDuration(leg.durationMinutes)}</span>}</span>}</span>}
-                {leg?.note && <span className="mt-0.5 block whitespace-pre-wrap break-words leading-4 text-gray-400" title={leg.note}>{leg.note}</span>}
-            </button>
-        </div><Arrow />
-    </>}{open && day && route && stop && next && <ScheduleEditor day={day} route={route} stop={stop} next={next} title="交通安排" onClose={() => setOpen(false)} />}</>
+    return <div className="journey-route-leg">
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center px-2 py-1.5 text-[11px] text-gray-400">
+            <span className="tabular-nums">{distance !== null && distanceLabel(distance)}</span>
+            <svg aria-hidden="true" className="h-4 w-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m-5-5 5 5 5-5" /></svg>
+            <span />
+        </div>
+        {(leg || canEdit) && <button type="button" disabled={!canEdit} onClick={() => setOpen(true)} aria-label={canEdit ? '编辑交通安排' : '交通安排'} className="route-schedule-button journey-leg-details block text-left text-xs text-gray-500 enabled:hover:bg-gray-50 disabled:cursor-default">
+            <span className="flex items-start gap-2">
+                <Icon size={14} aria-hidden="true" className="mt-0.5 shrink-0 text-gray-400" />
+                <span className="min-w-0 flex-1 break-words">{leg ? <>{modes.find(m => m.value === leg.mode)?.label}{leg.serviceNumber && <span className="ml-1.5 font-medium text-gray-600">{leg.serviceNumber}</span>}</> : <span className="text-gray-400">添加交通安排</span>}</span>
+                {leg && <span className="flex shrink-0 flex-col items-end gap-0.5 text-[11px] tabular-nums">
+                    {leg.startTime && <span>{leg.startTime}</span>}
+                    {leg.durationMinutes !== undefined && <span className="text-gray-400">{formatPlannedDuration(leg.durationMinutes)}</span>}
+                </span>}
+            </span>
+            {leg?.note && <span className="mt-1 block whitespace-pre-wrap break-words text-[11px] leading-5 text-gray-400">{leg.note}</span>}
+        </button>}
+        {open && day && route && stop && next && <ScheduleEditor day={day} route={route} stop={stop} next={next} title="交通安排" onClose={() => setOpen(false)} />}
+    </div>
 }

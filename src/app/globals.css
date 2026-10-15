@@ -595,10 +595,6 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
 }
 
 /* The itinerary and add-place search share one desktop workspace. */
-.journey-trip-card,
-.journey-route-card {
-    box-shadow: 0 2px 8px rgb(15 23 42 / 3%);
-}
 .journey-primary-action {
     border: 1px solid rgb(226 232 240 / 75%);
 }
@@ -609,7 +605,7 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
 .journey-place-card:has([aria-pressed="true"]),
 .journey-place-card.border-accent-500 {
     border-color: #9acbd5;
-    background: #f0f8fa;
+    background: #eef3f7;
 }
 .place-search-panel input[type="search"]::-webkit-search-cancel-button {
     display: none;
@@ -624,30 +620,10 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
         box-shadow: 4px 0 24px rgb(15 23 42 / 6%);
     }
     .left-sidebar h2 {
-        font-size: 18px;
+        font-size: 21px;
         line-height: 1.4;
     }
-    .journey-route-card:not(.journey-route-editor) {
-        padding: 8px 12px 12px;
-        border-color: #e5e7eb !important;
-    }
-    .journey-route-card:not(.journey-route-editor) .journey-place-card {
-        border-color: transparent;
-        border-radius: 10px;
-        box-shadow: none;
-    }
-    .journey-route-card:not(.journey-route-editor) .journey-place-card:has([aria-pressed="true"]) {
-        background: #f0f8fa;
-    }
-    .journey-route-card:not(.journey-route-editor) .journey-place-card > button {
-        padding-top: 14px;
-        padding-bottom: 14px;
-    }
-    .journey-trip-card > button {
-        padding: 16px;
-    }
-    .journey-toolbar button:focus-visible,
-    .journey-day-tabs button:focus-visible,
+    .left-sidebar button:focus-visible,
     .place-search-panel button:focus-visible {
         outline: 2px solid #9acbd5;
         outline-offset: 2px;
@@ -757,12 +733,54 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
     width: 18px;
     height: 3px;
     border-radius: 4px;
-    background: #72aab7;
+    background: #647c91;
     transform: translateX(-50%);
 }
 .journey-category-icon { background: transparent; }
-.journey-visit-note { padding-left: 76px; }
+.journey-visit-note { padding-left: 36px; }
 @media (min-width: 1024px) {
-    .journey-route-card:not(.journey-route-editor) { box-shadow: none; }
     .journey-day-tabs { border-bottom: 1px solid #f0f1f3; padding-bottom: 6px; }
 }
+
+/* A flat workspace: date chapters preview routes; visit rows carry the schedule. */
+.journey-toolbar { border-bottom: 1px solid #eef0f2; }
+.journey-preview-stops { margin: 0; padding: 0; list-style: none; }
+.journey-preview-stops li { position: relative; padding: 0 0 6px 16px; }
+.journey-preview-stops li::before {
+    content: ''; position: absolute; left: 2px; top: 7px;
+    width: 6px; height: 6px; border: 1px solid #a7b8af; border-radius: 50%; background: white;
+    z-index: 1;
+}
+.journey-preview-stops li:not(:last-child)::after {
+    content: ''; position: absolute; left: 4.5px; top: 13px; bottom: -7px;
+    border-left: 1px solid #e0e5e2;
+}
+.journey-preview-stops li:last-child { padding-bottom: 0; }
+.journey-saved-places, .journey-pending-section { border-top: 6px solid #f3f4f6; }
+.journey-pending-section { padding-top: 12px; }
+.journey-route-reader { box-shadow: none; }
+.journey-route-reader > div:first-child { background: #f5f7f7; padding-bottom: 0; margin-bottom: 8px; }
+.journey-route-visit { position: relative; }
+.journey-route-visit-connected::before {
+    content: ''; position: absolute; left: 17.5px; top: 26px; bottom: -26px;
+    border-left: 1px solid #e1e6e3; pointer-events: none;
+}
+.journey-stop-row, .journey-unplanned-row { position: relative; border: 0; border-radius: 5px; }
+.journey-stop-row { min-height: 0; }
+.journey-stop-row.journey-stop-selected,
+.journey-unplanned-row.journey-stop-selected { background: #eef3f7; }
+.journey-route-leg { position: relative; padding-bottom: 8px; }
+.journey-route-visit-connected .journey-route-leg > div:first-child > span:first-child { background: white; width: fit-content; }
+.journey-leg-details {
+    width: calc(100% - 44px); margin: 0 8px 4px 36px;
+    padding: 6px 0 10px; border-bottom: 1px solid #edf0f2;
+}
+.journey-route-editor .journey-leg-details { margin-left: 8px; width: calc(100% - 16px); }
+.journey-unplanned-row .journey-category-icon { background: transparent; }
+@media (hover: hover) {
+    .journey-place-card.journey-stop-selected:has(> .journey-place-trigger):hover { background: #e1eaf1; }
+    .journey-pending-place:hover { background: #f9fafb; }
+}
+.journey-route-editor > div:first-child { background: #f5f7f7; padding: 0 4px; margin-bottom: 8px; }
+.journey-stop-edit { border: 0; border-radius: 5px; }
+.journey-unplanned-heading { border-top: 6px solid #f3f4f6; }

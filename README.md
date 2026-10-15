@@ -29,6 +29,8 @@ MapAnNai Plus is a self-hosted place collection and travel itinerary editor. Sav
 3. Build one or more routes for a day and drag places into visit order.
 4. Review the trip on the map and open it on your phone while traveling.
 
+Browse trips by year in the left workspace, then open a trip to preview each day's ordered routes and places not yet assigned to a route. Daily details follow visit order, with planned times and durations on the right, visit notes below each place, and transport arrangements between adjacent stops. Enable edit mode to change the order and schedules.
+
 To get help from AI, open **AI 规划** in the top-right corner of the web app and configure your API, or connect the MCP service below, then describe your destination, dates, and preferences. For example: “Plan three days in Tokyo with food and parks, prioritizing places I have already saved.”
 
 ## Deploy your own server
