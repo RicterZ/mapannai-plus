@@ -334,6 +334,7 @@ ssh -p 2222 -o BatchMode=yes root@server \
 
 - 规划保存边界：完整未保存草案通过preview_itinerary确认后才允许地图写入；单独“保存”意图不足以绕过草案确认。continue只批准该草案，不授权其他删除/预订/付款。保存全程核实后submit_trip_review返回真实savedOverview，前端自动展示可切日期概览，进入图内chatting节点；system和工具列表保持固定，chatting的tool_choice=none且执行端拒绝工具。新任务/修改由assess流转回规划且需新草案确认。测试scripts/test-plan-review.ts、test-draft-write-gate.ts及day-loop；当前审批基于会话工具历史，不是签名版本化计划，不宣称完整审批系统。
 - 评估missing非空时强制回collecting并撤销旧草案批准，执行端禁止preview_itinerary及地图写入，保留只读查询和逐个提问。返回WORKFLOW_BLOCKED与明确澄清原因，不将已知流程拦截伪装成参数错误；其他异常继续脱敏。scripts/test-workflow-missing-gate.ts验证缺项不弹确认、不写入，以及补齐后重新确认可保存。无需新增环境变量。
+- Agent每请求最多64轮执行模型调用、1200条历史消息；LangGraph步数按轮数计算为136，避免图先于模型轮数截停。工具批次可含多个调用，交互工具仍必须单独调用；额度与上游上下文窗口限制不变。scripts/test-agent-round-limit.ts验证长循环正常完成及上限停止，无新增环境变量。
 
 - 骨架日期检查先验证有限时间戳再转换ISO；真实日期、连续唯一及可提取的已确认ISO范围校验在结构化输出修复重试内进行，禁止占位日期导致RangeError。评估日期为空时回收集并禁止写入；修改当前旅行且日期为空时先只读获取真实日期骨架。历史骨架仅在日期一致时复用。scripts/test-plan-dates.ts覆盖非法日期、闰年、跨年、范围及修复。
 

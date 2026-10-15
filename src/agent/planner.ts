@@ -16,6 +16,8 @@ import { generateStage } from './plan-stages'
 import { traceAgent } from '../lib/ai/trace'
 
 const changeTitleSchema = z.object({ title: z.string().trim().min(1).max(60) }).strict()
+const MAX_MODEL_ROUNDS = 64
+const MAX_HISTORY_MESSAGES = 1200
 class WorkflowBlocked extends Error {}
 const changeTitleTool = { type: 'function' as const, function: {
     name: 'change_title', description: '修改当前网页会话的标题，概括用户的旅游意图。',
@@ -56,9 +58,9 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
         const executionNode = () => workflow?.phase === 'chatting' || workflow?.phase === 'completed' ? 'chatting' : reviewSubmitted || workflow?.phase === 'review' ? 'review' : workflow?.authorized ? 'planning' : 'collecting'
         const runModel = async () => {
             traceAgent('node', { name: executionNode(), round })
-            if (round++ >= 16) throw new Error('本轮工具调用较多，已暂停。已完成的操作已保存，可继续发送消息规划剩余部分。')
+            if (round++ >= MAX_MODEL_ROUNDS) throw new Error('本轮工具调用较多，已暂停。已完成的操作已保存，可继续发送消息规划剩余部分。')
             signal.throwIfAborted()
-            if (history.length > 180) throw new Error('会话记录已较长，请新建会话继续规划；已完成的操作会保留。')
+            if (history.length > MAX_HISTORY_MESSAGES) throw new Error('会话记录已较长，请新建会话继续规划；已完成的操作会保留。')
             const timeout = AbortSignal.timeout(120_000)
             const upstreamSignal = AbortSignal.any([signal, timeout])
             let messages = history
@@ -274,6 +276,6 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
         .addConditionalEdges('review', state => state.done ? END : 'tools')
         .addConditionalEdges('tools', executionNode)
         .compile()
-        await graph.invoke({ done: false, calls: [], workflow: undefined, titleReady: false, outlineReady: false }, { recursionLimit: 48, signal })
+        await graph.invoke({ done: false, calls: [], workflow: undefined, titleReady: false, outlineReady: false }, { recursionLimit: MAX_MODEL_ROUNDS * 2 + 8, signal })
     } finally { await bridge.close() }
 }
