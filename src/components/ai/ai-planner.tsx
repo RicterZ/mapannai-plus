@@ -127,6 +127,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
     async function send(resume?: PendingRun) {
         const content = text.trim()
         if ((!content && !resume) || requestRef.current) return
+        if (!resume && pendingRef.current?.id) { setError('还有后台任务，请先继续获取结果或停止任务。'); return }
         if (!resume && !aiSettingsSchema.safeParse(settings).success) { setShowSettings(true); setError('请先填写 API 地址与模型'); return }
         if (!conversation && history.conversations.length >= 20) { toast.error('请先删除一个旧会话'); return }
         const current = (resume ? history.conversations.find(item=>item.id===resume.conversationId) : conversation) || newConversation()
@@ -180,6 +181,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
             if (!completed && !resume) throw new Error('后台任务结束但未收到完成事件')
 
         } catch (failure) {
+            if(pendingRef.current?.terminal){localStorage.removeItem(PENDING_RUN_KEY);pendingRef.current=null}
             setError(controller.signal.aborted ? '已停止。已完成的操作会保留；正在执行的操作可能仍会保存，请确认行程后继续。'
                 : failure instanceof Error ? failure.message : '请求失败，请重试')
             if (preview && !pendingRef.current) updateConversation(current.id, value => ({ ...value, messages: [...value.messages, { role: 'assistant', content: preview + '\n\n（回复已中断）' }] }))
@@ -235,6 +237,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
                     {interaction && busy && <InteractionCard key={interaction.id} prompt={interaction} />}
                     {partial && <div className="min-w-0 rounded-2xl bg-gray-50 p-3 text-gray-800"><ChatMarkdown content={partial} /></div>}
                     {busy && <p role="status" className="flex items-center gap-2 text-xs text-gray-500"><span className="h-2 w-2 animate-pulse rounded-full bg-accent-500" />{status}</p>}
+                    {error && !busy && pendingRef.current?.id && <button type="button" className="text-xs text-slate-600 underline" onClick={() => void send(pendingRef.current!)}>继续获取后台结果</button>}
                     {error && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">{error}</p>}
                 </div>
                 <form className="shrink-0 border-t border-gray-100 px-4 pt-2" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }} onSubmit={e => { e.preventDefault(); void send() }}>
