@@ -272,13 +272,6 @@ function ChatBubble({ message }: { message: ChatMessage }) {
 
 function ToolProgress({ messages, active, status }: { messages: Extract<ChatMessage, { role: 'tool' }>[]; active: boolean; status: string }) {
     const failed = messages.filter(toolFailed).length
-    const counts = new Map<string, { count: number; failed: number }>()
-    for (const message of messages) {
-        const label = toolLabels[message.name || ''] || '处理行程'
-        const item = counts.get(label) || { count: 0, failed: 0 }
-        item.count++; if (toolFailed(message)) item.failed++
-        counts.set(label, item)
-    }
     return <details className="rounded-xl border border-gray-100 px-3 py-2 text-xs text-gray-500">
         <summary className="cursor-pointer select-none leading-6 focus-visible:outline-accent-500">
             {active ? `${status} · 已返回 ${messages.length} 项结果` : `已处理 ${messages.length} 项操作`}
@@ -286,10 +279,12 @@ function ToolProgress({ messages, active, status }: { messages: Extract<ChatMess
             <span className="ml-2 text-gray-400">详情</span>
         </summary>
         <ul className="mt-1 space-y-1 border-t border-gray-100 pt-2">
-            {Array.from(counts, ([label, item]) => <li key={label} className="flex items-center justify-between gap-3 leading-5">
-                <span>{label}{item.count > 1 ? ` × ${item.count}` : ''}</span>
-                <span className={item.failed ? 'text-amber-700' : 'text-gray-400'}>{item.failed ? `${item.failed} 项未完成` : '已返回'}</span>
-            </li>)}
+            {messages.map((message, index) => {
+                const failed = toolFailed(message)
+                return <li key={`${message.tool_call_id}-${index}`} className={cn('leading-5', failed && 'text-amber-700')}>
+                    {failed ? '⚠' : '✓'} {toolLabels[message.name || ''] || '处理行程'}{failed ? '未完成，请查看回复' : '已返回结果'}
+                </li>
+            })}
         </ul>
     </details>
 }
