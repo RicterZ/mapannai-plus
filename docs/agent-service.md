@@ -132,3 +132,7 @@ npx tsx scripts/test-agent-recovery.ts
 当前图为 assess →（缺项：collecting；信息齐全：title → skeleton）→ planning/collecting → tools 循环，提交审阅转 review。title 节点单独生成标题并提交事件后 skeleton 才能执行；骨架生成使用结构化日期校验，连续日期不可重复，结果以 record_plan_skeleton 阶段记录保存至消息及执行日志。固定主 system 和工具集不随阶段改变，阶段生成器各有固定 system，不使用阶段增删工具破坏前缀。收集/规划/审阅模型节点共享流式模型执行实现，差异由图路由与执行权限决定。
 
 `npx tsx scripts/test-agent-stage-order.ts` 检查缺项不改标题、title 事件先于 skeleton 请求、未授权不写入、工具定义固定。此版本仍通过显式请求及聊天记录跨轮继续，不宣称具有完整 checkpoint 自动恢复、完全确定性的授权识别或所有写入的幂等。
+
+### Structured generation compatibility
+
+Assessment, title and skeleton generation use streaming Chat Completions, while accepting non-stream JSON responses as well. Invalid JSON/schema output gets one read-only repair attempt; transport errors and map writes are not retried. Safe diagnostics distinguish upstream HTTP status from invalid structured output without logging response bodies or credentials. Run `npx tsx scripts/test-agent-structured-completion.ts` for the compatibility checks. No additional environment variables are required.

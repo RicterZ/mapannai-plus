@@ -82,7 +82,13 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             try {
                 workflow = await (deps.assess || assessWorkflow)(request, signal)
             } catch (error) {
-                throw new AgentStageError('workflow-assessment', error instanceof Error ? error.name : 'UnknownError', '需求评估失败：模型请求未成功或返回格式不符合要求。请确认 API 和模型可用后重试；本次尚未执行地图写入。')
+                const kind = error instanceof Error ? error.name : 'UnknownError'
+                const reason = /^ModelHTTP[1-5][0-9]{2}$/.test(kind)
+                    ? `模型接口返回 HTTP ${kind.slice(9)}，请检查 API 地址、Key、模型和服务额度。`
+                    : kind === 'StructuredOutputError'
+                        ? '模型连续两次未返回符合要求的需求 JSON，请更换支持指令遵循的模型后重试。'
+                        : '模型请求失败或超时，请检查 API 可用性后重试。'
+                throw new AgentStageError('workflow-assessment', kind, `需求评估失败：${reason}本次尚未执行地图写入。`)
             }
             if (workflow?.phase === 'revising') {
                 for (const date of workflow.affectedDays) completed.delete(date)

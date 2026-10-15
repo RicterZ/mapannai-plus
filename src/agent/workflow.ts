@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { ChatRequest } from '../lib/ai/protocol'
-import { completionUrl, requestCompletion } from '../lib/ai/endpoint'
-import { readCompletion } from '../lib/ai/completions'
+import { requestCompletion } from '../lib/ai/endpoint'
+import { structuredCompletion } from './structured-completion'
 
 export const workflowSchema = z.object({
     phase: z.enum(['collecting', 'outline', 'planning', 'review', 'revising', 'completed']),
@@ -27,17 +27,11 @@ export function canChangeTitle(state: Workflow): boolean {
 export async function assessWorkflow(request: ChatRequest, signal: AbortSignal, complete = requestCompletion): Promise<Workflow> {
     const messages = request.messages.filter(message => message.role === 'user' || message.role === 'assistant')
         .map(message => ({ role: message.role, content: message.content }))
-    const response = await complete(completionUrl(request.settings.baseUrl), request.settings.apiKey, {
-        model: request.settings.model, stream: false,
-        messages: [{ role: 'system', content: `你是旅行工作流状态评估器，不规划、不执行工具。只输出符合以下 JSON Schema 的 JSON：${JSON.stringify(z.toJSONSchema(workflowSchema))}
+    const state = await structuredCompletion(request, [{ role: 'system', content: `你是旅行工作流状态评估器，不规划、不执行工具。只输出符合以下 JSON Schema 的 JSON：${JSON.stringify(z.toJSONSchema(workflowSchema))}
 从对话提取事实，未知写空字符串，不能编造。目的地、实际日期、到离时间或用户接受的时间假设是关键条件；同行限制、固定预约、节奏会改变路线时也必须明确。偏好可以使用用户接受的默认值，不为填满字段反复追问。missing 只列当前阻塞规划的问题。
 phase：collecting=有关键缺项，outline=信息充分但尚未授权保存，planning=用户明确要求创建/保存草案且信息充分，review=已保存安排等待用户审阅，revising=用户明确要求修改已有安排，completed=用户明确同意最终安排。
 authorized 仅在用户明确要求创建/保存/修改且没有后续撤销时为true；authorizationQuote必须逐字引用对应用户原话，不从助手承诺推导授权。“推荐/看看/规划一下”不等于授权写入。用户否定旧方案时不得沿用旧授权，明确的修改要求可授权该修改。尚有关键缺项不能写入。
-dayOutline 仅提取对话里已经形成的骨架，不在本评估步骤生成骨架。执行顺序严格为：需求收集完成→change_title→制定全程骨架→逐日规划。信息未齐不能改标题，改标题不要求保存授权。dayOutline 是全程每日区域、主题与到达/离开/转场约束，日期不确定时留空，不编造交通班次；affectedDays 仅列本轮需要修改的日期。completed/review不应产生新写入。` }, ...messages],
-    }, AbortSignal.any([signal, AbortSignal.timeout(120_000)]))
-    const message = await readCompletion(response, () => {}, signal)
-    const raw = (message.content || '').trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '')
-    const state = workflowSchema.parse(JSON.parse(raw))
+dayOutline 仅提取对话里已经形成的骨架，不在本评估步骤生成骨架。执行顺序严格为：需求收集完成→change_title→制定全程骨架→逐日规划。信息未齐不能改标题，改标题不要求保存授权。dayOutline 是全程每日区域、主题与到达/离开/转场约束，日期不确定时留空，不编造交通班次；affectedDays 仅列本轮需要修改的日期。completed/review不应产生新写入。` }, ...messages], workflowSchema, signal, complete)
     const userMessages = request.messages.filter(message => message.role === 'user')
     const quoteExists = state.authorizationQuote.trim().length > 0 && userMessages.some(message => message.content.includes(state.authorizationQuote))
     if (!quoteExists || state.missing.length || !['planning', 'revising'].includes(state.phase)) state.authorized = false

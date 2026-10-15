@@ -51,7 +51,9 @@ export function requestCompletion(url: URL, apiKey: string, body: unknown, signa
             const status = response.statusCode || 502
             if (status !== 200) {
                 response.resume()
-                reject(new Error(`AI API 返回 HTTP ${status}，请检查地址、Key、模型及工具调用支持`))
+                const error = new Error(`AI API 返回 HTTP ${status}，请检查地址、Key、模型及工具调用支持`)
+                error.name = `ModelHTTP${status}`
+                reject(error)
                 return
             }
             const stream = new ReadableStream<Uint8Array>({
