@@ -277,3 +277,19 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - M酱规划节奏：自然分轮收集目的地、日期、偏好和约束，每轮1–2个关键问题，不重复问、不为凑轮数盘问；意图明确后在逐日规划前必须成功调用 change_title。逐日查资料、核实与安排地点，明确保存授权后先建立独立标记，再创建旅行并用已有ID建立每日路线，最后给简短真实保存总览。草案不写入，信息齐全/用户要求直接规划可跳过冗余访谈。游览 stops.note 不超过100字、交通 legs.note 不超过50字，仅提示词软限制：简要说明怎么做，单一明确安排，不提供多种方案，不新增API校验/截断、不影响用户手写备注。交通备注只补充必要信息，界面已有距离、起始点/终点、方式及车次字段不重复写；无补充省略，不写占位备注。此变更无新增环境变量。
 
 - AI SSE 安全限制区分传输开销与实际内容：总流20MB、未完成帧100万字符、正文与工具参数合计100万字符；不截断工具参数。Web文字先抽取标题/来源/正文，再截断12000字符，不对普通业务工具结果裁切ID。验证 `npx tsx scripts/test-ai-response-size.ts`，不以协议字节数等同可见回复长度。
+
+- 网页 AI 与 MCP workflow 的每日草案和最终总览使用简短文艺、贴合当天真实地点与活动的名字，各天有区分；不为取名编造季节、花期、天气或日出日落安排，优先保留用户自定义名称。每日标题通过可选 create_trip.dayTitles 保存，已有日标题用 update_trip_day 修改；不通过新增日期改名。
+
+## 独立 Agent 边界
+
+- 生产聊天由 `src/agent/main.ts` 独立 Node 进程运行，Web `/api/ai/chat` 通过内部 WebSocket 代理并保留原 NDJSON/ChatEvent 协议，不要求客户端升级。Agent 不导入地图 DB 或 Web 服务，通过固定 HTTP MCP 调用业务能力；`src/lib/ai/planner.ts` 仅作隔离测试适配，不是生产回退路径。
+- LangGraph 当前为 model/tools 有界执行图，业务规划阶段仍由提示词引导；尚无强制审批、持久化 checkpoint、跨重启恢复或可靠事件重放，不得宣称已经具备。断线/停止传播取消，已保存数据不回滚。完整设计与限制见 `docs/agent-service.md`。
+- Agent 非回环监听必须配置独立 AGENT_TOKEN，不在 URL/浏览器发送内部凭据；Web 认证沿用现有 middleware。API_TOKEN 仅用于 Agent 到 Web MCP，模型 Key 仅用于单次执行，不落盘。联网工具保留在 MCP 服务端以兼容现有外部客户端。
+- 新工具参数保持向后兼容：create_trip.dayTitles 可选；update_trip_day 仅改标题且校验旅行归属；create_trip/create_day_chain 的可选 operationId 在 SQLite tool_operations 中与业务写入同事务保存，复用不同参数拒绝，旧调用不带则保持原行为。其他写工具尚未全部幂等，不允许对整个图盲目自动重试。
+- `npx tsx scripts/test-agent-service.ts` 启动真实独立子进程、本地模型 mock、HTTP MCP 和隔离 SQLite，验证 Web 协议兼容、WebSocket、标题和幂等；不等于真实模型/地图 SDK/生产部署验证。部署前需同步服务器自定义 Compose 与构建脚本，旧脚本只构建 Web，不能直接照旧宣称部署完成。
+
+- Agent assess 节点独立评估需求、缺项和用户授权原句；无授权、有关键缺项或收集/骨架/审阅/完成阶段只提供只读工具，执行端再次检查工具白名单。授权原句必须来自 user 消息，不能从工具结果推断。此轮没有 checkpoint，不能称为跨重启可恢复；`scripts/test-agent-workflow.ts` 检查阶段门禁。
+
+- 可测试 Agent 增加每日核实控制工具 finish_planning_day/submit_trip_review，按骨架顺序核实实际保存结构，提交审阅后本轮禁止写入。独立 AGENT_SQLITE_PATH 执行日志记录最终消息与工具结果，同请求重放不再执行；重启未完成请求只恢复记录并提示核实，不自动重放未知写入。日志不保存模型 Key；单 Agent 实例，不是 LangGraph checkpoint，不能称为完整自动恢复。验证 scripts/test-agent-day-loop.ts 与 scripts/test-agent-recovery.ts。
+
+- 聊天会话 ID 使用现有 uuid.v4，兼容局域网 HTTP 缺少 crypto.randomUUID 的环境；真实模型凭据仍建议仅通过 HTTPS 使用。

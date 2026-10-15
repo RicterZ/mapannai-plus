@@ -140,6 +140,8 @@ location /osm-tiles/ {
 
 ## 本地开发
 
+网页 AI 由独立 Node Agent 执行，原网页聊天接口保持兼容。本地同时运行 `npm run agent:start` 与 `npm run dev`；Compose 部署需先在 `.env` 配置内部 `AGENT_TOKEN`，再构建启动 Web 与 Agent。接入、限制与验收步骤见 [Agent 服务](docs/agent-service.md)。
+
 Node 服务启动后会后台补全有坐标但地址为空的地点，随后每轮完成一小时后再次扫描。国内优先高德、失败或无地址时回退 Google，境外直接使用 Google；只补地址，不修改坐标或已有地址。需要配置对应地图服务 Key，批量补全可能产生 API 费用；此任务需要持续运行的 Node 服务。
 
 使用 Node.js 20 与 npm，在项目目录中执行：

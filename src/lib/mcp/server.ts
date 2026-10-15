@@ -66,7 +66,9 @@ function createMcpServer(): McpServer {
 ## 推荐 Workflow
 
 ### 新建行程
-1. \`create_trip\` — 创建旅行，指定名称和日期范围，自动生成每天的 TripDay。
+每天的安排起一个简短、有文艺感且贴合当天真实地点、活动或路线气质的名字，用作每日草案和最终总览的标题，例如寺院与街巷慢逛可叫“古寺钟声与巷陌闲步”。各天名字有区分，不只写“第N天”或堆砌景点名，不用空泛华丽辞藻，不为取名编造季节、花期、天气或日出日落安排；用户已有自定义名称时优先保留。
+
+1. \`create_trip\` — 创建旅行，指定名称和日期范围，通过可选 dayTitles 保存每日标题，自动生成每天的 TripDay；已有日期改名用 \`update_trip_day\`，不额外新增日期。
 2. \`plan_trip_day\` — 对每一天批量创建地点 marker 并加入当天行程，自动生成行程链。
 3. 已有标记可使用 \`create_day_chain\`，按标记 ID 创建行程链，无需重新创建地点。
 4. 修改已有路线的地点或顺序用 \`update_day_chain\`，删除路线用 \`delete_day_chain\`；先读取最新 \`get_trip_detail\`，优先按 \`routeChains[].id\`（chainId）定位；旧 chainIndex 为从0开始的索引。删除会使后续索引前移，但保留地点与当天成员。\`reorder_day_markers\` 只调整当天地点列表，不修改路线。

@@ -28,6 +28,8 @@ import { createRouteChain, updateRouteChain, deleteRouteChain } from '@/lib/db/r
 import { stopPatchSchema, legPatchSchema } from '@/lib/trips/route-chain-schema'
 import { Trip, TripDay } from '@/types/trip'
 import { v4 as uuidv4 } from 'uuid'
+import { getDb } from '@/lib/db'
+import { idempotentOperation } from '@/lib/db/idempotent-operation'
 
 export function registerTripTools(server: McpServer) {
 
@@ -84,8 +86,11 @@ export function registerTripTools(server: McpServer) {
             name: z.string().describe('旅行名称，例如「东京2024春」'),
             startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('开始日期 YYYY-MM-DD'),
             endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('结束日期 YYYY-MM-DD'),
+            dayTitles: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), title: z.string().trim().min(1).max(100) }).strict()).optional().describe('可选每日文艺标题，日期必须在旅行内且不重复；省略兼容旧客户端'),
+            operationId: z.string().min(1).max(200).optional().describe('可选幂等操作ID；同一操作重试复用，修改参数必须使用新ID'),
         },
-        async ({ name, startDate, endDate, destination, destinations }) => {
+        async ({ operationId, ...args }) => idempotentOperation('create_trip', operationId, args, () => {
+            const { name, startDate, endDate, destination, destinations, dayTitles } = args
             if (startDate > endDate) throw new Error('开始日期不能晚于结束日期')
             const now = new Date().toISOString()
             const tripId = `trip_${uuidv4()}`
@@ -111,8 +116,16 @@ export function registerTripTools(server: McpServer) {
                 cursor.setDate(cursor.getDate() + 1)
             }
 
-            upsertTrip(trip)
-            days.forEach(d => upsertTripDay(d))
+            const titles = new Map<string, string>()
+            for (const item of dayTitles ?? []) {
+                if (titles.has(item.date) || !days.some(day => day.date === item.date)) throw new Error('每日标题日期重复或不属于旅行')
+                titles.set(item.date, item.title)
+            }
+            days.forEach(day => { day.title = titles.get(day.date) })
+            getDb().transaction(() => {
+                upsertTrip(trip)
+                days.forEach(d => upsertTripDay(d))
+            })()
 
             return {
                 content: [{
@@ -120,6 +133,21 @@ export function registerTripTools(server: McpServer) {
                     text: JSON.stringify({ ...trip, days }, null, 2),
                 }],
             }
+        })
+    )
+
+    server.tool(
+        'update_trip_day',
+        '仅修改已有行程日标题，保留日期、成员、路线及全部访问交通安排；null 清除标题',
+        { tripId: z.string(), dayId: z.string(), title: z.string().trim().min(1).max(100).nullable() },
+        async ({ tripId, dayId, title }) => {
+            const day = getDb().transaction(() => {
+                const current = getDayById(dayId)
+                if (!current || current.tripId !== tripId) throw new Error('行程日不属于此旅行')
+                getDb().prepare('UPDATE trip_days SET title = ? WHERE id = ?').run(title, dayId)
+                return getDayById(dayId)!
+            })()
+            return { content: [{ type: 'text', text: JSON.stringify(day) }] }
         }
     )
 
@@ -257,11 +285,13 @@ export function registerTripTools(server: McpServer) {
             tripId: z.string().describe('旅行 ID'),
             dayId: z.string().describe('天 ID（来自 get_trip_detail）'),
             markerIds: z.array(z.string()).min(2).describe('行程链中的标记 ID，按游览顺序排列，至少两个'),
+            operationId: z.string().min(1).max(200).optional().describe('可选幂等操作ID，重试复用'),
         },
-        async ({ tripId, dayId, markerIds }) => {
+        async ({ operationId, ...args }) => idempotentOperation('create_day_chain', operationId, args, () => {
+            const { tripId, dayId, markerIds } = args
             const { route, addedMarkerIds } = createRouteChain(tripId, dayId, markerIds)
             return { content: [{ type: 'text', text: JSON.stringify({ dayId, chain: markerIds, addedMarkerIds, routeChain: route }, null, 2) }] }
-        }
+        })
     )
 
     // Existing route indices follow the latest get_trip_detail days[].chains array.

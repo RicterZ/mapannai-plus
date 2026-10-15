@@ -19,6 +19,11 @@ export function getDb(): Database.Database {
 
 function initSchema(db: Database.Database) {
     db.exec(`
+        CREATE TABLE IF NOT EXISTS tool_operations (
+            operation_key TEXT PRIMARY KEY,
+            args_hash TEXT NOT NULL,
+            result_json TEXT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS trips (
             id          TEXT PRIMARY KEY,
             name        TEXT NOT NULL,

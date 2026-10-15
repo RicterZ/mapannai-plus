@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid'
 import { z } from 'zod'
 import { aiSettingsSchema, chatMessageSchema, type AiSettings } from './protocol'
 
@@ -29,5 +30,5 @@ export function writeSettings(storage: Pick<Storage, 'setItem'>, settings: Local
     storage.setItem(SETTINGS_KEY, JSON.stringify({ ...settings, apiKey: settings.rememberKey ? settings.apiKey : '' }))
 }
 export function newConversation(): Conversation {
-    return { id: crypto.randomUUID(), title: '新会话', messages: [], updatedAt: new Date().toISOString() }
+    return { id: uuidv4(), title: '新会话', messages: [], updatedAt: new Date().toISOString() }
 }
