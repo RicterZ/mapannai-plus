@@ -313,3 +313,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - 可选 AGENT_TRACE_ENABLED=true 将诊断 transcript 写入现有 agent.db 的 trace_records 表，按 run_id 关联输入、节点、模型请求/完整已解析回复、工具事件、HTTP错误摘要和异常栈；不记录逐token帧/隐藏推理。模型Key与环境凭据、敏感字段和签名URL脱敏，DB权限600；仍包含私人对话，严禁输出原文到公共日志。保留7天（启动/写入清理），每run上限2000万字符，不影响执行日志幂等，不自动重试未知写入。用 scripts/test-agent-trace.ts 验证；旧失败无法补录，不能宣称已还原历史根因。
 
 诊断开关未设置时开发默认开启、生产默认关闭；`AGENT_TRACE_ENABLED=true/false` 显式覆盖。生产镜像设置 `NODE_ENV=production`。
+
+- AI聊天连续工具结果合并为默认折叠的进度块，执行中显示当前动作和已返回数，完成后汇总操作数，失败数量始终可见；展开按动作聚合次数，不渲染原始工具参数/内部ID。用户/助手正文保持独立阅读顺序，空正文工具调用不拆分进度。scripts/test-ai-tool-display.ts 验证分组和错误识别；无新增环境变量。

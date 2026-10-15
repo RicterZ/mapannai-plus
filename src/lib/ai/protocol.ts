@@ -66,6 +66,10 @@ export function repairInterruptedMessages(messages: ChatMessage[]): ChatMessage[
 
 export const toolLabels: Record<string, string> = {
     change_title: '修改会话标题',
+    record_plan_skeleton: '制定全程骨架', finish_planning_day: '核实当天安排', submit_trip_review: '提交行程审阅',
+    update_trip: '更新旅行', update_trip_day: '更新每日安排', delete_trip_day: '删除行程日',
+    update_day_chain: '调整路线安排', delete_day_chain: '删除路线',
+    search_destinations: '查询目的地', search_web: '搜索旅行资料', fetch_web: '阅读网页资料',
     list_markers: '查看已收藏地点', create_marker: '收藏地点', update_marker: '更新地点', delete_marker: '删除地点',
     search_places: '搜索地点', get_place_details: '查询地点详情', get_directions: '查询路线', get_walking_directions: '查询步行路线',
     list_trips: '查看已有旅行', get_trip_detail: '查看旅行安排', create_trip: '创建旅行', add_day_to_trip: '添加行程日',

@@ -8,6 +8,7 @@ import { useMapStore } from '@/store/map-store'
 import { useAiMapEffects } from '@/lib/ai/use-ai-map-effects'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
 import { cn } from '@/utils/cn'
+import { groupChatMessages, toolFailed } from '@/lib/ai/tool-display'
 import { ChatMarkdown } from './chat-markdown'
 import { Modal } from '@/components/ui/modal'
 import { aiSettingsSchema, repairInterruptedMessages, toolLabels, type ChatEvent, type ChatMessage } from '@/lib/ai/protocol'
@@ -223,7 +224,9 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
                             catch { toast.error('浏览器存储不可用') }
                         }}>清空本地记录</button>}
                     </div>}
-                    {conversation?.messages.map((message, index) => <ChatBubble key={index} message={message} />)}
+                    {groupChatMessages(conversation?.messages || []).map((group, index, groups) => group.type === 'message'
+                        ? <ChatBubble key={index} message={group.message} />
+                        : <ToolProgress key={index} messages={group.messages} active={busy && index === groups.length - 1} status={status} />)}
                     {partial && <div className="min-w-0 rounded-2xl bg-gray-50 p-3 text-gray-800"><ChatMarkdown content={partial} /></div>}
                     {busy && <p role="status" className="flex items-center gap-2 text-xs text-gray-500"><span className="h-2 w-2 animate-pulse rounded-full bg-accent-500" />{status}</p>}
                     {error && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">{error}</p>}
@@ -260,19 +263,33 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
 }
 
 function ChatBubble({ message }: { message: ChatMessage }) {
-    if (message.role === 'tool') {
-        let failed = false
-        try {
-            const result = JSON.parse(message.content)
-            failed = !!result.isError || !!result.error || !!result.content?.some((part: { type: string; text?: string }) => {
-                if (part.type !== 'text' || !part.text) return false
-                try { return JSON.parse(part.text).results?.some((item: { status?: string }) => item.status === 'error') } catch { return false }
-            })
-        } catch { failed = true }
-        return <p className={cn('text-xs', failed ? 'text-amber-700' : 'text-gray-500')}>{failed ? '⚠' : '✓'} {toolLabels[message.name || ''] || '行程操作'}{failed ? '未完成，请查看回复' : '已返回结果'}</p>
-    }
+    if (message.role === 'tool') return null
     if (!message.content) return null
     return message.role === 'user'
         ? <div className="ml-6 whitespace-pre-wrap break-words rounded-2xl bg-accent-50 p-3 text-sm leading-6 text-accent-950">{message.content}</div>
         : <div className="mr-2 min-w-0 rounded-2xl bg-gray-50 p-3 text-gray-800"><ChatMarkdown content={message.content} /></div>
+}
+
+function ToolProgress({ messages, active, status }: { messages: Extract<ChatMessage, { role: 'tool' }>[]; active: boolean; status: string }) {
+    const failed = messages.filter(toolFailed).length
+    const counts = new Map<string, { count: number; failed: number }>()
+    for (const message of messages) {
+        const label = toolLabels[message.name || ''] || '处理行程'
+        const item = counts.get(label) || { count: 0, failed: 0 }
+        item.count++; if (toolFailed(message)) item.failed++
+        counts.set(label, item)
+    }
+    return <details className="rounded-xl border border-gray-100 px-3 py-2 text-xs text-gray-500">
+        <summary className="cursor-pointer select-none leading-6 focus-visible:outline-accent-500">
+            {active ? `${status} · 已返回 ${messages.length} 项结果` : `已处理 ${messages.length} 项操作`}
+            {failed > 0 && <span className="ml-2 text-amber-700">{failed} 项未完成</span>}
+            <span className="ml-2 text-gray-400">详情</span>
+        </summary>
+        <ul className="mt-1 space-y-1 border-t border-gray-100 pt-2">
+            {Array.from(counts, ([label, item]) => <li key={label} className="flex items-center justify-between gap-3 leading-5">
+                <span>{label}{item.count > 1 ? ` × ${item.count}` : ''}</span>
+                <span className={item.failed ? 'text-amber-700' : 'text-gray-400'}>{item.failed ? `${item.failed} 项未完成` : '已返回'}</span>
+            </li>)}
+        </ul>
+    </details>
 }
