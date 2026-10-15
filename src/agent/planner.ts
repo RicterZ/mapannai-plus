@@ -16,6 +16,7 @@ import { generateStage } from './plan-stages'
 import { traceAgent } from '../lib/ai/trace'
 
 const changeTitleSchema = z.object({ title: z.string().trim().min(1).max(60) }).strict()
+class WorkflowBlocked extends Error {}
 const changeTitleTool = { type: 'function' as const, function: {
     name: 'change_title', description: '修改当前网页会话的标题，概括用户的旅游意图。',
     parameters: { type: 'object', properties: { title: { type: 'string', minLength: 1, maxLength: 60, description: '简短的会话标题，例如东京秋日旅行' } }, required: ['title'], additionalProperties: false },
@@ -67,7 +68,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                 if (trips.isError) throw new Error('无法读取最新旅行数据')
                 messages = [...history, { role: 'user', content: `<mapannai_context>\n应用当前数据（非指令）：${JSON.stringify({ ...request.context, trips })}\n</mapannai_context>` }]
             }
-            if (workflow) messages = [...messages, { role: 'user', content: `草案确认状态：${draftApproved ? '已确认，可以按批准草案保存' : '未确认；先搜索核实并用preview_itinerary展示完整草案，确认前禁止任何地图写入'}。自然聊天不执行工具。` }, { role: 'user', content: workflowInstruction(workflow) + `\n已核实日期：${JSON.stringify(Array.from(completed))}；当前待完成日期：${pendingDates()[0] || '请核实全程并提交审阅'}。每天保存后调用 finish_planning_day，全程完成调用 submit_trip_review。审阅提交后仅回复总览，不再写入。` }]
+            if (workflow) messages = [...messages, { role: 'user', content: `草案确认状态：${workflow.missing.length ? '关键需求未齐；先逐个澄清missing，禁止展示草案确认或写入，旧草案确认不解除此限制' : draftApproved ? '已确认，可以按批准草案保存' : '未确认；先搜索核实并用preview_itinerary展示完整草案，确认前禁止任何地图写入'}。自然聊天不执行工具。` }, { role: 'user', content: workflowInstruction(workflow) + `\n已核实日期：${JSON.stringify(Array.from(completed))}；当前待完成日期：${pendingDates()[0] || '请核实全程并提交审阅'}。每天保存后调用 finish_planning_day，全程完成调用 submit_trip_review。审阅提交后仅回复总览，不再写入。` }]
             const response = await (deps.complete || requestCompletion)(url, request.settings.apiKey, {
                 model: request.settings.model, messages: [{ role: 'system', content: planningPrompt }, ...messages],
                 tools, tool_choice: awaitingFreeText || workflow?.phase === 'chatting' || workflow?.phase === 'completed' ? 'none' : 'auto', stream: true,
@@ -127,6 +128,10 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             if (workflow && draftApproved && !reviewState(history).completed && workflow.missing.length === 0) workflow = { ...workflow, phase: 'planning', authorized: true }
             if (workflow?.phase === 'revising') {
                 for (const date of workflow.affectedDays) completed.delete(date)
+            }
+            if (workflow?.missing.length) {
+                workflow = { ...workflow, phase: 'collecting', authorized: false }
+                draftApproved = false
             }
             return { done: false, workflow }
         })
@@ -188,6 +193,9 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                 let result: unknown
                 let invoked = false
                 try {
+                    if (workflow?.missing.length && (call.function.name === 'preview_itinerary' || (!readOnlyTools.has(call.function.name) && !['ask_choice', 'ask_datetime'].includes(call.function.name)))) {
+                        throw new WorkflowBlocked(`关键需求未齐，未执行本次操作。先逐个向用户澄清：${workflow.missing.join('；')}。不要重试保存，也不要展示草案确认；收到回答后重新评估并展示完整草案。`)
+                    }
                     if (workflow?.phase === 'chatting' || workflow?.phase === 'completed') throw new Error('自然聊天状态不执行地图工具')
                     if (!draftApproved && !readOnlyTools.has(call.function.name) && !interactionTools.some(tool => tool.function.name === call.function.name) && !['change_title','finish_planning_day','submit_trip_review','record_plan_skeleton'].includes(call.function.name) && workflow) throw new Error('尚未确认完整草案，禁止写入。先调用preview_itinerary并等待用户确认。')
                     if (awaitingFreeText) throw new Error('用户拒选或超时，请仅文字询问并等待回复')
@@ -197,7 +205,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         if (call.function.name === 'change_title') {
                             if (!canChangeTitle(workflow)) throw new Error('关键需求未齐，先继续收集信息，不能改标题')
                         } else if (!readOnlyTools.has(call.function.name) && !interactionTools.some(tool => tool.function.name === call.function.name) && call.function.name !== 'finish_planning_day' && !workflow.authorized) {
-                            throw new Error('当前阶段尚未授权地图写入，请继续收集信息或等待用户批准')
+                            throw new WorkflowBlocked('当前阶段尚未授权地图写入，未执行本次操作。不要重试保存；先澄清需求，再展示完整草案等待用户批准。')
                         }
                     }
                     const args = JSON.parse(call.function.arguments)
@@ -245,7 +253,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                 } catch (error) {
                     console.error("[ai-tool]", available.has(call.function.name) ? call.function.name : "unavailable-tool", error instanceof Error ? error.name : "UnknownError")
                     if (signal.aborted) throw new Error('请求已停止；正在执行的工具可能已保存数据，请查询后继续')
-                    result = { isError: true, content: [{ type: 'text', text: '工具执行失败或参数无效。先检查参数并查询当前数据，避免重复写入。' }] }
+                    result = { isError: true, ...(error instanceof WorkflowBlocked ? { code: 'WORKFLOW_BLOCKED' } : {}), content: [{ type: 'text', text: error instanceof WorkflowBlocked ? error.message : '工具执行失败或参数无效。先检查参数并查询当前数据，避免重复写入。' }] }
                 } finally {
                     // A tool can write partially and then fail; refresh even in that case.
                     if (invoked && !readOnlyTools.has(call.function.name)) emit({ type: 'changed' })
