@@ -125,7 +125,7 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 
 渲染引擎由后端 `MAP_RENDERER` 选择，服务端能力自动按区域选取；不要恢复前端 provider 切换 UI。
 
-- `MAP_RENDERER=osm|amap`；osm 固定 OSM，amap 按既有 `isInChina` 对 WGS-84 地图中心选取境内高德、境外 Google。初次加载使用保存镜头判断，拖动/缩放或 flyTo 结束后才切换，回境内自动恢复高德。只重建 SDK 地图，保留中心/缩放、选中地点、弹窗、旅行/日期、搜索与侧栏状态；不添加切换 UI。`sdk-map-renderer.tsx` 共用地点门户、路线形状、动画与点击判定，`google-map-sdk.ts` 接入 Google 原生覆盖物。Google 使用256px镜头尺度，Google不做GCJ转换；高德仅在SDK边界转换。
+- `MAP_RENDERER=osm|amap`；osm 固定 OSM，amap 按既有 `isInChina` 对 WGS-84 可见地图中心选取境内高德、境外 Google；移动结束时扣除左右侧栏遮挡，以未遮挡区域中心判断，不因可见范围部分进入境内而切换。初次加载使用保存镜头判断，拖动/缩放或 flyTo 结束后才切换，回境内自动恢复高德。只重建 SDK 地图，保留中心/缩放、选中地点、弹窗、旅行/日期、搜索与侧栏状态；不添加切换 UI。`sdk-map-renderer.tsx` 共用地点门户、路线形状、动画与点击判定，`google-map-sdk.ts` 接入 Google 原生覆盖物。Google 使用256px镜头尺度，Google不做GCJ转换；高德仅在SDK边界转换。
 - 服务端默认按现有 `isInChina` 判断：境内优先高德，失败或无有效结果时回退 Google，境外直接 Google；旧三个 `MAP_*_PROVIDER` 服务环境变量不再参与选择。前端底图与展示不变，只下发 `regional-v1` 路线缓存策略标识，隔离旧本地缓存。MCP 显式 provider 保留兼容，但跨境路线始终跳过寻路。
 - 路线两端分属境内外时，不请求任何 provider，缓存 `UNSUPPORTED_REGION`、WGS-84 两点距离及 null 耗时，复用前端虚线，无重试。境内回退成功会缓存最终结果；临时失败且双方无有效路线仍保留重试，不缓存最终失败。
 - 搜索按可见范围中心调用 `isInChina`；无范围时 country=CN（默认）优先高德，其他国家 Google。只允许首批空结果/失败时换服务；Google 后续页凭 pageToken 继续，不因高德恢复而切回，也不在高德后续页混入 Google 首批。取消请求不触发回退。
@@ -134,7 +134,7 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 - 高德底图使用官方 JS API 2.0；不要退回直接抓取 `webrd*.is.autonavi.com` 非标准瓦片的实现。
 - JS 地图使用 `AMAP_JS_KEY` 和配套 `AMAP_JS_SECURITY_CODE`；服务端使用独立的 Web 服务 Key `AMAP_API_KEY`。Google 后端使用 `GOOGLE_API_KEY`；前端境外底图使用可选 `GOOGLE_JS_KEY`，未设置时复用 `GOOGLE_API_KEY`，需启用 Maps JavaScript API 与计费，JS Key 会下发浏览器。其他变量详见 `env.example`。
 - 内部 DB、服务合约、路由缓存统一为 **WGS-84**，高德接口 / 渲染边界进行 **GCJ-02** 转换，避免双重偏移。Google 境内坐标按现有 provider 转换约定处理。
-- `isInChina` 是历史兼容的矩形坐标判断，不是精确国境、行政区或服务覆盖判断。改动转换逻辑前检查中国边界和海外地点的实际行为。
+- `isInChina` 使用六个包含矩形、七个排除矩形，供底图、服务选择与坐标转换共用；广岛、韩国、台湾等返回 false，境外不纠偏。仍非精确国境，朝鲜北部等部分地区可能被包含。改动转换逻辑前检查中国边界和海外地点的实际行为。
 - 网页总览与无目的地的旧旅行搜索使用当前可见范围，每侧扩展 20%；有目的地的旅行/每日视图分别使用各目的地固定中心范围；高德使用 polygon 搜索，泛词酒店 / 高铁站等映射为 POI 类型；Google 使用中心点与半径偏好。MCP 无范围名称搜索保留原行为。
 - 搜索分页：`GET /api/search` 使用 `page=1..100`、`pageSize=1..25`，返回 `page/pageSize/hasMore/nextPage`，高德返回可用 `total`；Google 后续页附带上一页 `nextPageToken` 作为 `pageToken`，以实际返回的 `pageSize` 为准。无分页参数保留旧 `limit`（默认5、最多20）的数组接口。分页范围/关键词保持同一快照；客户端取消和去重，不因加载更多移动镜头。MCP原有首批名称搜索兼容，不能静默分页并增加搜索费用。
 - 高德地点服务主要面向中国，海外地点服务自动选择 Google。不要把没有搜索结果一概解释为权限或政策，先检查请求参数和返回值。
@@ -295,3 +295,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - 可测试 Agent 增加每日核实控制工具 finish_planning_day/submit_trip_review，按骨架顺序核实实际保存结构，提交审阅后本轮禁止写入。独立 AGENT_SQLITE_PATH 执行日志记录最终消息与工具结果，同请求重放不再执行；重启未完成请求只恢复记录并提示核实，不自动重放未知写入。日志不保存模型 Key；单 Agent 实例，不是 LangGraph checkpoint，不能称为完整自动恢复。验证 scripts/test-agent-day-loop.ts 与 scripts/test-agent-recovery.ts。
 
 - 聊天会话 ID 使用现有 uuid.v4，兼容局域网 HTTP 缺少 crypto.randomUUID 的环境；真实模型凭据仍建议仅通过 HTTPS 使用。
+
+- 底图区域中心验证：`npx tsx scripts/test-regional-renderer-center.ts` 检查左右侧栏偏移、WGS-84 转换、仅中心判断、经度跨日期线和固定 OSM；不替代真实高德/Google SDK 拖动测试。

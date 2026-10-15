@@ -10,9 +10,30 @@
 const A = 6378245.0
 const EE = 0.00669342162296594323
 
-/** 判断坐标是否在中国境内（与 Google GCJ-02 偏移范围一致的标准矩形判断） */
+// Rectangle order: west, north, east, south. This is an approximate service region.
+const chinaRegions: readonly (readonly number[])[] = [
+    [79.446200, 49.220400, 96.330000, 42.889900],
+    [109.687200, 54.141500, 135.000200, 39.374200],
+    [73.124600, 42.889900, 124.143255, 29.529700],
+    [82.968400, 29.529700, 97.035200, 26.718600],
+    [97.025300, 29.529700, 124.367395, 20.414096],
+    [107.975793, 20.414096, 111.744104, 17.871542],
+]
+const chinaExclusions: readonly (readonly number[])[] = [
+    [119.921265, 25.398623, 122.497559, 21.785006],
+    [101.865200, 22.284000, 106.665000, 20.098800],
+    [106.452500, 21.542200, 108.051000, 20.487800],
+    [109.032300, 55.817500, 119.127000, 50.325700],
+    [127.456800, 55.817500, 137.022700, 49.557400],
+    [131.266200, 44.892200, 137.022700, 42.569200],
+    [73.124600, 35.398637, 77.948114, 29.529700],
+]
+
+/** Shared approximate region for map services and GCJ-02 conversion; not an exact border. */
 export function isInChina(lng: number, lat: number): boolean {
-    return lng >= 72.004 && lng <= 137.8347 && lat >= 0.8293 && lat <= 55.8271
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return false
+    const contains = ([west, north, east, south]: readonly number[]) => lng >= west && lng <= east && lat >= south && lat <= north
+    return chinaRegions.some(contains) && !chinaExclusions.some(contains)
 }
 
 function transformLat(lng: number, lat: number): number {

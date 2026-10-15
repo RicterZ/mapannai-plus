@@ -8,7 +8,7 @@ import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react'
 import { toast } from 'sonner'
 
 import { SDKMapRenderer, MapRendererHandle } from './sdk-map-renderer'
-import { regionalRenderer } from '@/lib/map/regional-renderer'
+import { regionalRenderer, visibleMapCenter } from '@/lib/map/regional-renderer'
 import { createBasemapStyle, toMapCoordinates, fromMapCoordinates } from '@/lib/map/basemap'
 import { config } from '@/lib/config'
 import { isInChina } from '@/lib/coord-transform'
@@ -171,7 +171,8 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
     const handleSdkMove = useCallback((next: { longitude: number; latitude: number; zoom: number }) => {
         setViewState(previous => ({ ...previous, ...next }))
         saveViewState(next)
-        const target = regionalRenderer(renderer, next)
+        const center = visibleMapCenter(next, basemap, mapWorkspaceViewport().offset)
+        const target = regionalRenderer(renderer, center)
         if (target !== basemap) {
             setMapInitialized(false)
             setError(null)
