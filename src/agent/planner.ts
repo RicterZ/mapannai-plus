@@ -7,6 +7,7 @@ import { planningPrompt } from '../lib/ai/prompt'
 import { Annotation, StateGraph, START, END } from '@langchain/langgraph'
 import { assessWorkflow, workflowInstruction, type Workflow } from './workflow'
 import { completedDates, verifySavedDay, progressTools } from './day-progress'
+import { AgentStageError } from './errors'
 
 const changeTitleSchema = z.object({ title: z.string().trim().min(1).max(60) }).strict()
 const changeTitleTool = { type: 'function' as const, function: {
@@ -23,7 +24,9 @@ type Dependencies = {
 
 export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) => void, signal: AbortSignal, deps: Dependencies = {}) {
     const url = completionUrl(request.settings.baseUrl)
-    const bridge = await (deps.connect || connectRemoteTools)()
+    const bridge = await (deps.connect || connectRemoteTools)().catch(error => {
+        throw new AgentStageError('mcp-connect', error instanceof Error ? error.name : 'UnknownError', '地图工具连接失败，请稍后重试。')
+    })
     const history = repairInterruptedMessages(request.messages)
     let workflow: Workflow | undefined
     let tools = [...bridge.tools, changeTitleTool]
@@ -43,7 +46,11 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
         const State = Annotation.Root({ done: Annotation<boolean>(), calls: Annotation<ToolCall[]>() })
         const graph = new StateGraph(State)
         .addNode('assess', async () => {
-            workflow = await (deps.assess || assessWorkflow)(request, signal)
+            try {
+                workflow = await (deps.assess || assessWorkflow)(request, signal)
+            } catch (error) {
+                throw new AgentStageError('workflow-assessment', error instanceof Error ? error.name : 'UnknownError', '需求评估失败：模型请求未成功或返回格式不符合要求。请确认 API 和模型可用后重试；本次尚未执行地图写入。')
+            }
             if (workflow?.phase === 'revising') {
                 for (const date of workflow.affectedDays) completed.delete(date)
             }

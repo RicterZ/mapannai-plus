@@ -5,6 +5,7 @@ import { chatRequestSchema, type ChatEvent } from '../lib/ai/protocol'
 import { completionUrl } from '../lib/ai/endpoint'
 import { runPlanner } from './planner'
 import { RunStore } from './run-store'
+import { agentErrorMessage } from './errors'
 
 const MAX_BODY = 2_000_000
 function authorized(value: unknown) {
@@ -100,7 +101,7 @@ export function createAgentServer(planner = runPlanner, store = new RunStore()) 
                 if (message.type !== 'chat' || running) throw new Error('Invalid state')
                 running = new AbortController()
                 try { await execute(message.request, emit, running.signal) } finally { running = undefined }
-            } catch { emit({ type: 'error', message: 'Agent 请求失败；请检查输入或查询已保存数据后继续' }) }
+            } catch (error) { emit({ type: 'error', message: agentErrorMessage(error) }) }
         })
         ws.on('error', () => running?.abort())
         ws.on('close', () => { clearTimeout(timer); running?.abort() })

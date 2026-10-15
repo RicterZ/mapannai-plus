@@ -297,3 +297,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - 聊天会话 ID 使用现有 uuid.v4，兼容局域网 HTTP 缺少 crypto.randomUUID 的环境；真实模型凭据仍建议仅通过 HTTPS 使用。
 
 - 底图区域中心验证：`npx tsx scripts/test-regional-renderer-center.ts` 检查左右侧栏偏移、WGS-84 转换、仅中心判断、经度跨日期线和固定 OSM；不替代真实高德/Google SDK 拖动测试。
+
+- AI 附加的历史旅行及内部ID仅用于工具定位和复用，不主动罗列历史旅行，不凭旅行名/日期推断节奏或偏好；用户要求列表时只展示名称、日期和摘要。正常回复、标题与笔记不输出业务或工具调用内部ID，用户明确索取除外；网页提示词与 MCP workflow 同步。
