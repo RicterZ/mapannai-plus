@@ -763,14 +763,17 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
 .journey-route-visit { position: relative; }
 .journey-route-visit-connected::before {
     content: ''; position: absolute; left: 17.5px; top: 26px; bottom: -26px;
-    border-left: 1px solid #e1e6e3; pointer-events: none;
+    /* Keep the shared axis above opaque visit backgrounds, below ordinal labels. */
+    z-index: 1; border-left: 1px solid #e1e6e3; pointer-events: none;
 }
 .journey-stop-row, .journey-unplanned-row { position: relative; border: 0; border-radius: 5px; }
 .journey-stop-row { min-height: 0; }
 .journey-stop-row.journey-stop-selected,
 .journey-unplanned-row.journey-stop-selected { background: #eef3f7; }
 .journey-route-leg { position: relative; padding-bottom: 8px; }
-.journey-route-visit-connected .journey-route-leg > div:first-child > span:first-child { background: white; width: fit-content; }
+.journey-route-visit-connected .journey-route-leg > div:first-child > span:first-child {
+    position: relative; z-index: 2; background: white; width: fit-content;
+}
 .journey-leg-details {
     width: calc(100% - 44px); margin: 0 8px 4px 36px;
     padding: 6px 0 10px; border-bottom: 1px solid #edf0f2;
