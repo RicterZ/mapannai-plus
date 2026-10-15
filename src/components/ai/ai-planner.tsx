@@ -2,6 +2,7 @@
 
 import { v4 as uuidv4 } from 'uuid'
 import type { InteractionPrompt } from '@/lib/ai/interaction'
+import { SavedOverview } from './saved-overview'
 import { InteractionCard } from './interaction-card'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -281,7 +282,7 @@ function ChatBubble({ message }: { message: ChatMessage }) {
 
 function ToolProgress({ messages, active, status }: { messages: Extract<ChatMessage, { role: 'tool' }>[]; active: boolean; status: string }) {
     const failed = messages.filter(toolFailed).length
-    return <details className="rounded-xl border border-gray-100 px-3 py-2 text-xs text-gray-500">
+    return <><div className="space-y-2">{messages.filter(message => message.name === 'submit_trip_review').map(message => <SavedOverview key={message.tool_call_id} content={message.content} />)}</div><details className="rounded-xl border border-gray-100 px-3 py-2 text-xs text-gray-500">
         <summary className="cursor-pointer select-none leading-6 focus-visible:outline-accent-500">
             {active ? `${status} · 已返回 ${messages.length} 项结果` : `已处理 ${messages.length} 项操作`}
             {failed > 0 && <span className="ml-2 text-amber-700">{failed} 项未完成</span>}
@@ -300,5 +301,5 @@ function ToolProgress({ messages, active, status }: { messages: Extract<ChatMess
                 </li>
             })}
         </ul>
-    </details>
+    </details></>
 }

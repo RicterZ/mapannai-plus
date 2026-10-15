@@ -331,3 +331,6 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - ask_choice单/多选固定提供“都不选，文字说明”，不由LLM生成options；工具说明和提示词明确告知此入口。提交action=none返回declined（非超时/已选），本轮后续tool_choice=none且执行端禁止工具，要求只文字开放询问并等待下一条消息；历史显示拒选结果。scripts/test-ai-interactions.ts覆盖拒选解析及返回状态。
 
 - 交互60秒超时与主动拒选采用同一文字询问门禁：保留timed_out/declined状态区别，但都将本轮tool_choice设为none、执行端禁止后续工具，要求只问一个开放问题后等待用户回复。不得以超时为理由自行安排或假设继续；所有交互类型适用。
+
+- 规划保存边界：完整未保存草案通过preview_itinerary确认后才允许地图写入；单独“保存”意图不足以绕过草案确认。continue只批准该草案，不授权其他删除/预订/付款。保存全程核实后submit_trip_review返回真实savedOverview，前端自动展示可切日期概览，进入图内chatting节点；system和工具列表保持固定，chatting的tool_choice=none且执行端拒绝工具。新任务/修改由assess流转回规划且需新草案确认。测试scripts/test-plan-review.ts、test-draft-write-gate.ts及day-loop；当前审批基于会话工具历史，不是签名版本化计划，不宣称完整审批系统。
+- WEB_TOOLS_PROXY_URL只作用于固定Brave/Firecrawl MCP子进程，使用undici ProxyAgent preload，不影响模型endpoint的SSRF/DNS校验或地图请求。认证URL仅在部署.env，不记录原始地址。部署镜像包含scripts/web-mcp-proxy.cjs。生产验证搜索需只用公开测试词，不输出原始结果或凭据。

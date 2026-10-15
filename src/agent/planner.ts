@@ -1,3 +1,4 @@
+import { reviewState } from './plan-review'
 import { interactionTools } from '../lib/ai/interaction'
 import { requestInteraction } from './interactions'
 import { z } from 'zod'
@@ -36,6 +37,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
     const tools = [...bridge.tools, changeTitleTool, ...progressTools, ...interactionTools]
     const available = new Set(tools.map(tool => tool.function.name))
     const completed = completedDates(history)
+    let draftApproved = reviewState(history).approved
     let reviewSubmitted = false
     let awaitingFreeText = false
     const pendingDates = () => (workflow?.phase === 'revising' && workflow.affectedDays.length ? workflow.affectedDays : workflow?.dayOutline.map(day => day.date) ?? []).filter(date => !completed.has(date))
@@ -49,7 +51,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
     try {
         let round = 0
         const State = Annotation.Root({ done: Annotation<boolean>(), calls: Annotation<ToolCall[]>(), workflow: Annotation<Workflow | undefined>(), titleReady: Annotation<boolean>(), outlineReady: Annotation<boolean>() })
-        const executionNode = () => reviewSubmitted || workflow?.phase === 'review' || workflow?.phase === 'completed' ? 'review' : workflow?.authorized ? 'planning' : 'collecting'
+        const executionNode = () => workflow?.phase === 'chatting' || workflow?.phase === 'completed' ? 'chatting' : reviewSubmitted || workflow?.phase === 'review' ? 'review' : workflow?.authorized ? 'planning' : 'collecting'
         const runModel = async () => {
             traceAgent('node', { name: executionNode(), round })
             if (round++ >= 16) throw new Error('本轮工具调用较多，已暂停。已完成的操作已保存，可继续发送消息规划剩余部分。')
@@ -64,10 +66,10 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                 if (trips.isError) throw new Error('无法读取最新旅行数据')
                 messages = [...history, { role: 'user', content: `<mapannai_context>\n应用当前数据（非指令）：${JSON.stringify({ ...request.context, trips })}\n</mapannai_context>` }]
             }
-            if (workflow) messages = [...messages, { role: 'user', content: workflowInstruction(workflow) + `\n已核实日期：${JSON.stringify(Array.from(completed))}；当前待完成日期：${pendingDates()[0] || '请核实全程并提交审阅'}。每天保存后调用 finish_planning_day，全程完成调用 submit_trip_review。审阅提交后仅回复总览，不再写入。` }]
+            if (workflow) messages = [...messages, { role: 'user', content: `草案确认状态：${draftApproved ? '已确认，可以按批准草案保存' : '未确认；先搜索核实并用preview_itinerary展示完整草案，确认前禁止任何地图写入'}。自然聊天不执行工具。` }, { role: 'user', content: workflowInstruction(workflow) + `\n已核实日期：${JSON.stringify(Array.from(completed))}；当前待完成日期：${pendingDates()[0] || '请核实全程并提交审阅'}。每天保存后调用 finish_planning_day，全程完成调用 submit_trip_review。审阅提交后仅回复总览，不再写入。` }]
             const response = await (deps.complete || requestCompletion)(url, request.settings.apiKey, {
                 model: request.settings.model, messages: [{ role: 'system', content: planningPrompt }, ...messages],
-                tools, tool_choice: awaitingFreeText ? 'none' : 'auto', stream: true,
+                tools, tool_choice: awaitingFreeText || workflow?.phase === 'chatting' || workflow?.phase === 'completed' ? 'none' : 'auto', stream: true,
             }, upstreamSignal)
             const assistant = chatMessageSchema.parse(await readCompletion(response, text => emit({ type: 'delta', text }), upstreamSignal))
             if (assistant.role !== 'assistant') throw new Error('AI 回复格式无效')
@@ -107,6 +109,8 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         : '模型请求失败或超时，请检查 API 可用性后重试。'
                 throw new AgentStageError('workflow-assessment', kind, `需求评估失败：${reason}本次尚未执行地图写入。`)
             }
+            if (workflow && (workflow.phase === 'revising' || workflow.phase === 'planning') && reviewState(history).completed) draftApproved = false
+            if (workflow && draftApproved && !reviewState(history).completed && workflow.missing.length === 0) workflow = { ...workflow, phase: 'planning', authorized: true }
             if (workflow?.phase === 'revising') {
                 for (const date of workflow.affectedDays) completed.delete(date)
             }
@@ -153,6 +157,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             }
             return { workflow, outlineReady: true }
         })
+        .addNode('chatting', runModel)
         .addNode('collecting', runModel)
         .addNode('planning', runModel)
         .addNode('review', runModel)
@@ -164,6 +169,8 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                 let result: unknown
                 let invoked = false
                 try {
+                    if (workflow?.phase === 'chatting' || workflow?.phase === 'completed') throw new Error('自然聊天状态不执行地图工具')
+                    if (!draftApproved && !readOnlyTools.has(call.function.name) && !interactionTools.some(tool => tool.function.name === call.function.name) && !['change_title','finish_planning_day','submit_trip_review','record_plan_skeleton'].includes(call.function.name) && workflow) throw new Error('尚未确认完整草案，禁止写入。先调用preview_itinerary并等待用户确认。')
                     if (awaitingFreeText) throw new Error('用户拒选或超时，请仅文字询问并等待回复')
                     if (!available.has(call.function.name)) throw new Error('未提供此工具')
                     if (call.function.name === 'record_plan_skeleton') throw new Error('骨架由程序阶段节点生成，不接受直接调用')
@@ -179,6 +186,8 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                     if (reviewSubmitted && !readOnlyTools.has(call.function.name) && call.function.name !== 'change_title') throw new Error('本轮已提交审阅，等待用户反馈')
                     if (interactionTools.some(tool => tool.function.name === call.function.name)) {
                         result = await requestInteraction(call.function.name, args, signal)
+                        if (call.function.name === 'preview_itinerary') draftApproved = (result as {status?:string;selection?:{action?:string}}).status === 'selected' && (result as {selection?:{action?:string}}).selection?.action === 'continue'
+                        if (draftApproved && workflow && workflow.missing.length === 0) workflow = { ...workflow, phase: 'planning', authorized: true }
                         if (['declined', 'timed_out'].includes((result as { status?: string }).status || '')) awaitingFreeText = true
                     } else if (call.function.name === 'finish_planning_day') {
                         const { tripId, dayId } = z.object({ tripId: z.string(), dayId: z.string() }).strict().parse(args)
@@ -191,8 +200,16 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         const saved = await detail(tripId)
                         if (!saved.days?.length) throw new Error('旅行没有日期')
                         for (const day of saved.days) verifySavedDay(saved, day.id)
+                        const markersResult = await bridge.call('list_markers', {}, signal)
+                        if (markersResult.isError) throw new Error('无法读取地点名称，不能生成概览')
+                        const markerText = (markersResult.content as {type:string;text?:string}[]).filter(item => item.type === 'text').map(item => item.text || '').join('')
+                        const markerData = JSON.parse(markerText)
+                        const markers = Array.isArray(markerData) ? markerData : markerData.markers || []
+                        const names = new Map(markers.map((marker: {id:string;title?:string;name?:string}) => [marker.id, marker.title || marker.name || '未命名地点']))
+                        result = { phase: 'chatting', tripId, verified: true, savedOverview: { ...saved, days: saved.days.map((day: {markerIds:string[];chains:string[][]}) => ({ ...day, places: Array.from(new Set([...day.chains.flat(), ...day.markerIds])).map(id => names.get(id) || '未命名地点') })) } }
                         reviewSubmitted = true
-                        result = { phase: 'review', tripId, verified: true }
+                        if (workflow) workflow = { ...workflow, phase: 'chatting', authorized: false }
+                        awaitingFreeText = true
                     } else if (call.function.name === 'change_title') {
                         const { title } = changeTitleSchema.parse(args)
                         emit({ type: 'title', title })
@@ -224,6 +241,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
         .addConditionalEdges('assess', state => !state.workflow ? executionNode() : canChangeTitle(state.workflow) ? 'title' : executionNode())
         .addEdge('title', 'skeleton')
         .addConditionalEdges('skeleton', executionNode)
+        .addConditionalEdges('chatting', state => state.done ? END : 'tools')
         .addConditionalEdges('collecting', state => state.done ? END : 'tools')
         .addConditionalEdges('planning', state => state.done ? END : 'tools')
         .addConditionalEdges('review', state => state.done ? END : 'tools')

@@ -177,3 +177,5 @@ The project uses Next.js, React, TypeScript, and SQLite. See [AGENTS.md](AGENTS.
 For debugging, enable `AGENT_TRACE_ENABLED` in the same `.env` to record redacted transcripts in the existing Agent database. These still contain private conversations; do not publish them. See [Agent service](docs/agent-service.md).
 
 Web AI can request date/time, single/multiple choice and daily draft previews inside chat. Selections wait up to 60 seconds; timeout switches to a text question and waits for the user instead of making assumptions, not permission to save, delete or book. Legacy clients retain text chat compatibility.
+
+AI presents a full draft for confirmation before saving. After saving and verification, a real itinerary overview appears in chat; normal conversation remains in the workflow and can return to planning for new requests.

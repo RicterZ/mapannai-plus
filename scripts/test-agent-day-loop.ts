@@ -4,7 +4,7 @@ import type { Workflow } from '../src/agent/workflow'
 import type { ChatEvent, ChatRequest } from '../src/lib/ai/protocol'
 
 async function main() {
-    const request: ChatRequest = { settings: { baseUrl: 'https://example.com', apiKey: 'mock', model: 'mock' }, context: { localDate: '2026-10-15', tripId: null, dayId: null }, messages: [{ role: 'user', content: '保存旅行' }] }
+    const request: ChatRequest = { settings: { baseUrl: 'https://example.com', apiKey: 'mock', model: 'mock' }, context: { localDate: '2026-10-15', tripId: null, dayId: null }, messages: [{role:'assistant',content:null,tool_calls:[{id:'approved',type:'function',function:{name:'preview_itinerary',arguments:'{}'}}]}, { role: 'tool', name: 'preview_itinerary', tool_call_id: 'approved', content: JSON.stringify({status:'selected',selection:{action:'continue'}}) }, { role: 'user', content: '保存旅行' }] }
     const facts = Object.fromEntries(['destinations','dates','arrivalDeparture','companions','interests','budget','lodging','transportPace','fixedBookings','dietaryAccess'].map(key => [key, '明确'])) as Workflow['facts']
     const workflow: Workflow = { phase: 'planning', facts, missing: [], assumptions: [], authorized: true, authorizationQuote: '保存旅行', dayOutline: [{ date: '2026-10-15', theme: '到达', constraints: '下午' }, { date: '2026-10-16', theme: '离开', constraints: '晚上' }], affectedDays: [] }
     const days = [1, 2].map(index => ({ id: `day${index}`, date: `2026-10-${14 + index}`, title: '巷陌闲步', markerIds: ['a', 'b'], chains: [['a', 'b']] }))
@@ -23,6 +23,7 @@ async function main() {
         assess: async () => workflow, context: history => history,
         connect: async () => ({ tools: [{ type: 'function', function: { name: 'update_trip_day', description: 'mock', parameters: { type: 'object' } } }], close: async () => {}, call: async name => {
             if (name === 'get_trip_detail') return { content: [{ type: 'text', text: JSON.stringify({ id: 'trip', days }) }] }
+            if (name === 'list_markers') return {content:[{type:'text',text:JSON.stringify([{id:'a',title:'地点甲'},{id:'b',title:'地点乙'}])}]}
             writes++; return { content: [{ type: 'text', text: 'saved' }] }
         } }),
         complete: async (_url, _key, body) => {
@@ -32,7 +33,7 @@ async function main() {
             if (toolSnapshot) assert.equal(serialized, toolSnapshot, 'tool schema/order remains stable across review transition')
             toolSnapshot = serialized
             assert.equal(payload.messages[0].role, 'system')
-            assert.equal(payload.messages[1].content, request.messages[0].content, 'original conversation prefix is unchanged')
+            assert.equal(payload.messages[3].content, request.messages[2].content, 'original conversation prefix is unchanged')
             const call = calls[round++]
             return Response.json({ choices: [{ message: { role: 'assistant', content: call ? null : '请审阅', ...(call ? { tool_calls: [{ id: `call${round}`, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.args) } }] } : {}) } }] })
         },
@@ -43,7 +44,7 @@ async function main() {
     assert.equal(dailyResults[0].isError, true)
     assert.equal(dailyResults[1].date, '2026-10-15')
     assert.equal(dailyResults[3].date, '2026-10-16')
-    assert.equal(dailyResults[4].phase, 'review')
+    assert.equal(dailyResults[4].phase, 'chatting')
     assert.equal(dailyResults[5].isError, true)
     assert(events.some(event => event.type === 'complete'))
     console.log('Daily graph checks passed: ordered dates, persisted-data verification, review transition and post-review write rejection')

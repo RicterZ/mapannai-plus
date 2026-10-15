@@ -28,5 +28,5 @@ export function validateSelection(input: Interaction, value: unknown) {
 export const interactionTools = interactionSchema.options.map(schema => {
     const json = z.toJSONSchema(schema) as Record<string, unknown>
     const { kind: _kind, ...properties } = json.properties as Record<string, unknown>
-    return { type: 'function' as const, function: { name: schema.shape.kind.value, description: 'ask_choice界面固定提供“都不选，文字说明”，options不要自行生成此兜底项。返回status=declined时，说明选项不合适，必须仅用文字询问用户想法并等待下一条回复，不能继续选择、默认安排或写入。向用户展示交互卡片并等待最多60秒。返回timed_out时与declined一样，仅文字询问后结束本轮等待用户回复，禁止默认选择、自行安排或写入。preview仅为草案审阅，不授权保存或删除。', parameters: { ...json, properties, required: (json.required as string[]).filter(key => key !== 'kind') } } }
+    return { type: 'function' as const, function: { name: schema.shape.kind.value, description: 'ask_choice界面固定提供“都不选，文字说明”，options不要自行生成此兜底项。返回status=declined时，说明选项不合适，必须仅用文字询问用户想法并等待下一条回复，不能继续选择、默认安排或写入。向用户展示交互卡片并等待最多60秒。返回timed_out时与declined一样，仅文字询问后结束本轮等待用户回复，禁止默认选择、自行安排或写入。preview展示完整未保存草案，用户continue确认后允许保存该草案，但不授权额外删除、付款或预订。', parameters: { ...json, properties, required: (json.required as string[]).filter(key => key !== 'kind') } } }
 })

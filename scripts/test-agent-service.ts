@@ -60,7 +60,7 @@ async function main() {
             res.on('close', () => { clearTimeout(timer); cancelledModel = true })
             return
         }
-        const last = body.messages.filter((message: any) => !(message.role === 'user' && (message.content.startsWith('<mapannai_context>') || message.content.startsWith('\n【程序工作流状态】')))).at(-1)
+        const last = body.messages.filter((message: any) => !(message.role === 'user' && (message.content.startsWith('草案确认状态：') || message.content.startsWith('<mapannai_context>') || message.content.startsWith('\n【程序工作流状态】')))).at(-1)
         const message = last.role === 'tool' && !['change_title', 'record_plan_skeleton'].includes(last.name) ? { content: '已保存，古寺钟声与巷陌闲步。' } : {
             content: null,
             tool_calls: [{ id: 'create', type: 'function', function: { name: 'create_trip', arguments: JSON.stringify({ name: '隔离测试', startDate: '2026-10-15', endDate: '2026-10-16', dayTitles: [{ date: '2026-10-15', title: '古寺钟声与巷陌闲步' }], operationId: 'e2e-trip' }) } }],
@@ -108,7 +108,7 @@ async function main() {
         assert.deepEqual({ ...getDayById(target.dayId), title: before.title }, before)
         await bridge.call('update_trip_day', { ...target, title: null }, signal)
         assert.equal(getDayById(target.dayId)!.title, undefined)
-        const input = { conversationId: '11111111-1111-4111-8111-111111111111', requestId: '22222222-2222-4222-8222-222222222222', settings: { baseUrl: modelUrl + '/v1', apiKey: 'mock-key', model: 'mock' }, messages: [{ role: 'user', content: '保存这个二日旅行' }], context: { localDate: '2026-10-15', tripId: null, dayId: null } }
+        const input = { conversationId: '11111111-1111-4111-8111-111111111111', requestId: '22222222-2222-4222-8222-222222222222', settings: { baseUrl: modelUrl + '/v1', apiKey: 'mock-key', model: 'mock' }, messages: [{role:'assistant',content:null,tool_calls:[{id:'approved',type:'function',function:{name:'preview_itinerary',arguments:'{}'}}]}, {role:'tool',name:'preview_itinerary',tool_call_id:'approved',content:JSON.stringify({status:'selected',selection:{action:'continue'}})}, { role: 'user', content: '保存这个二日旅行' }], context: { localDate: '2026-10-15', tripId: null, dayId: null } }
         const unauthorized = await fetch(process.env.AGENT_URL + '/chat', { method: 'POST', body: '{}' })
         assert.equal(unauthorized.status, 401)
         const response = await chatPost(new NextRequest('http://localhost/api/ai/chat', { method: 'POST', body: JSON.stringify(input) }))
