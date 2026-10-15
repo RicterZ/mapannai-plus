@@ -325,3 +325,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - AI日期卡片参照iOS TripRangeCalendar/TripDateRange：单一日历两次点选起止，反向点选自动排序，同日可选，第三次开始新范围；跨月保留选择，端点圆形与中间连续浅色带，显示含首尾天数、明确选结束提示、“完成”仅收起日历而非提交。日期时间模式分离日历和时间，不默认为用户填写时间；不并排提供原生日期输入与自绘日历。scripts/test-calendar-range.ts验证范围算法，最终提交仍由服务端校验。
 
 - AI交互需求收集必须逐项：先落地时间、收到结果后问起飞时间、再问是否坐船等偏好，不在正文列多个问题或“顺便问”。支持卡片时必须调用对应工具；unsupported才退回文字，超时不代表不支持。交互等待60秒。模型一次混合多个调用且包含交互时，整批在执行前拒绝并要求逐项重发，任何写入均不执行；scripts/test-ai-question-policy.ts验证。
+
+- Agent请求重放仅针对显式conversationId/requestId（UUID）且请求正文/配置一致的同次请求；网页每次发送生成新requestId并携带本地会话UUID，title永远不参与身份。旧客户端缺任一ID时每次分配独立执行ID，绝不能按同文输入跨设备/会话重放历史；v2哈希隔离旧日志。scripts/test-agent-recovery.ts覆盖会话隔离、不同发送、旧客户端和同请求重放。不提供聊天多端同步；UUID不是用户认证边界，API认证规则不变。

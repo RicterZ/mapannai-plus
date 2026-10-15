@@ -1,5 +1,6 @@
 'use client'
 
+import { v4 as uuidv4 } from 'uuid'
 import type { InteractionPrompt } from '@/lib/ai/interaction'
 import { InteractionCard } from './interaction-card'
 import { useEffect, useRef, useState } from 'react'
@@ -124,6 +125,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
         const current = conversation || newConversation()
         const messages: ChatMessage[] = [...repairInterruptedMessages(current.messages), { role: 'user', content }]
         if (messages.length > 180) { setError('这个会话已较长，请新建会话继续规划；原记录会保留。'); return }
+        const requestId = uuidv4()
         const controller = new AbortController()
         requestRef.current = controller
         followRef.current = true
@@ -156,7 +158,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
             const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
             const response = await fetchWithAuth('/api/ai/chat', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-                body: JSON.stringify({ supportsInteractions: true, settings: { baseUrl: settings.baseUrl, apiKey: settings.apiKey, model: settings.model }, messages,
+                body: JSON.stringify({ conversationId: current.id, requestId, supportsInteractions: true, settings: { baseUrl: settings.baseUrl, apiKey: settings.apiKey, model: settings.model }, messages,
                     context: { localDate, tripId: active.tripId, dayId: active.dayId } }),
             })
             if (!response.ok) {

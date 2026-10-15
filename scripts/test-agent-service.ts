@@ -108,7 +108,7 @@ async function main() {
         assert.deepEqual({ ...getDayById(target.dayId), title: before.title }, before)
         await bridge.call('update_trip_day', { ...target, title: null }, signal)
         assert.equal(getDayById(target.dayId)!.title, undefined)
-        const input = { settings: { baseUrl: modelUrl + '/v1', apiKey: 'mock-key', model: 'mock' }, messages: [{ role: 'user', content: '保存这个二日旅行' }], context: { localDate: '2026-10-15', tripId: null, dayId: null } }
+        const input = { conversationId: '11111111-1111-4111-8111-111111111111', requestId: '22222222-2222-4222-8222-222222222222', settings: { baseUrl: modelUrl + '/v1', apiKey: 'mock-key', model: 'mock' }, messages: [{ role: 'user', content: '保存这个二日旅行' }], context: { localDate: '2026-10-15', tripId: null, dayId: null } }
         const unauthorized = await fetch(process.env.AGENT_URL + '/chat', { method: 'POST', body: '{}' })
         assert.equal(unauthorized.status, 401)
         const response = await chatPost(new NextRequest('http://localhost/api/ai/chat', { method: 'POST', body: JSON.stringify(input) }))

@@ -18,6 +18,8 @@ export const aiSettingsSchema = z.object({
 })
 export const chatRequestSchema = z.object({
     settings: aiSettingsSchema,
+    conversationId: z.string().uuid().optional(),
+    requestId: z.string().uuid().optional(),
     supportsInteractions: z.boolean().optional(),
     messages: z.array(chatMessageSchema).min(1).max(200),
     context: z.object({

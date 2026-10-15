@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { chmodSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import type { ChatEvent, ChatRequest } from '../lib/ai/protocol'
@@ -22,8 +22,11 @@ export class RunStore {
         this.db.prepare("DELETE FROM trace_records WHERE created_at < ?").run(new Date(Date.now() - 7 * 86400_000).toISOString())
     }
     key(request: ChatRequest) {
-        // Key material is hashed only; model credentials never enter journal rows.
-        return createHash('sha256').update(JSON.stringify({ messages: request.messages, context: request.context,
+        // Legacy requests have no identity: never replay another client's content match.
+        if (!request.conversationId || !request.requestId) return randomUUID()
+        return createHash('sha256').update(JSON.stringify({ version: 2,
+            conversationId: request.conversationId, requestId: request.requestId,
+            messages: request.messages, context: request.context, supportsInteractions: request.supportsInteractions,
             baseUrl: request.settings.baseUrl, model: request.settings.model, credential: request.settings.apiKey })).digest('hex')
     }
     begin(id: string): { status: string; events: ChatEvent[] } | undefined {
