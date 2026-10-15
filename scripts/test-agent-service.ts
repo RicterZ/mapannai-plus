@@ -41,6 +41,10 @@ async function main() {
     const model = createServer(async (req, res) => {
         const chunks: Buffer[] = []; for await (const chunk of req) chunks.push(Buffer.from(chunk))
         const body = JSON.parse(Buffer.concat(chunks).toString())
+        if (body.messages[0].content.includes('旅行规划阶段执行器')) {
+            const content = body.messages[0].content.includes('只生成简短自然的会话标题') ? JSON.stringify({ title: '隔离旅行' }) : JSON.stringify({ days: [{ date: '2026-10-15', theme: '古寺', constraints: '' }, { date: '2026-10-16', theme: '归途', constraints: '' }] })
+            res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content } }] })); return
+        }
         if (body.messages[0].content.includes('旅行工作流状态评估器')) {
             const facts = Object.fromEntries(['destinations','dates','arrivalDeparture','companions','interests','budget','lodging','transportPace','fixedBookings','dietaryAccess'].map(key => [key, '用户已明确']))
             const content = JSON.stringify({ phase: 'planning', facts, missing: [], assumptions: [], authorized: true, authorizationQuote: '保存这个二日旅行', dayOutline: [], affectedDays: [] })
@@ -55,8 +59,8 @@ async function main() {
             res.on('close', () => { clearTimeout(timer); cancelledModel = true })
             return
         }
-        const last = body.messages.at(-1)
-        const message = last.role === 'tool' ? { content: '已保存，古寺钟声与巷陌闲步。' } : {
+        const last = body.messages.filter((message: any) => !(message.role === 'user' && (message.content.startsWith('<mapannai_context>') || message.content.startsWith('\n【程序工作流状态】')))).at(-1)
+        const message = last.role === 'tool' && !['change_title', 'record_plan_skeleton'].includes(last.name) ? { content: '已保存，古寺钟声与巷陌闲步。' } : {
             content: null,
             tool_calls: [{ id: 'create', type: 'function', function: { name: 'create_trip', arguments: JSON.stringify({ name: '隔离测试', startDate: '2026-10-15', endDate: '2026-10-16', dayTitles: [{ date: '2026-10-15', title: '古寺钟声与巷陌闲步' }], operationId: 'e2e-trip' }) } }],
         }
@@ -133,8 +137,12 @@ async function main() {
         assert.equal((await rejected)[0], 1008)
         const slow = await chatPost(new NextRequest('http://localhost/api/ai/chat', { method: 'POST', body: JSON.stringify({ ...input, messages: [{ role: 'user', content: 'slow-stream' }] }) }))
         const reader = slow.body!.getReader()
-        const delta = await reader.read()
-        assert(new TextDecoder().decode(delta.value).includes('开始思考'))
+        let streamed = ''
+        while (!streamed.includes('开始思考')) {
+            const delta = await reader.read()
+            assert(!delta.done, 'stream must reach model delta')
+            streamed += new TextDecoder().decode(delta.value)
+        }
         await reader.cancel()
         for (let attempt = 0; attempt < 30 && !cancelledModel; attempt++) await new Promise(resolve => setTimeout(resolve, 100))
         assert(cancelledModel, 'cancel must propagate Web stream → WebSocket → Agent → model request')

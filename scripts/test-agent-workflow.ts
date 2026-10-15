@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { assessWorkflow } from '../src/agent/workflow'
+import { assessWorkflow, canChangeTitle } from '../src/agent/workflow'
 import type { ChatRequest } from '../src/lib/ai/protocol'
 
 async function main() {
@@ -7,6 +7,9 @@ async function main() {
     const facts = Object.fromEntries(['destinations','dates','arrivalDeparture','companions','interests','budget','lodging','transportPace','fixedBookings','dietaryAccess'].map(key => [key, '']))
     let value = { phase: 'planning', facts, missing: [] as string[], assumptions: [], authorized: true, authorizationQuote: '保存东京旅行', dayOutline: [], affectedDays: [] }
     const complete = async () => Response.json({ choices: [{ message: { role: 'assistant', content: JSON.stringify(value) } }] })
+    for (const phase of ['collecting', 'review', 'completed'] as const) assert.equal(canChangeTitle({ ...value, phase } as any), false)
+    assert.equal(canChangeTitle({ ...value, phase: 'outline', authorized: false } as any), true, 'title precedes outline without write authorization')
+    assert.equal(canChangeTitle({ ...value, missing: ['到达时间'] } as any), false)
     const run = () => assessWorkflow(request, new AbortController().signal, complete)
     assert.equal((await run()).authorized, false, 'invented authorization quote rejected')
     request.messages.push({ role: 'user', content: '保存东京旅行' })

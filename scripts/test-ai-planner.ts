@@ -79,11 +79,11 @@ async function main() {
             assert.equal(payload.messages[0].content, planningPrompt)
             assert(planningPrompt.length < 4000, 'personality, workflow and safety rules should remain concise')
             for (const rule of ['每轮只问1–2个', '必须调用 change_title', 'Web搜索 → 地点安排 → 建立标记', '各天地点核实、标记就绪后', '界面已经展示路段距离、起始点和终点', '没有补充就省略note']) assert(planningPrompt.includes(rule), rule)
-            const firstUser = payload.messages.find(message => message.role === 'user')!
+            const firstUser = payload.messages.find(message => message.role === 'user' && message.content?.includes('<mapannai_context>'))!
             const attached = JSON.parse(firstUser.content!.split('以下为应用附加的当前数据：\n')[1].split('\n</mapannai_context>')[0])
             assert.equal(attached.trips.length, rounds === 0 ? 0 : 1, 'trip list refreshes after writes within the tool loop')
             if (rounds++ === 0) return assistant(null, [{ name: 'create_trip', args: { name: '东京三日', startDate: '2026-10-10', endDate: '2026-10-12' } }])
-            assert.equal(payload.messages.at(-1)?.role, 'tool')
+            assert(payload.messages.some(message => message.role === 'tool'))
             return assistant('已创建东京三日旅行。')
         } })
         assert.equal(rounds, 2)
@@ -96,17 +96,17 @@ async function main() {
         await runPlanner({ ...first, messages: [...transcript, { role: 'user', content: '继续查看刚创建的旅行' }] }, () => {}, signal, { complete: async (_url, _key, body) => {
             const payload = body as { messages: ChatMessage[] }
             assert(payload.messages.some(message => message.role === 'assistant' && message.content?.includes('已创建')))
-            const firstUser = payload.messages.find(message => message.role === 'user')!
+            const firstUser = payload.messages.find(message => message.role === 'user' && message.content?.includes('<mapannai_context>'))!
             assert.equal(firstUser.content!.split('<mapannai_context>').length, 2, 'append context only once')
             assert(firstUser.content!.includes(getAllTrips()[0].id), 'existing trip ID is supplied without list_trips')
             if (secondRound++ === 0) return assistant(null, [{ name: 'get_trip_detail', args: { tripId: getAllTrips()[0].id } }])
-            assert.equal(payload.messages.at(-1)?.role, 'tool')
+            assert(payload.messages.some(message => message.role === 'tool'))
             return assistant('找到了东京三日旅行。')
         } })
         assert.equal(getAllTrips().length, 1, 'second turn must not recreate the trip')
         const otherTopic: ChatMessage[] = [{ role: 'user', content: '另一话题的安排' }]
         const assembled = attachTripContext(otherTopic, context)
-        assert.equal(assembled.length, 1)
+        assert.equal(assembled.length, 2)
         assert(!assembled[0].content?.includes('已创建东京三日旅行'), 'do not carry conversation history across topics')
         assert.equal(otherTopic[0].content, '另一话题的安排')
 

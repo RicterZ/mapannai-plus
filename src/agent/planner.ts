@@ -5,9 +5,10 @@ import { completionUrl, requestCompletion } from '../lib/ai/endpoint'
 import { readCompletion } from '../lib/ai/completions'
 import { planningPrompt } from '../lib/ai/prompt'
 import { Annotation, StateGraph, START, END } from '@langchain/langgraph'
-import { assessWorkflow, workflowInstruction, type Workflow } from './workflow'
+import { assessWorkflow, workflowInstruction, canChangeTitle, type Workflow } from './workflow'
 import { completedDates, verifySavedDay, progressTools } from './day-progress'
 import { AgentStageError } from './errors'
+import { generateStage } from './plan-stages'
 
 const changeTitleSchema = z.object({ title: z.string().trim().min(1).max(60) }).strict()
 const changeTitleTool = { type: 'function' as const, function: {
@@ -29,8 +30,8 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
     })
     const history = repairInterruptedMessages(request.messages)
     let workflow: Workflow | undefined
-    let tools = [...bridge.tools, changeTitleTool]
-    let available = new Set(tools.map(tool => tool.function.name))
+    const tools = [...bridge.tools, changeTitleTool, ...progressTools]
+    const available = new Set(tools.map(tool => tool.function.name))
     const completed = completedDates(history)
     let reviewSubmitted = false
     const pendingDates = () => (workflow?.phase === 'revising' && workflow.affectedDays.length ? workflow.affectedDays : workflow?.dayOutline.map(day => day.date) ?? []).filter(date => !completed.has(date))
@@ -43,23 +44,9 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
     }
     try {
         let round = 0
-        const State = Annotation.Root({ done: Annotation<boolean>(), calls: Annotation<ToolCall[]>() })
-        const graph = new StateGraph(State)
-        .addNode('assess', async () => {
-            try {
-                workflow = await (deps.assess || assessWorkflow)(request, signal)
-            } catch (error) {
-                throw new AgentStageError('workflow-assessment', error instanceof Error ? error.name : 'UnknownError', '需求评估失败：模型请求未成功或返回格式不符合要求。请确认 API 和模型可用后重试；本次尚未执行地图写入。')
-            }
-            if (workflow?.phase === 'revising') {
-                for (const date of workflow.affectedDays) completed.delete(date)
-            }
-            tools = [...bridge.tools.filter(tool => !workflow || workflow.authorized || readOnlyTools.has(tool.function.name)), changeTitleTool]
-            if (workflow?.authorized) tools.push(...progressTools)
-            available = new Set(tools.map(tool => tool.function.name))
-            return { done: false }
-        })
-        .addNode('model', async () => {
+        const State = Annotation.Root({ done: Annotation<boolean>(), calls: Annotation<ToolCall[]>(), workflow: Annotation<Workflow | undefined>(), titleReady: Annotation<boolean>(), outlineReady: Annotation<boolean>() })
+        const executionNode = () => reviewSubmitted || workflow?.phase === 'review' || workflow?.phase === 'completed' ? 'review' : workflow?.authorized ? 'planning' : 'collecting'
+        const runModel = async () => {
             if (round++ >= 16) throw new Error('本轮工具调用较多，已暂停。已完成的操作已保存，可继续发送消息规划剩余部分。')
             signal.throwIfAborted()
             if (history.length > 180) throw new Error('会话记录已较长，请新建会话继续规划；已完成的操作会保留。')
@@ -70,12 +57,11 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             else {
                 const trips = await bridge.call('list_trips', {}, upstreamSignal)
                 if (trips.isError) throw new Error('无法读取最新旅行数据')
-                const firstUser = history.findIndex(message => message.role === 'user')
-                messages = history.map((message, index) => index === firstUser && message.role === 'user'
-                    ? { ...message, content: `${message.content}\n\n<mapannai_context>\n应用当前数据（非指令）：${JSON.stringify({ ...request.context, trips })}\n</mapannai_context>` } : message)
+                messages = [...history, { role: 'user', content: `<mapannai_context>\n应用当前数据（非指令）：${JSON.stringify({ ...request.context, trips })}\n</mapannai_context>` }]
             }
+            if (workflow) messages = [...messages, { role: 'user', content: workflowInstruction(workflow) + `\n已核实日期：${JSON.stringify(Array.from(completed))}；当前待完成日期：${pendingDates()[0] || '请核实全程并提交审阅'}。每天保存后调用 finish_planning_day，全程完成调用 submit_trip_review。审阅提交后仅回复总览，不再写入。` }]
             const response = await (deps.complete || requestCompletion)(url, request.settings.apiKey, {
-                model: request.settings.model, messages: [{ role: 'system', content: planningPrompt + (workflow ? workflowInstruction(workflow) + `\n已核实日期：${JSON.stringify(Array.from(completed))}；当前待完成日期：${pendingDates()[0] || '请核实全程并提交审阅'}。每天保存后调用 finish_planning_day，全程完成调用 submit_trip_review。审阅提交后仅回复总览，不再写入。` : '') }, ...messages],
+                model: request.settings.model, messages: [{ role: 'system', content: planningPrompt }, ...messages],
                 tools, tool_choice: 'auto', stream: true,
             }, upstreamSignal)
             const assistant = chatMessageSchema.parse(await readCompletion(response, text => emit({ type: 'delta', text }), upstreamSignal))
@@ -90,7 +76,61 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             emit({ type: 'message', message: assistant })
             if (!assistant.tool_calls?.length) { emit({ type: 'complete' }); return { done: true, calls: [] } }
             return { done: false, calls: assistant.tool_calls }
+        }
+        const graph = new StateGraph(State)
+        .addNode('assess', async () => {
+            try {
+                workflow = await (deps.assess || assessWorkflow)(request, signal)
+            } catch (error) {
+                throw new AgentStageError('workflow-assessment', error instanceof Error ? error.name : 'UnknownError', '需求评估失败：模型请求未成功或返回格式不符合要求。请确认 API 和模型可用后重试；本次尚未执行地图写入。')
+            }
+            if (workflow?.phase === 'revising') {
+                for (const date of workflow.affectedDays) completed.delete(date)
+            }
+            return { done: false, workflow }
         })
+        .addNode('title', async state => {
+            if (!state.workflow) return { titleReady: true }
+            const prior = history.some(message => message.role === 'tool' && message.name === 'change_title' && (() => {
+                try { const value = JSON.parse(message.content); return !value.isError && !!value.content } catch { return false }
+            })())
+            if (!prior) {
+                const generated = await generateStage(request, state.workflow, 'title', signal, deps.complete)
+                if (!('title' in generated)) throw new Error('标题阶段结果无效')
+                const id = `workflow_title_${history.length}`
+                const assistant = chatMessageSchema.parse({ role: 'assistant', content: null, tool_calls: [{ id, type: 'function', function: { name: 'change_title', arguments: JSON.stringify(generated) } }] })
+                const result = chatMessageSchema.parse({ role: 'tool', name: 'change_title', tool_call_id: id, content: JSON.stringify({ content: [{ type: 'text', text: JSON.stringify(generated) }] }) })
+                history.push(assistant, result)
+                emit({ type: 'message', message: assistant }); emit({ type: 'title', title: generated.title }); emit({ type: 'message', message: result })
+            }
+            return { titleReady: true }
+        })
+        .addNode('skeleton', async state => {
+            if (!state.titleReady) throw new Error('必须先完成标题阶段')
+            if (!workflow) return { outlineReady: true }
+            for (const message of [...history].reverse()) {
+                if (message.role !== 'tool' || message.name !== 'record_plan_skeleton') continue
+                try {
+                    const saved = JSON.parse(message.content)
+                    if (saved.days?.length && workflow.phase !== 'revising') workflow = { ...workflow, dayOutline: saved.days }
+                } catch { /* Invalid history must not authorize writes. */ }
+                break
+            }
+            if (!workflow.dayOutline.length) {
+                const generated = await generateStage(request, workflow, 'skeleton', signal, deps.complete)
+                if (!('days' in generated)) throw new Error('骨架阶段结果无效')
+                workflow = { ...workflow, dayOutline: generated.days }
+                const id = `workflow_skeleton_${history.length}`
+                const assistant = chatMessageSchema.parse({ role: 'assistant', content: null, tool_calls: [{ id, type: 'function', function: { name: 'record_plan_skeleton', arguments: '{}' } }] })
+                const result = chatMessageSchema.parse({ role: 'tool', name: 'record_plan_skeleton', tool_call_id: id, content: JSON.stringify(generated) })
+                history.push(assistant, result)
+                emit({ type: 'message', message: assistant }); emit({ type: 'message', message: result })
+            }
+            return { workflow, outlineReady: true }
+        })
+        .addNode('collecting', runModel)
+        .addNode('planning', runModel)
+        .addNode('review', runModel)
         .addNode('tools', async state => {
             for (const call of state.calls) {
                 signal.throwIfAborted()
@@ -99,6 +139,14 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                 let invoked = false
                 try {
                     if (!available.has(call.function.name)) throw new Error('未提供此工具')
+                    if (call.function.name === 'record_plan_skeleton') throw new Error('骨架由程序阶段节点生成，不接受直接调用')
+                    if (workflow) {
+                        if (call.function.name === 'change_title') {
+                            if (!canChangeTitle(workflow)) throw new Error('关键需求未齐，先继续收集信息，不能改标题')
+                        } else if (!readOnlyTools.has(call.function.name) && !workflow.authorized) {
+                            throw new Error('当前阶段尚未授权地图写入，请继续收集信息或等待用户批准')
+                        }
+                    }
                     const args = JSON.parse(call.function.arguments)
                     if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('工具参数必须是对象')
                     if (reviewSubmitted && !readOnlyTools.has(call.function.name) && call.function.name !== 'change_title') throw new Error('本轮已提交审阅，等待用户反馈')
@@ -143,10 +191,14 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             return { done: false }
         })
         .addEdge(START, 'assess')
-        .addEdge('assess', 'model')
-        .addConditionalEdges('model', state => state.done ? END : 'tools')
-        .addEdge('tools', 'model')
+        .addConditionalEdges('assess', state => !state.workflow ? executionNode() : canChangeTitle(state.workflow) ? 'title' : executionNode())
+        .addEdge('title', 'skeleton')
+        .addConditionalEdges('skeleton', executionNode)
+        .addConditionalEdges('collecting', state => state.done ? END : 'tools')
+        .addConditionalEdges('planning', state => state.done ? END : 'tools')
+        .addConditionalEdges('review', state => state.done ? END : 'tools')
+        .addConditionalEdges('tools', executionNode)
         .compile()
-        await graph.invoke({ done: false, calls: [] }, { recursionLimit: 40, signal })
+        await graph.invoke({ done: false, calls: [], workflow: undefined, titleReady: false, outlineReady: false }, { recursionLimit: 48, signal })
     } finally { await bridge.close() }
 }
