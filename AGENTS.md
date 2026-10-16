@@ -339,3 +339,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - 骨架日期检查先验证有限时间戳再转换ISO；真实日期、连续唯一及可提取的已确认ISO范围校验在结构化输出修复重试内进行，禁止占位日期导致RangeError。评估日期为空时回收集并禁止写入；修改当前旅行且日期为空时先只读获取真实日期骨架。历史骨架仅在日期一致时复用。scripts/test-plan-dates.ts覆盖非法日期、闰年、跨年、范围及修复。
 
 - 新Web聊天使用后台任务API POST /api/ai/runs、GET /api/ai/runs/{id}?after=序号、DELETE显式停止；执行与订阅连接解耦，断网/刷新不取消任务。每run独立随机能力token放x-run-token（不在URL），原API认证叠加；游标和会话归属及待交互卡片保存在浏览器，消息与游标同步落盘后续拉，不用同文匹配其他端。原/api/ai/chat保持旧流兼容。事件持久化到原agent.db，模型Key仅内存；完整消息和每秒累计partial支持追上生成。进程/容器重启仅保留已落盘结果、运行任务标interrupted，不自动重放未知写入或承诺完整checkpoint恢复。后台交互仍60秒截止，离线超时转文字询问。scripts/test-background-runs.ts覆盖独立运行、能力隔离、游标、显式取消及重启读取。
+
+- 独立地点查询/收藏/编辑使用acting状态：无需旅行日期、每日归属、骨架和全程草案；只允许只读工具及明确授权的create_marker/update_marker，旅行写入仍走规划审批。评估missing仅限当前操作必需信息；历史草案批准不得将acting/chatting转成planning。自然聊天及超时/拒选的动态尾部不得再追加调用规划工具的指令，固定工具列表不变，不解析执行正文DSML。scripts/test-agent-acting.ts验证独立收藏和聊天尾部。无新增环境变量。

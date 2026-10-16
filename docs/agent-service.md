@@ -166,3 +166,7 @@ Updated Web uses POST `/api/ai/runs` with the normal ChatRequest, UUID conversat
 New tasks run independently of subscribers. Web restores pending polling on page startup, preserves final messages and cursor, and resumes unexpired interaction cards. Partial output is journaled as cumulative `partial` events at one-second intervals; final assistant messages replace partial text. Closing a page does not cancel. The Stop button sends DELETE; original `/api/ai/chat` retains legacy streaming/cancel behavior.
 
 Events live in the same Agent SQLite file. Model keys remain in memory. This survives client disconnection, not execution process crashes: completed results remain retrievable after restart; formerly running tasks become `interrupted`. Do not automatically replay uncertain writes. It is not LangGraph checkpoint recovery. Pending interactions still expire after 60 seconds and fall back to waiting for text.
+
+### 独立地点操作
+
+`acting` 用于地点查询、收藏及单项编辑，不要求旅行日期或每日归属，不运行标题、骨架、逐日核实与全程草案确认。写入仍需明确用户授权，当前仅开放 create_marker/update_marker；旅行操作不得借此绕过草案批准。chatting/completed 与超时拒选后的模型请求保留固定工具定义，但动态尾部只指示文字回复，不再混入规划工具执行要求。历史草案批准只作用于规划状态，不改变独立任务状态。
