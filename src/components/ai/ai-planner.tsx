@@ -19,7 +19,7 @@ import { groupChatMessages, toolFailed } from '@/lib/ai/tool-display'
 import { ChatMarkdown } from './chat-markdown'
 import { Modal } from '@/components/ui/modal'
 import { MAX_AI_HISTORY_MESSAGES, aiSettingsSchema, repairInterruptedMessages, toolLabels, type ChatEvent, type ChatMessage } from '@/lib/ai/protocol'
-import { defaultSettings, emptyHistory, HISTORY_KEY, newConversation, readHistory, readSettings, writeSettings, type LocalHistory, type LocalSettings } from '@/lib/ai/local-history'
+import { defaultSettings, emptyHistory, HISTORY_KEY, newConversation, readHistory, readSettings, writeHistory, writeSettings, type LocalHistory, type LocalSettings } from '@/lib/ai/local-history'
 
 const fieldClass = 'w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-accent-500'
 const iconClass = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-40'
@@ -82,8 +82,8 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
     }, [])
     useEffect(() => {
         if (!hydrated || !storageReadable) return
-        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); setStorageError(null) }
-        catch { setStorageError('本地记录未能保存，请检查浏览器存储空间；当前聊天仍可继续。') }
+        const result = writeHistory(localStorage, history)
+        setStorageError(!result.saved ? '本地记录未能保存，请检查浏览器存储空间；当前聊天仍可继续。' : result.compacted ? '浏览器存储空间不足，已截断较早的工具结果或移除最早的会话。' : null)
     }, [history, hydrated, storageReadable])
     useEffect(() => { if (panelRef.current) panelRef.current.inert = !open }, [open, panelRef])
     useEffect(() => {
@@ -188,12 +188,13 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
             const now = new Date()
             const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
             const run = resume || { id: '', token: uuidv4()+uuidv4(), conversationId: current.id, cursor: 0 }
-            const save = () => { localStorage.setItem(HISTORY_KEY, JSON.stringify({ ...history, activeId:current.id, conversations: [{...current,messages:checkpointMessages},...history.conversations.filter(item=>item.id!==current.id)] })); localStorage.setItem(PENDING_RUN_KEY, JSON.stringify(run)) }
+            const savePending = () => { try { localStorage.setItem(PENDING_RUN_KEY, JSON.stringify(run)) } catch { /* The in-memory run continues; resume after reload may be unavailable. */ } }
+            const save = () => { savePending(); writeHistory(localStorage, { ...history, activeId:current.id, conversations: [{...current,messages:checkpointMessages},...history.conversations.filter(item=>item.id!==current.id)] }) }
             let checkpointMessages = [...messages]
             pendingRef.current=run
-            localStorage.setItem(PENDING_RUN_KEY, JSON.stringify(run))
+            savePending()
             if(!run.id) run.id=await startBackground({conversationId:current.id,requestId,supportsInteractions:true,settings:{baseUrl:settings.baseUrl,apiKey:settings.apiKey,model:settings.model},messages,context:{localDate,tripId:active.tripId,dayId:active.dayId}},run.token,controller.signal)
-            localStorage.setItem(PENDING_RUN_KEY, JSON.stringify(run))
+            savePending()
             await pollBackground(run,controller.signal,item=>{
                 if(item.type==='interaction')run.prompt=item.prompt
                 if(item.type==='message'){checkpointMessages.push(item.message);if(item.message.role==='tool')delete run.prompt}

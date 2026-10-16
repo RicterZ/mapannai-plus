@@ -20,6 +20,29 @@ export function readHistory(storage: Pick<Storage, 'getItem'>): LocalHistory {
     const value = storage.getItem(HISTORY_KEY)
     return value ? historySchema.parse(JSON.parse(value)) : { ...emptyHistory, conversations: [] }
 }
+// Interaction/review results carry approval state and must stay intact; other tool output can be shortened.
+const PRESERVED_TOOLS = new Set(['ask_datetime', 'ask_choice', 'preview_itinerary', 'submit_trip_review', 'finish_planning_day', 'change_title', 'record_plan_skeleton'])
+const COMPACT_TOOL_CHARS = 2000
+type HistoryMessage = Conversation['messages'][number]
+function compactMessage(message: HistoryMessage): HistoryMessage {
+    if (message.role !== 'tool' || PRESERVED_TOOLS.has(message.name || '') || message.content.length <= COMPACT_TOOL_CHARS) return message
+    let isError = false
+    try { isError = JSON.parse(message.content)?.isError === true } catch { /* Non-JSON output is still shortened. */ }
+    return { ...message, content: JSON.stringify({ ...(isError ? { isError } : {}), truncated: true, content: [{ type: 'text', text: `${message.content.slice(0, COMPACT_TOOL_CHARS)}\n[本地记录已截断，需要时请重新查询]` }] }) }
+}
+
+/** Saves history, shortening old tool output and then dropping the oldest inactive conversations when storage is full. Returns false if even the minimum does not fit. */
+export function writeHistory(storage: Pick<Storage, 'setItem'>, history: LocalHistory): { saved: boolean; compacted: boolean } {
+    const attempt = (value: LocalHistory) => { try { storage.setItem(HISTORY_KEY, JSON.stringify(value)); return true } catch { return false } }
+    if (attempt(history)) return { saved: true, compacted: false }
+    const compacted = { ...history, conversations: history.conversations.map(item => ({ ...item, messages: item.messages.map(compactMessage) })) }
+    while (true) {
+        if (attempt(compacted)) return { saved: true, compacted: true }
+        const dropIndex = compacted.conversations.map(item => item.id !== history.activeId).lastIndexOf(true)
+        if (dropIndex < 0) return { saved: false, compacted: true }
+        compacted.conversations = compacted.conversations.filter((_, index) => index !== dropIndex)
+    }
+}
 export function readSettings(storage: Pick<Storage, 'getItem'>): LocalSettings {
     const value = storage.getItem(SETTINGS_KEY)
     if (!value) return { ...defaultSettings }

@@ -211,6 +211,7 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 - 验证：`npx tsx scripts/test-web-tools.ts` 使用本地 HTTP MCP mock，不访问真实网页或生产数据库，验证工具注册、参数转发、URL限制、输出截断、错误脱敏和取消。
 
 - 网页配置 OpenAI 兼容 Chat Completions API 地址、Key 与支持工具调用的模型。会话与完整工具结果保存在浏览器；Key 默认仅保留在当前页面，用户显式勾选后才保存到 localStorage。不得把 Key 或聊天记录写入服务端数据库、日志或 URL。
+- 本地历史写入超出浏览器配额时由 `writeHistory` 降级：先将非交互/审阅类的大工具结果截断为2000字（保持合法JSON、保留isError），仍不足再移除最早的非当前会话；写入失败不得中断后台任务轮询。
 - `POST /api/ai/chat` 继承 API 认证，将多轮消息转发至配置的 AI API，以 NDJSON 返回文本、工具结果与数据变更事件。AI 回复的 Markdown 由 marked 分词后渲染为 React 元素，H1–H6 统一紧凑字号；不能直接注入模型返回的 HTML，链接仅允许 HTTP(S) / mailto。
 - `src/lib/ai/mcp-tools.ts` 使用 SDK 内存 transport 连接现有 MCP server，复用 schema 和服务规则；不要维护另一套工具定义或绕回本站 HTTP。
 - 助手自称“M酱”，口吻熟络爽快、有元气，直接接话，不复述需求、写报告或例行追问；回复和地点笔记不发 emoji，可偶尔用颜文字，不堆砌卖萌与模板套话；保留真实 AI 身份和工具结果边界。系统提示词只在服务端 `src/lib/ai/prompt.ts` 维护，由 `/api/ai/chat` 的 planner 注入，客户端不维护副本，也不提供提示词下发接口。旅行上下文在 `trip-context.ts` 单独组装。
