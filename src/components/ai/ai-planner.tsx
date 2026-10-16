@@ -129,6 +129,22 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
         if (!hydrated || requestRef.current || uploading) return
         try { const raw=localStorage.getItem(PENDING_RUN_KEY); if(raw){const run=JSON.parse(raw) as PendingRun;if(run.id && history.conversations.some(item=>item.id===run.conversationId))void send(run)} } catch {}
     }, [hydrated])
+    const uploadLock = useRef(false)
+    async function attachImages(files: File[]) {
+        if (busy || uploadLock.current || !files.length) return
+        if (images.length + files.length > 4) { setError('每条消息最多添加4张图片'); return }
+        if (files.some(file => !['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024)) { setError('请选择10MB以内的JPG、PNG或WebP图片'); return }
+        uploadLock.current = true
+        setUploading(true); setError(null)
+        try {
+            for (const file of files) {
+                const result = await uploadFileToS3(file)
+                if (!result.success || !result.url) throw new Error()
+                setImages(value => [...value, result.url!])
+            }
+        } catch { setError('图片上传失败，请重试；已上传的图片会保留') }
+        finally { uploadLock.current = false; setUploading(false) }
+    }
     async function send(resume?: PendingRun) {
         const content = text.trim() || (images.length ? '请识别这些图片，结合当前对话帮助我。' : '')
         if ((!content && !resume) || requestRef.current) return
@@ -248,15 +264,17 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
                 </div>
                 <form className="shrink-0 border-t border-gray-100 px-4 pt-2" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }} onSubmit={e => { e.preventDefault(); void send() }}>
                     {images.length > 0 && <div className="mb-2 flex gap-2">{images.map((url, i) => <button type="button" key={url} disabled={busy || uploading} aria-label="移除图片" onClick={() => setImages(v => v.filter((_, n) => n !== i))}><img src={url} alt="待发送图片，点击移除" className="h-16 w-16 rounded-lg object-cover" /></button>)}</div>}
-                    <input ref={imageInputRef} className="hidden" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy || uploading || images.length >= 4} onChange={async e => {
-                        const file = e.target.files?.[0]; e.target.value = ''; if (!file) return
-                        if (!['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) { setError('请选择10MB以内的JPG、PNG或WebP图片'); return }
-                        setUploading(true)
-                        try { const result = await uploadFileToS3(file); if (!result.success || !result.url) throw new Error(); setImages(v => [...v, result.url!]); setError(null) } catch { setError('图片上传失败，请检查图片存储配置后重试') } finally { setUploading(false) }
+                    <input ref={imageInputRef} className="hidden" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy || uploading || images.length >= 4} onChange={e => {
+                        const files = Array.from(e.target.files || []); e.target.value = ''; void attachImages(files)
                     }} />
                     <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 pl-3 pr-1 transition-colors focus-within:border-accent-400 focus-within:bg-white">
                         <button type="button" aria-label="添加图片" disabled={busy || uploading || images.length >= 4} onClick={() => imageInputRef.current?.click()} className="flex h-11 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40">{uploading ? <Loader2 size={18} className="animate-spin" /> : <ImagePlus size={18} />}</button>
-                        <textarea ref={inputRef} aria-label="发给 AI 的消息" className="my-2 max-h-[120px] min-h-6 min-w-0 flex-1 resize-none border-0 bg-transparent p-0 text-sm leading-6 text-gray-800 outline-none placeholder:text-gray-400" rows={1} maxLength={30_000} disabled={busy} value={text} onChange={e => setText(e.target.value)} placeholder="输入消息…" onKeyDown={e => {
+                        <textarea ref={inputRef} aria-label="发给 AI 的消息" className="my-2 max-h-[120px] min-h-6 min-w-0 flex-1 resize-none border-0 bg-transparent p-0 text-sm leading-6 text-gray-800 outline-none placeholder:text-gray-400" rows={1} maxLength={30_000} disabled={busy} value={text} onChange={e => setText(e.target.value)} placeholder="输入消息…" onPaste={e => {
+                            const files = Array.from(e.clipboardData.items).filter(item => item.kind === 'file' && item.type.startsWith('image/')).map(item => item.getAsFile()).filter((file): file is File => !!file)
+                            if (!files.length) return
+                            e.preventDefault()
+                            void attachImages(files)
+                        }} onKeyDown={e => {
                             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && window.matchMedia('(pointer: fine)').matches) { e.preventDefault(); void send() }
                         }} />
                         {busy ? <button type="button" onClick={() => { const run=pendingRef.current; if(run?.id) void cancelBackground(run).then(()=>{localStorage.removeItem(PENDING_RUN_KEY);requestRef.current?.abort()}).catch(()=>setError('停止任务失败，请重试')); else requestRef.current?.abort() }} className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-600" aria-label="停止回复"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 transition-colors group-hover:bg-gray-200"><Square size={14} /></span></button>
