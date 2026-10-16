@@ -21,7 +21,6 @@ export function verifySavedDay(detail: unknown, dayId: string, expectedDate?: st
     const ids = new Set(day.markerIds)
     if (!ids.size) throw new Error('当天尚无有效地点')
     if (day.chains.some(chain => chain.some(id => !ids.has(id)))) throw new Error('路线存在非当天成员')
-    if (ids.size >= 2 && !day.chains.some(chain => chain.length >= 2)) throw new Error('请先保存当天有序路线')
     return { date: day.date, dayId: day.id, verified: true }
 }
 

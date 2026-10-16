@@ -38,7 +38,7 @@ try {
     assert.equal(verified.verified, true)
     assert.throws(() => verifySavedDay(detail, 'day1', '2026-10-16'))
     assert.throws(() => verifySavedDay({ days: [{ ...detail.days[0], title: '' }] }, 'day1'))
-    assert.throws(() => verifySavedDay({ days: [{ ...detail.days[0], chains: [] }] }, 'day1'))
+    assert.equal(verifySavedDay({ days: [{ ...detail.days[0], chains: [] }] }, 'day1').verified, true, 'saved members do not require an artificial route')
     assert.throws(() => verifySavedDay({ days: [{ ...detail.days[0], chains: [['a', 'unknown']] }] }, 'day1'))
     const dates = completedDates([{ role: 'tool', name: 'finish_planning_day', tool_call_id: 'finish', content: JSON.stringify(verified) }])
     assert(dates.has('2026-10-15'))

@@ -243,7 +243,9 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         if (['declined', 'timed_out'].includes((result as { status?: string }).status || '')) awaitingFreeText = true
                     } else if (call.function.name === 'finish_planning_day') {
                         const { tripId, dayId } = z.object({ tripId: z.string(), dayId: z.string() }).strict().parse(args)
-                        const verified = verifySavedDay(await detail(tripId), dayId, pendingDates()[0])
+                        const saved = await detail(tripId)
+                        let verified: ReturnType<typeof verifySavedDay>
+                        try { verified = verifySavedDay(saved, dayId, pendingDates()[0]) } catch (error) { throw new WorkflowBlocked(error instanceof Error ? error.message : '当天核实失败') }
                         completed.add(verified.date)
                         result = verified
                     } else if (call.function.name === 'submit_trip_review') {

@@ -345,3 +345,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - Web AI支持每条最多4张JPG/PNG/WebP图片，每张10MB以内，复用COS直传并保存HTTPS展示URL；发送前可移除，上传失败不发送。协议user.images为可选HTTPS URL数组，旧文本客户端兼容；模型传输边界转换为标准text/image_url内容块，需求评估和阶段生成也保留附件。需要支持视觉输入的模型及可访问图片URL，图片会发送给用户配置的模型服务，勿上传敏感资料。无需新增环境变量。scripts/test-ai-images.ts验证格式与URL限制。
 
 - 修改当前旅行时日期骨架以数据库真实日期为准；affectedDays的明确月日按该旅行日期解析，无法匹配则停止并要求澄清，不将“1月4日”直接与ISO日期比较。跨年不推定年份，不改旅行日期。
+
+- finish_planning_day核实真实日期、标题、非空地点成员及已有路线引用完整性；地点成员不强制组成路线，禁止为通过核实捏造路线。已知核实失败原因通过WORKFLOW_BLOCKED返回模型，不吞成泛化参数错误。
