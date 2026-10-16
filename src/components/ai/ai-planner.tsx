@@ -158,7 +158,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
         const controller = new AbortController()
         requestRef.current = controller
         followRef.current = true
-        setInteraction(resume?.prompt && resume.prompt.deadline > Date.now() ? resume.prompt : null)
+        setInteraction(resume?.prompt && (resume.prompt.deadline === null || resume.prompt.deadline > Date.now()) ? resume.prompt : null)
         if (!resume) setImages([])
         setBusy(true); setError(null); setPartial(''); setStatus('正在思考…'); setText('')
         if (!resume) setHistory(previous => ({ ...previous, activeId: current.id, conversations: [
@@ -257,7 +257,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
                     {groupChatMessages(conversation?.messages || []).map((group, index, groups) => group.type === 'message'
                         ? <ChatBubble key={index} message={group.message} />
                         : <ToolProgress key={index} messages={group.messages} active={busy && index === groups.length - 1} status={status} />)}
-                    {interaction && busy && <InteractionCard key={interaction.id} prompt={interaction} />}
+                    {interaction && busy && <InteractionCard key={interaction.id} prompt={interaction} apiKey={settings.apiKey} />}
                     {partial && <div className="min-w-0 rounded-2xl bg-gray-50 p-3 text-gray-800"><ChatMarkdown content={partial} /></div>}
                     {busy && <p role="status" className="flex items-center gap-2 text-xs text-gray-500"><span className="h-2 w-2 animate-pulse rounded-full bg-accent-500" />{status}</p>}
                     {error && !busy && pendingRef.current?.id && <button type="button" className="text-xs text-slate-600 underline" onClick={() => void send(pendingRef.current!)}>继续获取后台结果</button>}

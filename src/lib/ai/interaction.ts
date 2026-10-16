@@ -6,7 +6,7 @@ export const interactionSchema = z.discriminatedUnion('kind', [
     z.object({ ...base, kind: z.literal('preview_itinerary'), title: z.string().max(100), days: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), title: z.string().max(100), places: z.array(z.string().max(150)).max(30) }).strict()).min(1).max(90) }).strict(),
 ])
 export type Interaction = z.infer<typeof interactionSchema>
-export type InteractionPrompt = { id: string; token: string; deadline: number; input: Interaction }
+export type InteractionPrompt = { id: string; token: string; deadline: number | null; input: Interaction }
 export function validateSelection(input: Interaction, value: unknown) {
     if (input.kind === 'ask_choice') {
         if (value && typeof value === 'object' && !Array.isArray(value)) return z.object({ action: z.literal('none') }).strict().parse(value)

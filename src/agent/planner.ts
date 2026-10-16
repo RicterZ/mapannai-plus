@@ -1,7 +1,7 @@
 import { resolveRevisionDates, validPlanDate, validatePlanDays } from './plan-dates'
 import { hasReviewWaiver, reviewState } from './plan-review'
 import { interactionTools } from '../lib/ai/interaction'
-import { requestInteraction } from './interactions'
+import { requestInteraction, SuspendForInteraction } from './interactions'
 import { z } from 'zod'
 import { MAX_AI_HISTORY_MESSAGES, chatMessageSchema, repairInterruptedMessages, type ChatEvent, type ChatRequest, type ToolCall } from '../lib/ai/protocol'
 import { connectRemoteTools, readOnlyTools } from './remote-tools'
@@ -57,7 +57,12 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
     const completed = completedDates(history)
     let draftApproved = reviewState(history).approved
     let reviewSubmitted = false
-    let awaitingFreeText = false
+    // A resumed run ends with the interaction answer; declined/timed-out answers keep the text-only gate.
+    let awaitingFreeText = (() => {
+        const last = history.at(-1)
+        if (last?.role !== 'tool' || !interactionTools.some(tool => tool.function.name === last.name)) return false
+        try { return ['declined', 'timed_out'].includes(JSON.parse(last.content).status) } catch { return false }
+    })()
     // Repeated failures of the same tool with the same code end tool use for this run.
     const failureCounts = new Map<string, number>()
     let failureStop: string | undefined
@@ -318,6 +323,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         result = await bridge.call(call.function.name, args, signal)
                     }
                 } catch (error) {
+                    if (error instanceof SuspendForInteraction) { error.callId = call.id; throw error }
                     console.error("[ai-tool]", available.has(call.function.name) ? call.function.name : "unavailable-tool", error instanceof Error ? error.name : "UnknownError")
                     if (signal.aborted) throw new Error('请求已停止；正在执行的工具可能已保存数据，请查询后继续')
                     const validation = error instanceof z.ZodError

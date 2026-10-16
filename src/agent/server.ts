@@ -1,9 +1,9 @@
 import { BackgroundRuns } from './background-runs'
-import { withInteractions, answerInteraction } from './interactions'
+import { withInteractions, answerInteraction, interactionResult, SuspendForInteraction } from './interactions'
 import { createServer, type IncomingMessage } from 'node:http'
 import { timingSafeEqual } from 'node:crypto'
 import { WebSocketServer, WebSocket } from 'ws'
-import { chatRequestSchema, type ChatEvent } from '../lib/ai/protocol'
+import { chatRequestSchema, chatMessageSchema, type ChatEvent, type ChatMessage } from '../lib/ai/protocol'
 import { completionUrl } from '../lib/ai/endpoint'
 import { runPlanner } from './planner'
 import { RunStore } from './run-store'
@@ -22,7 +22,8 @@ function authorized(value: unknown) {
 export function createAgentServer(planner = runPlanner, store = new RunStore()) {
     const background = new BackgroundRuns(process.env.AGENT_SQLITE_PATH || './data/agent.db')
     let active = 0
-    const execute = async (raw: unknown, emit: (event: ChatEvent) => void, signal: AbortSignal) => {
+    /** runId enables suspension: interaction cards end the run and are resumed later from the saved transcript. */
+    const execute = async (raw: unknown, emit: (event: ChatEvent) => void, signal: AbortSignal, runId?: string): Promise<void | 'suspended'> => {
         if (active >= 4) throw new Error('Agent 忙碌，请稍后重试')
         const input = chatRequestSchema.parse(raw)
         completionUrl(input.settings.baseUrl)
@@ -39,21 +40,29 @@ export function createAgentServer(planner = runPlanner, store = new RunStore()) 
         }
         active++
         let completed = false
+        const transcript: ChatMessage[] = [...input.messages]
         try {
-            await withAgentTrace({ secrets: [input.settings.apiKey, ...Object.entries(process.env).filter(([key]) => /KEY|TOKEN|SECRET|PASSWORD|SECURITY_CODE/i.test(key)).map(([, value]) => value || '')],
+            return await withAgentTrace({ secrets: [input.settings.apiKey, ...Object.entries(process.env).filter(([key]) => /KEY|TOKEN|SECRET|PASSWORD|SECURITY_CODE/i.test(key)).map(([, value]) => value || '')],
                 write: (kind, payload) => { if (agentTraceEnabled()) store.trace(id, kind, payload) },
-            }, async () => {
+            }, async (): Promise<void | 'suspended'> => {
                 traceAgent('request', input)
                 try {
                     const invoke = () => planner(input, event => {
                         if (event.type !== 'delta') traceAgent('event', event)
                         store.append(id, event, input.settings.apiKey)
+                        if (event.type === 'message') transcript.push(event.message)
                         if (event.type === 'complete') { store.finish(id, 'completed'); completed = true }
                         emit(event)
                     }, signal)
-                    if (input.supportsInteractions) await withInteractions(prompt => emit({ type: 'interaction', prompt }), invoke)
+                    if (input.supportsInteractions) await withInteractions(prompt => emit({ type: 'interaction', prompt }), invoke, { suspend: !!runId })
                     else await invoke()
                 } catch (error) {
+                    if (error instanceof SuspendForInteraction && runId) {
+                        const { apiKey: _omitted, ...settings } = input.settings
+                        background.suspend(runId, { interactionId: error.prompt.id, token: error.prompt.token, request: { ...input, settings, messages: [] }, transcript, callId: error.callId, toolName: error.toolName, input: error.prompt.input })
+                        traceAgent('suspended', { tool: error.toolName })
+                        return 'suspended'
+                    }
                     traceAgent('failure', { name: error instanceof Error ? error.name : 'UnknownError',
                         message: error instanceof Error ? error.message : '', stack: error instanceof Error ? error.stack : '' })
                     throw error
@@ -72,7 +81,7 @@ export function createAgentServer(planner = runPlanner, store = new RunStore()) 
                 if (url.pathname === '/runs' && req.method === 'POST') {
                     let text=''; for await (const chunk of req) { text+=chunk; if(text.length>MAX_BODY){res.writeHead(413).end();return} }
                     const input=chatRequestSchema.parse(JSON.parse(text)); completionUrl(input.settings.baseUrl)
-                    const id=background.start(input,capability,(emit,signal)=>execute(input,emit,signal))
+                    const id=background.start(input,capability,(emit,signal,runId)=>execute(input,emit,signal,runId))
                     res.writeHead(202,{'Content-Type':'application/json'}).end(JSON.stringify({id}));return
                 }
                 const id=url.pathname.slice('/runs/'.length)
@@ -89,8 +98,15 @@ export function createAgentServer(planner = runPlanner, store = new RunStore()) 
                 let body = ''
                 for await (const chunk of req) { body += chunk; if (body.length > 16000) { res.writeHead(413).end(); return } }
                 const value = JSON.parse(body)
-                const ok = answerInteraction(value.id, value.token, value.selection)
-                res.writeHead(ok ? 200 : 409).end()
+                if (typeof value.id !== 'string' || typeof value.token !== 'string') { res.writeHead(400).end(); return }
+                if (answerInteraction(value.id, value.token, value.selection)) { res.writeHead(200).end(); return }
+                const resumed = background.resume(value.id, value.token, state => {
+                    const message = chatMessageSchema.parse({ role: 'tool', name: state.toolName, tool_call_id: state.callId, content: JSON.stringify(interactionResult(state.input as never, value.selection)) })
+                    const apiKey = typeof value.apiKey === 'string' ? value.apiKey : ''
+                    const input = chatRequestSchema.parse({ ...state.request, settings: { ...state.request.settings, apiKey }, messages: [...state.transcript, message] })
+                    return { apiKey, first: { type: 'message', message }, execute: (emit, signal, runId) => execute(input, emit, signal, runId) }
+                })
+                res.writeHead(resumed === 'ok' ? 200 : resumed === 'busy' ? 503 : 409).end()
             } catch { res.writeHead(400).end() }
             return
         }

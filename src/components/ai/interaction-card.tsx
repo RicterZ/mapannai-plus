@@ -5,27 +5,29 @@ import { validateSelection } from '@/lib/ai/interaction'
 import { DateCalendar } from './date-calendar'
 import { fetchWithAuth } from '@/lib/fetch-with-auth'
 
-export function InteractionCard({ prompt }: { prompt: InteractionPrompt }) {
-    const [remaining, setRemaining] = useState(Math.max(0, Math.ceil((prompt.deadline - Date.now()) / 1000)))
+const secondsLeft = (deadline: number | null) => deadline === null ? Infinity : Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+
+export function InteractionCard({ prompt, apiKey }: { prompt: InteractionPrompt; apiKey: string }) {
+    const [remaining, setRemaining] = useState(secondsLeft(prompt.deadline))
     const [selected, setSelected] = useState<string[]>([])
     const [start, setStart] = useState(''), [end, setEnd] = useState('')
     const [day, setDay] = useState(0), [feedback, setFeedback] = useState('')
     const [done, setDone] = useState(false), [saving, setSaving] = useState(false), [error, setError] = useState('')
-    useEffect(() => { const timer = setInterval(() => setRemaining(Math.max(0, Math.ceil((prompt.deadline - Date.now()) / 1000))), 250); return () => clearInterval(timer) }, [prompt.deadline])
+    useEffect(() => { if (prompt.deadline === null) return; const timer = setInterval(() => setRemaining(secondsLeft(prompt.deadline)), 250); return () => clearInterval(timer) }, [prompt.deadline])
     const input = prompt.input, disabled = done || !remaining || saving
     async function submit(value: unknown) {
         try { validateSelection(input, value) } catch { setError('请完成有效选择后提交'); return }
         setSaving(true); setError('')
         try {
-            const response = await fetchWithAuth('/api/ai/interactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: prompt.id, token: prompt.token, selection: value }) })
-            if (!response.ok) throw new Error(response.status === 409 ? '此选择已结束，请在聊天中补充。' : '提交失败，请重试')
+            const response = await fetchWithAuth('/api/ai/interactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: prompt.id, token: prompt.token, selection: value, apiKey }) })
+            if (!response.ok) throw new Error(response.status === 409 ? '此选择已结束，请在聊天中补充。' : response.status === 503 ? 'AI 正忙，请稍后再提交' : '提交失败，请重试')
             setDone(true)
         } catch (error) { setError(error instanceof Error ? error.message : '提交失败') } finally { setSaving(false) }
     }
     const field = 'min-w-0 w-full rounded-lg border border-gray-200 bg-white p-2 text-sm'
     const button = 'rounded-lg border border-gray-200 px-3 py-2 text-xs disabled:opacity-40'
     return <section className="min-w-0 rounded-xl border border-gray-200 bg-white" aria-label={input.question}>
-        <div className="p-4"><div className="mb-2 flex justify-between text-xs text-gray-500"><span>{input.kind === 'ask_choice' ? '选择偏好' : input.kind === 'ask_datetime' ? '日期与时间' : '行程草案 · 尚未保存'}</span><span>{done ? '已提交' : remaining ? `等待选择 · ${remaining}s` : '未收到选择'}</span></div>
+        <div className="p-4"><div className="mb-2 flex justify-between text-xs text-gray-500"><span>{input.kind === 'ask_choice' ? '选择偏好' : input.kind === 'ask_datetime' ? '日期与时间' : '行程草案 · 尚未保存'}</span><span>{done ? '已提交' : remaining === Infinity ? '等待选择' : remaining ? `等待选择 · ${remaining}s` : '未收到选择'}</span></div>
             <h3 className="mb-3 text-base font-semibold text-gray-800">{input.question}</h3>
             <fieldset disabled={disabled} className="min-w-0 space-y-2">
                 {input.kind === 'ask_choice' && input.options.map(option => <label key={option.id} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${selected.includes(option.id) ? 'border-slate-400 bg-slate-50' : 'border-gray-200'}`}>
