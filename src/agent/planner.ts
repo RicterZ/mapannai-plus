@@ -123,6 +123,18 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         : '模型请求失败或超时，请检查 API 可用性后重试。'
                 throw new AgentStageError('workflow-assessment', kind, `需求评估失败：${reason}本次尚未执行地图写入。`)
             }
+            // Existing trip dates are authoritative, including across-year revisions.
+            if (workflow?.phase === 'revising' && request.context.tripId) {
+                const saved = await detail(request.context.tripId)
+                if (saved.days?.length && saved.days.every((day: {date:string}) => validPlanDate(day.date))) {
+                    const affected = workflow.affectedDays
+                    const normalize = (date: string) => saved.days.find((day: {date:string}) => day.date === date)?.date
+                        || saved.days.find((day: {date:string}) => { const match = date.match(/^(\d{1,2})月(\d{1,2})日$/); return match && day.date.slice(5) === `${match[1].padStart(2,'0')}-${match[2].padStart(2,'0')}` })?.date
+                    const dates = affected.map(normalize)
+                    if (dates.some((date: string | undefined) => !date)) throw new AgentStageError('revision-dates', 'InvalidDate', '修改日期不属于当前旅行，请明确要修改的日期；本次尚未写入。')
+                    workflow = { ...workflow, affectedDays: dates, facts: { ...workflow.facts, dates: `${saved.days[0].date} ~ ${saved.days[saved.days.length - 1].date}` }, dayOutline: saved.days.map((day: {date:string;title?:string}) => ({ date: day.date, theme: day.title || '已有安排', constraints: '' })) }
+                }
+            }
             if (workflow && ['outline','planning','revising'].includes(workflow.phase)) {
                 if (!workflow.facts.dates.trim() && request.context.tripId && workflow.phase === 'revising') {
                     const saved = await detail(request.context.tripId)

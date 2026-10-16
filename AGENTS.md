@@ -343,3 +343,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - 独立地点查询/收藏/编辑使用acting状态：无需旅行日期、每日归属、骨架和全程草案；只允许只读工具及明确授权的create_marker/update_marker，旅行写入仍走规划审批。评估missing仅限当前操作必需信息；历史草案批准不得将acting/chatting转成planning。自然聊天及超时/拒选的动态尾部不得再追加调用规划工具的指令，固定工具列表不变，不解析执行正文DSML。scripts/test-agent-acting.ts验证独立收藏和聊天尾部。无新增环境变量。
 
 - Web AI支持每条最多4张JPG/PNG/WebP图片，每张10MB以内，复用COS直传并保存HTTPS展示URL；发送前可移除，上传失败不发送。协议user.images为可选HTTPS URL数组，旧文本客户端兼容；模型传输边界转换为标准text/image_url内容块，需求评估和阶段生成也保留附件。需要支持视觉输入的模型及可访问图片URL，图片会发送给用户配置的模型服务，勿上传敏感资料。无需新增环境变量。scripts/test-ai-images.ts验证格式与URL限制。
+
+- 修改当前旅行时日期骨架以数据库真实日期为准；affectedDays的明确月日按该旅行日期解析，无法匹配则停止并要求澄清，不将“1月4日”直接与ISO日期比较。跨年不推定年份，不改旅行日期。
