@@ -349,3 +349,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - finish_planning_day核实真实日期、标题、非空地点成员及已有路线引用完整性；地点成员不强制组成路线，禁止为通过核实捏造路线。已知核实失败原因通过WORKFLOW_BLOCKED返回模型，不吞成泛化参数错误。
 
 - update_trip_day仅修改标题，不受逐日地点/路线执行顺序限制；草案批准、授权和审阅后停止写入门禁仍适用。其他日期写入被顺序门禁拦截时返回当前待完成日期及WORKFLOW_BLOCKED，避免模型盲目重试。
+
+- Agent工具执行错误统一区分WORKFLOW_BLOCKED（已知门禁/JSON格式）、INVALID_ARGUMENTS（schema字段路径及校验码）、TOOL_EXECUTION_FAILED（调用已进入MCP、写入结果未知）、INTERNAL_ERROR（未调用工具的内部异常）。每个失败写入tool消息供下一轮模型读取，并记录脱敏tool-failure trace；禁止向模型透传未知异常正文或凭据。submit_trip_review同样保留逐日核实原因。scripts/test-agent-tool-errors.ts覆盖模型实际收到原因及未知错误脱敏。取消、轮数/历史上限、模型网络/结构化输出失败属于任务终止，反馈客户端而不是假装模型能在同次请求继续修复。

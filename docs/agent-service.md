@@ -174,3 +174,7 @@ Events live in the same Agent SQLite file. Model keys remain in memory. This sur
 ### 图片输入
 
 用户消息可附加 `images: string[]`，最多4个HTTPS图片URL；content仍是文本，旧客户端无需变更。Web复用已有COS上传，支持每张10MB以内JPG/PNG/WebP、预览及发送前移除。模型请求在传输边界转成标准Chat Completions的text/image_url内容块，需求评估和执行均可看图。模型必须支持视觉输入且能够访问该URL；图片会交给用户配置的第三方模型服务，请勿上传敏感证件。
+
+### 工具失败反馈
+
+工具循环将已知流程拦截原因、参数字段路径与校验码作为tool结果加入历史，供模型下一轮修正。结果带code及executed（false或unknown）；调用进入MCP后异常不能保证未写入，必须先查询再操作。未知异常正文不透传，脱敏trace记录工具、错误类型和执行阶段。上游已返回的MCP isError结果仍按原协议送回模型。取消、模型请求失败、需求评估失败及执行上限属于终止性错误，只能交由客户端展示并由后续请求继续，不自动重试未知写入。

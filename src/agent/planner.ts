@@ -221,21 +221,22 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                     if (workflow?.missing.length && (call.function.name === 'preview_itinerary' || (!readOnlyTools.has(call.function.name) && !['ask_choice', 'ask_datetime'].includes(call.function.name)))) {
                         throw new WorkflowBlocked(`关键需求未齐，未执行本次操作。先逐个向用户澄清：${workflow.missing.join('；')}。不要重试保存，也不要展示草案确认；收到回答后重新评估并展示完整草案。`)
                     }
-                    if (workflow?.phase === 'chatting' || workflow?.phase === 'completed') throw new Error('自然聊天状态不执行地图工具')
-                    if (!draftApproved && !readOnlyTools.has(call.function.name) && !interactionTools.some(tool => tool.function.name === call.function.name) && !['change_title','finish_planning_day','submit_trip_review','record_plan_skeleton'].includes(call.function.name) && workflow && workflow.phase !== 'acting') throw new Error('尚未确认完整草案，禁止写入。先调用preview_itinerary并等待用户确认。')
-                    if (awaitingFreeText) throw new Error('用户拒选或超时，请仅文字询问并等待回复')
-                    if (!available.has(call.function.name)) throw new Error('未提供此工具')
-                    if (call.function.name === 'record_plan_skeleton') throw new Error('骨架由程序阶段节点生成，不接受直接调用')
+                    if (workflow?.phase === 'chatting' || workflow?.phase === 'completed') throw new WorkflowBlocked('自然聊天状态不执行地图工具')
+                    if (!draftApproved && !readOnlyTools.has(call.function.name) && !interactionTools.some(tool => tool.function.name === call.function.name) && !['change_title','finish_planning_day','submit_trip_review','record_plan_skeleton'].includes(call.function.name) && workflow && workflow.phase !== 'acting') throw new WorkflowBlocked('尚未确认完整草案，禁止写入。先调用preview_itinerary并等待用户确认。')
+                    if (awaitingFreeText) throw new WorkflowBlocked('用户拒选或超时，请仅文字询问并等待回复')
+                    if (!available.has(call.function.name)) throw new WorkflowBlocked('未提供此工具')
+                    if (call.function.name === 'record_plan_skeleton') throw new WorkflowBlocked('骨架由程序阶段节点生成，不接受直接调用')
                     if (workflow) {
                         if (call.function.name === 'change_title') {
-                            if (!canChangeTitle(workflow)) throw new Error('关键需求未齐，先继续收集信息，不能改标题')
+                            if (!canChangeTitle(workflow)) throw new WorkflowBlocked('关键需求未齐，先继续收集信息，不能改标题')
                         } else if (!readOnlyTools.has(call.function.name) && !interactionTools.some(tool => tool.function.name === call.function.name) && call.function.name !== 'finish_planning_day' && !workflow.authorized) {
                             throw new WorkflowBlocked('当前阶段尚未授权地图写入，未执行本次操作。不要重试保存；先澄清需求，再展示完整草案等待用户批准。')
                         }
                     }
-                    const args = JSON.parse(call.function.arguments)
-                    if (!args || typeof args !== 'object' || Array.isArray(args)) throw new Error('工具参数必须是对象')
-                    if (reviewSubmitted && !readOnlyTools.has(call.function.name) && call.function.name !== 'change_title') throw new Error('本轮已提交审阅，等待用户反馈')
+                    let args: Record<string, unknown>
+                    try { args = JSON.parse(call.function.arguments) } catch { throw new WorkflowBlocked('工具参数不是有效JSON。请修正参数格式后重试；本次未执行。') }
+                    if (!args || typeof args !== 'object' || Array.isArray(args)) throw new WorkflowBlocked('工具参数必须是对象')
+                    if (reviewSubmitted && !readOnlyTools.has(call.function.name) && call.function.name !== 'change_title') throw new WorkflowBlocked('本轮已提交审阅，等待用户反馈')
                     if (interactionTools.some(tool => tool.function.name === call.function.name)) {
                         result = await requestInteraction(call.function.name, args, signal)
                         if (call.function.name === 'preview_itinerary') draftApproved = (result as {status?:string;selection?:{action?:string}}).status === 'selected' && (result as {selection?:{action?:string}}).selection?.action === 'continue'
@@ -250,12 +251,14 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         result = verified
                     } else if (call.function.name === 'submit_trip_review') {
                         const { tripId } = z.object({ tripId: z.string() }).strict().parse(args)
-                        if (pendingDates().length) throw new Error('尚有日期未核实完成')
+                        if (pendingDates().length) throw new WorkflowBlocked('尚有日期未核实完成')
                         const saved = await detail(tripId)
-                        if (!saved.days?.length) throw new Error('旅行没有日期')
-                        for (const day of saved.days) verifySavedDay(saved, day.id)
+                        if (!saved.days?.length) throw new WorkflowBlocked('旅行没有日期')
+                        for (const day of saved.days) {
+                            try { verifySavedDay(saved, day.id) } catch (error) { throw new WorkflowBlocked(`${day.date}核实失败：${error instanceof Error ? error.message : '安排无效'}`) }
+                        }
                         const markersResult = await bridge.call('list_markers', {}, signal)
-                        if (markersResult.isError) throw new Error('无法读取地点名称，不能生成概览')
+                        if (markersResult.isError) throw new WorkflowBlocked('无法读取地点名称，不能生成概览')
                         const markerText = (markersResult.content as {type:string;text?:string}[]).filter(item => item.type === 'text').map(item => item.text || '').join('')
                         const markerData = JSON.parse(markerText)
                         const markers = Array.isArray(markerData) ? markerData : markerData.markers || []
@@ -269,7 +272,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         emit({ type: 'title', title })
                         result = { content: [{ type: 'text', text: JSON.stringify({ title }) }] }
                     } else {
-                        if (workflow?.phase !== 'acting' && workflow?.dayOutline.length && !pendingDates().length && !readOnlyTools.has(call.function.name)) throw new Error('所有日期已核实，请提交审阅，不再添加安排')
+                        if (workflow?.phase !== 'acting' && workflow?.dayOutline.length && !pendingDates().length && !readOnlyTools.has(call.function.name)) throw new WorkflowBlocked('所有日期已核实，请提交审阅，不再添加安排')
                         if (workflow && workflow.phase !== 'acting' && call.function.name !== 'update_trip_day' && !readOnlyTools.has(call.function.name) && typeof args.dayId === 'string' && typeof args.tripId === 'string' && pendingDates()[0]) {
                             const saved = await detail(args.tripId)
                             if (saved.days?.find((day: { id: string }) => day.id === args.dayId)?.date !== pendingDates()[0]) throw new WorkflowBlocked(`当前待完成日期为${pendingDates()[0]}，本次操作未执行。请先完成该日地点安排并调用finish_planning_day，再操作下一天；不要重复相同调用。标题修改不受此顺序限制。`)
@@ -280,7 +283,11 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                 } catch (error) {
                     console.error("[ai-tool]", available.has(call.function.name) ? call.function.name : "unavailable-tool", error instanceof Error ? error.name : "UnknownError")
                     if (signal.aborted) throw new Error('请求已停止；正在执行的工具可能已保存数据，请查询后继续')
-                    result = { isError: true, ...(error instanceof WorkflowBlocked ? { code: 'WORKFLOW_BLOCKED' } : {}), content: [{ type: 'text', text: error instanceof WorkflowBlocked ? error.message : '工具执行失败或参数无效。先检查参数并查询当前数据，避免重复写入。' }] }
+                    const validation = error instanceof z.ZodError
+                    const code = error instanceof WorkflowBlocked ? 'WORKFLOW_BLOCKED' : validation ? 'INVALID_ARGUMENTS' : invoked ? 'TOOL_EXECUTION_FAILED' : 'INTERNAL_ERROR'
+                    const reason = error instanceof WorkflowBlocked ? error.message : validation ? `参数校验失败：${error.issues.map(issue => `${issue.path.join('.') || '参数'}: ${issue.code}`).join('；')}。请按工具schema修正后重试。` : invoked ? '地图工具调用异常，结果可能已部分保存。先查询当前数据再决定下一步，不要重复写入；若持续失败请报告服务异常。' : '内部执行异常，本次调用未进入地图工具。不要重复相同调用，请向用户报告问题。'
+                    traceAgent('tool-failure', { tool: available.has(call.function.name) ? call.function.name : 'unavailable-tool', code, invoked, errorType: error instanceof Error ? error.name : 'UnknownError', reason })
+                    result = { isError: true, code, executed: invoked ? 'unknown' : false, content: [{ type: 'text', text: reason }] }
                 } finally {
                     // A tool can write partially and then fail; refresh even in that case.
                     if (invoked && !readOnlyTools.has(call.function.name)) emit({ type: 'changed' })
