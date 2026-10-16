@@ -306,6 +306,8 @@ ssh -p 2222 -o BatchMode=yes root@server \
 
 - AI 顺序固定：关键需求收集完成→change_title→制定全程骨架→逐日规划。收集期或有阻塞缺项时程序不提供 change_title，执行白名单同样拒绝；改标题无需地图保存授权。评估器只提取已有骨架，不提前生成。
 
+- 网页 system 提示词按身份→程序指令优先→任务类型→规划流程→交互工具→失败处理→数据边界组织，保持4000字以内；标题与骨架由程序节点生成，提示词不再要求模型自行调用 change_title/制定骨架；草案阶段只读，保存顺序为 create_trip 后按日期逐天建点、建路线、finish_planning_day。程序追加的阶段/熔断尾部指令统一包在 `<agent_instruction>` 中，与用户发言区分。
+- 写入授权统一：非acting阶段的 workflow.authorized 由程序按草案continue或skipReviewQuote免确认推导，评估器的原话授权仅用于acting地点写入；修改草案确认后保持revising，逐日顺序只覆盖affectedDays。评估器将“排进某天/调整路线/修改某天”判为revising/planning而非acting。`npx tsx scripts/test-agent-authorization.ts` 验证修改范围、无草案不写入及连续失败熔断。
 - Agent 工具定义与顺序固定，不按阶段增删；权限由工具执行端独立检查，包括收集期禁止改标题。system 固定，旅行上下文及阶段指引仅追加在原始消息历史之后，不能改写第一条用户消息以破坏缓存前缀。缓存实际命中取决于上游服务，不能保证。
 
 - 图新增真实 title/skeleton 节点：assess 信息齐全后先生成标题并发 title 事件，成功后才生成骨架；收集/规划/审阅进入各自模型节点并复用固定工具集，骨架生成记录进入消息历史。脚本 test-agent-stage-order.ts 检查调用顺序及收集期拒绝改标题。仍无完整 checkpoint 自动续跑，不得混淆执行日志与图检查点。

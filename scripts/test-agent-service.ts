@@ -60,7 +60,7 @@ async function main() {
             res.on('close', () => { clearTimeout(timer); cancelledModel = true })
             return
         }
-        const last = body.messages.filter((message: any) => !(message.role === 'user' && (message.content.startsWith('草案确认状态：') || message.content.startsWith('<mapannai_context>') || message.content.startsWith('\n【程序工作流状态】')))).at(-1)
+        const last = body.messages.filter((message: any) => !(message.role === 'user' && (message.content.startsWith('草案确认状态：') || message.content.startsWith('<mapannai_context>') || message.content.startsWith('<agent_instruction>')))).at(-1)
         const message = last.role === 'tool' && !['change_title', 'record_plan_skeleton'].includes(last.name) ? { content: '已保存，古寺钟声与巷陌闲步。' } : {
             content: null,
             tool_calls: [{ id: 'create', type: 'function', function: { name: 'create_trip', arguments: JSON.stringify({ name: '隔离测试', startDate: '2026-10-15', endDate: '2026-10-16', dayTitles: [{ date: '2026-10-15', title: '古寺钟声与巷陌闲步' }], operationId: 'e2e-trip' }) } }],

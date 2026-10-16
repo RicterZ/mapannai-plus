@@ -173,12 +173,17 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                     draftApproved = false
                 }
             }
-            if (workflow && (workflow.phase === 'revising' || workflow.phase === 'planning') && reviewState(history).completed) draftApproved = false
-            if (workflow && ['outline', 'planning', 'revising'].includes(workflow.phase) && draftApproved && !reviewState(history).completed && workflow.missing.length === 0) workflow = { ...workflow, phase: 'planning', authorized: true }
             if (workflow?.phase === 'revising') {
                 for (const date of workflow.affectedDays) completed.delete(date)
             }
-            if (workflow?.authorized && !workflow.missing.length && ['planning', 'revising'].includes(workflow.phase) && hasReviewWaiver(history, workflow.skipReviewQuote)) draftApproved = true
+            if (workflow && workflow.phase !== 'acting') {
+                // Itinerary writes are authorized only by draft approval or an explicit waiver quote; quote-based authorization applies to acting only.
+                const finished = reviewState(history).completed
+                if (finished && ['planning', 'revising'].includes(workflow.phase)) draftApproved = false
+                if (!workflow.missing.length && ['planning', 'revising'].includes(workflow.phase) && hasReviewWaiver(history, workflow.skipReviewQuote)) draftApproved = true
+                const writable = draftApproved && !workflow.missing.length && ['outline', 'planning', 'revising'].includes(workflow.phase)
+                workflow = { ...workflow, phase: writable && workflow.phase === 'outline' ? 'planning' : workflow.phase, authorized: writable }
+            }
             if (workflow?.missing.length && workflow.phase !== 'acting') {
                 workflow = { ...workflow, phase: 'collecting', authorized: false }
                 draftApproved = false
@@ -269,7 +274,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                     if (interactionTools.some(tool => tool.function.name === call.function.name)) {
                         result = await requestInteraction(call.function.name, args, signal)
                         if (call.function.name === 'preview_itinerary') draftApproved = (result as {status?:string;selection?:{action?:string}}).status === 'selected' && (result as {selection?:{action?:string}}).selection?.action === 'continue'
-                        if (call.function.name === 'preview_itinerary' && draftApproved && workflow && workflow.missing.length === 0) workflow = { ...workflow, phase: 'planning', authorized: true }
+                        if (call.function.name === 'preview_itinerary' && draftApproved && workflow && workflow.missing.length === 0) workflow = { ...workflow, phase: workflow.phase === 'revising' ? 'revising' : 'planning', authorized: true }
                         if (['declined', 'timed_out'].includes((result as { status?: string }).status || '')) awaitingFreeText = true
                     } else if (call.function.name === 'finish_planning_day') {
                         const { tripId, dayId } = z.object({ tripId: z.string(), dayId: z.string() }).strict().parse(args)

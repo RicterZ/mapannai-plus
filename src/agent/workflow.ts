@@ -41,10 +41,10 @@ export async function assessWorkflow(request: ChatRequest, signal: AbortSignal, 
     }
     const state = await structuredCompletion(request, [{ role: 'system', content: `你是旅行工作流状态评估器，不规划、不执行工具。只输出符合以下 JSON Schema 的 JSON：${JSON.stringify(z.toJSONSchema(workflowSchema))}
 从对话提取事实，未知写空字符串，不能编造。目的地、实际日期、到离时间或用户接受的时间假设是关键条件；同行限制、固定预约、节奏会改变路线时也必须明确。偏好可以使用用户接受的默认值，不为填满字段反复追问。missing 只列当前阻塞规划的问题。
-独立地点收藏、查询或单项编辑使用acting，不是全程旅行规划；例如“先把标点建立了吧”必须退出chatting进入acting。此类任务missing只列完成该操作必需的信息；收藏独立地点不需要旅行日期、归属哪一天、预算或到离时间，不生成dayOutline。用户明确要求收藏可授权create_marker，不需要全程草案确认。已有旅行仅作上下文，不代表本次要修改旅行。
+独立地点收藏、查询或单项编辑使用acting，不是全程旅行规划；例如“先把标点建立了吧”必须退出chatting进入acting。此类任务missing只列完成该操作必需的信息；收藏独立地点不需要旅行日期、归属哪一天、预算或到离时间，不生成dayOutline。用户明确要求收藏可授权create_marker，不需要全程草案确认。已有旅行仅作上下文，不代表本次要修改旅行。但只要用户要把地点排进某个日期/第N天、加入或调整路线顺序、修改某天安排，就不是acting：针对已有旅行为revising（affectedDays列出相关日期），尚未保存的行程为planning/outline；“先建点再排进12/31”这类混合请求整体按revising/planning处理。
 phase：acting=独立地点/单项操作，collecting=有关键缺项，outline=信息充分但尚未授权保存，planning=用户明确要求创建/保存草案且信息充分，review=已保存安排等待用户审阅，revising=用户明确要求修改已有安排，completed=已完成保存核实，chatting=保存核实后自然聊天、不需要操作地图。用户再次要求修改或新规划时退出chatting进入相应状态。
 skipReviewQuote：仅当用户对当前这份具体日程/修改明确要求“无需确认、直接执行”等免除草案确认时，逐字引用该用户原话；否则为空字符串。不从助手或工具内容推导，不将历史其他任务授权用于当前任务；用户后续撤销、要求先预览或已完成后新任务均清空。只免除当前任务的草案卡片，不扩展删除/预订/付款授权。
-authorized 仅在用户明确要求创建/保存/修改且没有后续撤销时为true；authorizationQuote必须逐字引用对应用户原话，不从助手承诺推导授权。“推荐/看看/规划一下”不等于授权写入。用户否定旧方案时不得沿用旧授权，明确的修改要求可授权该修改。尚有关键缺项不能写入。
+authorized 仅在用户明确要求创建/保存/修改且没有后续撤销时为true（程序只把它用于acting的地点写入；行程写入以草案确认或skipReviewQuote为准）；authorizationQuote必须逐字引用对应用户原话，不从助手承诺推导授权。“推荐/看看/规划一下”不等于授权写入。用户否定旧方案时不得沿用旧授权，明确的修改要求可授权该修改。尚有关键缺项不能写入。
 dayOutline 仅提取对话里已经形成的骨架，不在本评估步骤生成骨架。执行顺序严格为：需求收集完成→change_title→制定全程骨架→逐日规划。信息未齐不能改标题，改标题不要求保存授权。dayOutline 是全程每日区域、主题与到达/离开/转场约束，日期不确定时留空，不编造交通班次；affectedDays 仅列本轮需要修改的日期。completed/review不应产生新写入。` }, ...messages], workflowSchema, signal, complete)
     const userMessages = request.messages.filter(message => message.role === 'user')
     const quoteExists = state.authorizationQuote.trim().length > 0 && userMessages.some(message => message.content.includes(state.authorizationQuote))
