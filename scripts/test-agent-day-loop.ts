@@ -11,7 +11,7 @@ async function main() {
     let writes = 0, round = 0
     let toolSnapshot: string | undefined
     const calls = [
-        { name: 'update_trip_day', args: { tripId: 'trip', dayId: 'day2', title: '不该先写第二天' } },
+        { name: 'update_trip_day', args: { tripId: 'trip', dayId: 'day2', title: '可提前修改第二天标题' } },
         { name: 'finish_planning_day', args: { tripId: 'trip', dayId: 'day1' } },
         { name: 'update_trip_day', args: { tripId: 'trip', dayId: 'day2', title: '归途' } },
         { name: 'finish_planning_day', args: { tripId: 'trip', dayId: 'day2' } },
@@ -38,10 +38,10 @@ async function main() {
             return Response.json({ choices: [{ message: { role: 'assistant', content: call ? null : '请审阅', ...(call ? { tool_calls: [{ id: `call${round}`, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.args) } }] } : {}) } }] })
         },
     })
-    assert.equal(writes, 1, 'cannot skip current day or write after review')
+    assert.equal(writes, 2, 'titles can be updated ahead; writes after review remain blocked')
     const results = events.filter(event => event.type === 'message' && event.message.role === 'tool' && event.message.name !== 'change_title').map(event => event.type === 'message' && event.message.role === 'tool' ? JSON.parse(event.message.content) : null)
     const dailyResults = results
-    assert.equal(dailyResults[0].isError, true)
+    assert.notEqual(dailyResults[0].isError, true)
     assert.equal(dailyResults[1].date, '2026-10-15')
     assert.equal(dailyResults[3].date, '2026-10-16')
     assert.equal(dailyResults[4].phase, 'chatting')

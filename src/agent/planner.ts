@@ -270,9 +270,9 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         result = { content: [{ type: 'text', text: JSON.stringify({ title }) }] }
                     } else {
                         if (workflow?.phase !== 'acting' && workflow?.dayOutline.length && !pendingDates().length && !readOnlyTools.has(call.function.name)) throw new Error('所有日期已核实，请提交审阅，不再添加安排')
-                        if (workflow && workflow.phase !== 'acting' && !readOnlyTools.has(call.function.name) && typeof args.dayId === 'string' && typeof args.tripId === 'string' && pendingDates()[0]) {
+                        if (workflow && workflow.phase !== 'acting' && call.function.name !== 'update_trip_day' && !readOnlyTools.has(call.function.name) && typeof args.dayId === 'string' && typeof args.tripId === 'string' && pendingDates()[0]) {
                             const saved = await detail(args.tripId)
-                            if (saved.days?.find((day: { id: string }) => day.id === args.dayId)?.date !== pendingDates()[0]) throw new Error('请先完成当前日期，再操作下一天')
+                            if (saved.days?.find((day: { id: string }) => day.id === args.dayId)?.date !== pendingDates()[0]) throw new WorkflowBlocked(`当前待完成日期为${pendingDates()[0]}，本次操作未执行。请先完成该日地点安排并调用finish_planning_day，再操作下一天；不要重复相同调用。标题修改不受此顺序限制。`)
                         }
                         invoked = true
                         result = await bridge.call(call.function.name, args, signal)
