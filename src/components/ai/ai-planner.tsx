@@ -9,7 +9,7 @@ import { SavedOverview } from './saved-overview'
 import { InteractionCard } from './interaction-card'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { MessageCircle, Plus, Settings, Square, Trash2, X, Send, ChevronDown } from 'lucide-react'
+import { MessageCircle, Plus, Settings, Square, Trash2, X, Send, ChevronDown, ImagePlus, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMapStore } from '@/store/map-store'
 import { useAiMapEffects } from '@/lib/ai/use-ai-map-effects'
@@ -45,6 +45,7 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
     const requestRef = useRef<AbortController | null>(null)
     const scrollRef = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
+    const imageInputRef = useRef<HTMLInputElement>(null)
     const refreshRef = useRef<Promise<void> | null>(null)
     const refreshAgain = useRef(false)
     const followRef = useRef(true)
@@ -247,13 +248,14 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
                 </div>
                 <form className="shrink-0 border-t border-gray-100 px-4 pt-2" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }} onSubmit={e => { e.preventDefault(); void send() }}>
                     {images.length > 0 && <div className="mb-2 flex gap-2">{images.map((url, i) => <button type="button" key={url} disabled={busy || uploading} aria-label="移除图片" onClick={() => setImages(v => v.filter((_, n) => n !== i))}><img src={url} alt="待发送图片，点击移除" className="h-16 w-16 rounded-lg object-cover" /></button>)}</div>}
-                    <label className="mb-2 inline-block cursor-pointer text-xs text-gray-600">{uploading ? '正在上传…' : '添加图片（最多4张，需视觉模型）'}<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy || uploading || images.length >= 4} onChange={async e => {
+                    <input ref={imageInputRef} className="hidden" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy || uploading || images.length >= 4} onChange={async e => {
                         const file = e.target.files?.[0]; e.target.value = ''; if (!file) return
                         if (!['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) { setError('请选择10MB以内的JPG、PNG或WebP图片'); return }
                         setUploading(true)
                         try { const result = await uploadFileToS3(file); if (!result.success || !result.url) throw new Error(); setImages(v => [...v, result.url!]); setError(null) } catch { setError('图片上传失败，请检查图片存储配置后重试') } finally { setUploading(false) }
-                    }} /></label>
+                    }} />
                     <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 pl-3 pr-1 transition-colors focus-within:border-accent-400 focus-within:bg-white">
+                        <button type="button" aria-label="添加图片" disabled={busy || uploading || images.length >= 4} onClick={() => imageInputRef.current?.click()} className="flex h-11 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 disabled:opacity-40">{uploading ? <Loader2 size={18} className="animate-spin" /> : <ImagePlus size={18} />}</button>
                         <textarea ref={inputRef} aria-label="发给 AI 的消息" className="my-2 max-h-[120px] min-h-6 min-w-0 flex-1 resize-none border-0 bg-transparent p-0 text-sm leading-6 text-gray-800 outline-none placeholder:text-gray-400" rows={1} maxLength={30_000} disabled={busy} value={text} onChange={e => setText(e.target.value)} placeholder="输入消息…" onKeyDown={e => {
                             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && window.matchMedia('(pointer: fine)').matches) { e.preventDefault(); void send() }
                         }} />
