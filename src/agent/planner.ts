@@ -1,5 +1,5 @@
 import { validPlanDate, validatePlanDays } from './plan-dates'
-import { reviewState } from './plan-review'
+import { hasReviewWaiver, reviewState } from './plan-review'
 import { interactionTools } from '../lib/ai/interaction'
 import { requestInteraction } from './interactions'
 import { z } from 'zod'
@@ -153,6 +153,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             if (workflow?.phase === 'revising') {
                 for (const date of workflow.affectedDays) completed.delete(date)
             }
+            if (workflow?.authorized && !workflow.missing.length && ['planning', 'revising'].includes(workflow.phase) && hasReviewWaiver(history, workflow.skipReviewQuote)) draftApproved = true
             if (workflow?.missing.length && workflow.phase !== 'acting') {
                 workflow = { ...workflow, phase: 'collecting', authorized: false }
                 draftApproved = false

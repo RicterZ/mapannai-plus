@@ -351,3 +351,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - update_trip_day仅修改标题，不受逐日地点/路线执行顺序限制；草案批准、授权和审阅后停止写入门禁仍适用。其他日期写入被顺序门禁拦截时返回当前待完成日期及WORKFLOW_BLOCKED，避免模型盲目重试。
 
 - Agent工具执行错误统一区分WORKFLOW_BLOCKED（已知门禁/JSON格式）、INVALID_ARGUMENTS（schema字段路径及校验码）、TOOL_EXECUTION_FAILED（调用已进入MCP、写入结果未知）、INTERNAL_ERROR（未调用工具的内部异常）。每个失败写入tool消息供下一轮模型读取，并记录脱敏tool-failure trace；禁止向模型透传未知异常正文或凭据。submit_trip_review同样保留逐日核实原因。scripts/test-agent-tool-errors.ts覆盖模型实际收到原因及未知错误脱敏。取消、轮数/历史上限、模型网络/结构化输出失败属于任务终止，反馈客户端而不是假装模型能在同次请求继续修复。
+
+- 当前具体日程允许用户明确免除草案卡片确认：评估skipReviewQuote必须逐字来自用户对当前任务的免确认指令，且authorized为true、missing为空才生效。后续预览决策（含超时/拒选）或已核实完成会使旧免确认失效，后续撤销/新任务由评估清空；不可据此扩大删除/预订/付款授权。scripts/test-review-waiver.ts验证用户原话、历史失效、缺项门禁与实际写入。此机制仍依赖模型识别任务范围，不是签名审批系统，无新增环境变量。
