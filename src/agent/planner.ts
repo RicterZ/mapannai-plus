@@ -58,6 +58,9 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
     let draftApproved = reviewState(history).approved
     let reviewSubmitted = false
     let awaitingFreeText = false
+    // Repeated failures of the same tool with the same code end tool use for this run.
+    const failureCounts = new Map<string, number>()
+    let failureStop: string | undefined
     const pendingDates = () => (workflow?.phase === 'revising' && workflow.affectedDays.length ? workflow.affectedDays : workflow?.dayOutline.map(day => day.date) ?? []).filter(date => !completed.has(date))
     const detail = async (tripId: string) => {
         const result = await bridge.call('get_trip_detail', { tripId }, signal)
@@ -92,11 +95,12 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                     : workflowInstruction(workflow) + (workflow.missing.length
                         ? '\n关键需求未齐，先逐个澄清missing，禁止展示草案确认或写入。'
                         : `\n草案${draftApproved ? '已确认，可以按批准草案保存' : '未确认，先核实并展示完整草案等待确认'}。已核实日期：${JSON.stringify(Array.from(completed))}；当前待完成日期：${pendingDates()[0] || '请核实全程并提交审阅'}。每天保存后调用finish_planning_day，全程完成调用submit_trip_review。`)
-                messages = [...messages, { role: 'user', content: instruction }]
+                messages = [...messages, { role: 'user', content: `<agent_instruction>\n${instruction}\n</agent_instruction>` }]
             }
+            if (failureStop) messages = [...messages, { role: 'user', content: `<agent_instruction>\n工具连续失败，程序已停止本轮工具调用：${failureStop}\n现在不要调用任何工具，也不要复述计划或再说“接下来去做”。用一两句话如实告诉用户哪一步没完成、原因，以及需要用户做什么，然后结束本轮。\n</agent_instruction>` }]
             const response = await (deps.complete || requestCompletion)(url, request.settings.apiKey, {
                 model: request.settings.model, messages: [{ role: 'system', content: planningPrompt }, ...messages],
-                tools, tool_choice: awaitingFreeText || workflow?.phase === 'chatting' || workflow?.phase === 'completed' ? 'none' : 'auto', stream: true,
+                tools, tool_choice: failureStop || awaitingFreeText || workflow?.phase === 'chatting' || workflow?.phase === 'completed' ? 'none' : 'auto', stream: true,
             }, upstreamSignal)
             const assistant = chatMessageSchema.parse(await readCompletion(response, text => emit({ type: 'delta', text }), upstreamSignal))
             if (assistant.role !== 'assistant') throw new Error('AI 回复格式无效')
@@ -239,12 +243,13 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                 let result: unknown
                 let invoked = false
                 try {
-                    if (workflow?.phase === 'acting' && !readOnlyTools.has(call.function.name) && !['create_marker', 'update_marker', 'ask_choice', 'ask_datetime'].includes(call.function.name)) throw new WorkflowBlocked('独立地点操作不执行旅行写入或草案预览；请先查询地点并仅完成用户明确授权的地点操作。')
+                    if (workflow?.phase === 'acting' && !readOnlyTools.has(call.function.name) && !['create_marker', 'update_marker', 'ask_choice', 'ask_datetime'].includes(call.function.name)) throw new WorkflowBlocked('当前是独立地点操作，不能修改旅行、日期或路线，也不展示草案，未执行。只完成用户明确授权的地点收藏/编辑；若用户要把地点排进某天，告诉用户这属于修改行程，需要用户说明要改哪天后再走修改草案确认，然后结束本轮。')
                     if (workflow?.missing.length && (call.function.name === 'preview_itinerary' || (!readOnlyTools.has(call.function.name) && !['ask_choice', 'ask_datetime'].includes(call.function.name)))) {
                         throw new WorkflowBlocked(`关键需求未齐，未执行本次操作。先逐个向用户澄清：${workflow.missing.join('；')}。不要重试保存，也不要展示草案确认；收到回答后重新评估并展示完整草案。`)
                     }
                     if (workflow?.phase === 'chatting' || workflow?.phase === 'completed') throw new WorkflowBlocked('自然聊天状态不执行地图工具')
                     if (!draftApproved && !readOnlyTools.has(call.function.name) && !interactionTools.some(tool => tool.function.name === call.function.name) && !['change_title','finish_planning_day','submit_trip_review','record_plan_skeleton'].includes(call.function.name) && workflow && workflow.phase !== 'acting') throw new WorkflowBlocked('尚未确认完整草案，禁止写入。先调用preview_itinerary并等待用户确认。')
+                    if (failureStop) throw new WorkflowBlocked('工具连续失败，本轮已停止工具调用。请直接向用户说明失败原因并结束本轮。')
                     if (awaitingFreeText) throw new WorkflowBlocked('用户拒选或超时，请仅文字询问并等待回复')
                     if (!available.has(call.function.name)) throw new WorkflowBlocked('未提供此工具')
                     if (call.function.name === 'record_plan_skeleton') throw new WorkflowBlocked('骨架由程序阶段节点生成，不接受直接调用')
@@ -252,7 +257,9 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         if (call.function.name === 'change_title') {
                             if (!canChangeTitle(workflow)) throw new WorkflowBlocked('关键需求未齐，先继续收集信息，不能改标题')
                         } else if (!readOnlyTools.has(call.function.name) && !interactionTools.some(tool => tool.function.name === call.function.name) && call.function.name !== 'finish_planning_day' && !workflow.authorized) {
-                            throw new WorkflowBlocked('当前阶段尚未授权地图写入，未执行本次操作。不要重试保存；先澄清需求，再展示完整草案等待用户批准。')
+                            throw new WorkflowBlocked(workflow.phase === 'acting'
+                                ? '用户尚未明确授权本次地点写入，未执行。不要重试；用一句话请用户确认要收藏/修改的具体地点，然后结束本轮等待回复。'
+                                : '当前阶段尚未授权地图写入，未执行本次操作。不要重试保存；先澄清需求，再展示完整草案等待用户批准。')
                         }
                     }
                     let args: Record<string, unknown>
@@ -308,10 +315,16 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                     const code = error instanceof WorkflowBlocked ? 'WORKFLOW_BLOCKED' : validation ? 'INVALID_ARGUMENTS' : invoked ? 'TOOL_EXECUTION_FAILED' : 'INTERNAL_ERROR'
                     const reason = error instanceof WorkflowBlocked ? error.message : validation ? `参数校验失败：${error.issues.map(issue => `${issue.path.join('.') || '参数'}: ${issue.code}（${issue.message}）`).join('；')}。请按工具schema修正后重试。` : invoked ? transportFailure(error) : '内部执行异常，本次调用未进入地图工具。不要重复相同调用，请向用户报告问题。'
                     traceAgent('tool-failure', { tool: available.has(call.function.name) ? call.function.name : 'unavailable-tool', code, invoked, errorType: error instanceof Error ? error.name : 'UnknownError', reason })
-                    result = { isError: true, code, executed: invoked ? 'unknown' : false, content: [{ type: 'text', text: reason }] }
-                } finally {
+                    result = { isError: true, code, executed: invoked ? 'unknown' : false, content: [{ type: 'text', text: reason }] }                } finally {
                     // A tool can write partially and then fail; refresh even in that case.
                     if (invoked && !readOnlyTools.has(call.function.name)) emit({ type: 'changed' })
+                }
+                if (result && typeof result === 'object' && (result as { isError?: unknown }).isError === true) {
+                    const code = (result as { code?: string }).code || 'TOOL_ERROR'
+                    const key = `${call.function.name}:${code}`
+                    const count = (failureCounts.get(key) || 0) + 1
+                    failureCounts.set(key, count)
+                    if (count >= 2 && !failureStop) failureStop = `${call.function.name} 第${count}次失败（${code}）：${toolErrorText(result) || '未返回原因'}`
                 }
                 const message = chatMessageSchema.parse({ role: 'tool', tool_call_id: call.id, name: call.function.name, content: JSON.stringify(result) })
                 history.push(message)
