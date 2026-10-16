@@ -4,19 +4,20 @@ English | [中文](README.zh.md) · [iOS client](https://github.com/RicterZ/mapa
 
 Put the places you want to visit on a map, then turn them into a day-by-day travel plan.
 
-MapAnNai Plus is a self-hosted place collection and travel itinerary editor. Save restaurants, hotels, sights, and transit stops, add notes and photos, arrange visits by trip and day, or ask an AI assistant to help plan. The web app, iOS client, and MCP share the places and trips stored on your server.
+MapAnNai Plus is a self-hosted place collection and travel planning tool. The web app and iOS client share your trips, from planning at home to checking the next stop on the road.
 
 ## Features
 
-- **Save places and travel notes**: Add places by clicking the map or searching. Use ten custom icon categories for food, accommodation, shopping, sights, and more. Trips and days offer 60 illustrated icons, including ten national flags. Rich text notes support lists, links, and images.
-- **Plan each day**: Select one or more destination provinces or cities when creating a trip, with removable tags inside the input. Their centers anchor the map and searches within the trip. Create a trip with automatically generated days, shift its dates, add or remove days, and reuse saved places across your itinerary. When deleting a trip or day, optionally remove places belonging to only one trip and one day; places shared across trips or days are kept.
-- **Arrange visits your way**: Save places to a trip before choosing a date, then drag them onto a day when ready. Create multiple routes within a day and drag places to change their visit order. A place can belong to several routes.
-- **See the whole plan on a map**: Switch between all places, a trip overview, and individual days. Colors distinguish days; selecting a place or route brings up its itinerary.
-- **Choose how routes look**: Connect places with curves or enable route planning based on each segment’s transport arrangement: walking, cycling, driving, or public transit. Unarranged segments choose walking or driving by distance; unsupported segments retain dashed curves and show the distance between their endpoints. Lines show place relationships and visit order; a place's external navigation action opens directions separately.
-- **Search nearby places**: Search saved place titles alongside platform results around each trip destination and merge the results, or the current map area in overview and older trips without a destination. Matching coordinates show the saved place, ready to select and locate. New results appear in both the list and on the map before you save them. On desktop, trips, daily itineraries, and **Add place** share the left workspace. Search above the result list, with the target day or trip fixed while browsing. Select a result to view it on the map, or use its add button to reuse a saved place or edit a new place before saving. New and saved places share an editor for the name, category, cover, and rich text notes. Failed saves retain your input; a saved place can retry joining the itinerary.
-- **Plan with an AI assistant**: Configure your AI API in the web app and use multi-turn chat to create trips, find places, and arrange routes, with conversation history saved in the current browser. You can also connect an external assistant through MCP to edit the same itineraries, including changing existing routes and deleting routes while keeping their places. AI tools can also save visit times, planned durations, transport modes, dedicated line/service numbers, and notes; these details appear in daily routes and can be changed in edit mode, with transport information shown separately from place cards.
-- **Use it across devices**: The web app uses neutral reading surfaces, clear place and schedule hierarchy, and distinct daily route colors. It works on desktop and mobile and can be installed as a PWA. A [native iOS client](https://github.com/RicterZ/mapannai-ios) is also available; see its repository for installation and setup.
-- **Keep your data on your server**: Places, trips, and route caches are stored locally on the server. Access can be protected with a token; image uploads optionally use Tencent Cloud COS.
+- **Collect places and notes**: Search or select a point on the map to save restaurants, hotels, sights and stations, with category icons, cover photos and rich text notes.
+- **Organize trips by day**: Choose multiple destinations, keep places in a trip until you decide which day to visit, shift dates, add or remove days, and reuse places across trips.
+- **Arrange visits freely**: Create multiple routes per day and drag visits into order. Places can remain outside routes or appear in more than one route. When deleting a trip or day, optionally delete places no longer used by other itineraries.
+- **Read each day clearly**: Browse trips by year and preview routes in daily chapters. Daily details follow visit order, with notes and transport between stops, and planned times and durations alongside each visit.
+- **Explore your plan on the map**: Distinct daily colors and linked place and route selections keep the map and itinerary together. Enable route planning to see segment distances. Lines express connections and visit order, not turn-by-turn navigation.
+- **Keep visit and transport arrangements**: Record visit times, durations and notes, plus transport modes, line or service numbers, departure times and planned travel durations.
+- **Plan with AI**: Describe your destination, dates and preferences. Answer follow-up questions, review a draft and confirm before saving, or ask for changes to an existing trip. Choose dates and options in chat and review the saved itinerary by day.
+- **Bring images into the conversation**: Upload or paste photos and screenshots for a vision-capable model. Optional web search and page reading help gather travel information.
+- **Keep planning through interruptions**: Use the map while AI works, and retrieve results after refreshing or a brief disconnection. Questions wait for your response rather than deciding for you on a countdown.
+- **Use your trips across devices**: Desktop and mobile web, home-screen installation, and a native [iPhone / iPad client](https://github.com/RicterZ/mapannai-ios). External AI assistants can also work with the same trips.
 
 <img width="1481" height="918" alt="Map and trip overview" src="https://github.com/user-attachments/assets/8cc1543e-1e5c-4f9b-93b8-66b72e73fce9" />
 
@@ -24,63 +25,186 @@ MapAnNai Plus is a self-hosted place collection and travel itinerary editor. Sav
 
 ## Plan your first trip
 
-1. Choose **Add place** in the sidebar to search, or enable edit mode to select a point on the map. Save places with icons, notes, and photos.
-2. Create a trip, select one or more destination provinces or cities and its dates, and add saved places to each day.
-3. Build one or more routes for a day and drag places into visit order.
-4. Review the trip on the map and open it on your phone while traveling.
-
-Browse trips by year in the left workspace, then open a trip to preview each day's ordered routes and places not yet assigned to a route. Daily details follow visit order, with planned times and durations on the right, visit notes below each place, and transport arrangements between adjacent stops. Enable edit mode to change the order and schedules.
-
-To get help from AI, open **AI 规划** in the top-right corner of the web app and configure your API, or connect the MCP service below, then describe your destination, dates, and preferences. For example: “Plan three days in Tokyo with food and parks, prioritizing places I have already saved.”
+1. Create a trip and choose its destinations and dates.
+2. Choose **Add place** in the sidebar to save places to the trip or a particular day.
+3. Build routes, reorder visits, and add visit and transport arrangements as needed.
+4. Alternatively, open **AI 规划**, describe your preferences, and approve a draft before saving.
+5. Open the same itinerary on the web or iOS while traveling.
 
 ## Deploy your own server
 
-### 1. Get the project and choose map services
+### 1. Prepare configuration
 
 ```bash
-git clone https://github.com/RicterZ/mapannai-public.git
-cd mapannai-public
+git clone https://github.com/RicterZ/mapannai-plus.git
+cd mapannai-plus
 cp env.example .env
 ```
 
-Edit `.env`: `MAP_RENDERER=amap` automatically selects AMap or Google using the existing China-range function and the map center. It switches after camera movement ends, retaining the camera and itinerary state. `osm` keeps the OSM basemap fixed. Backend services automatically prefer AMap for coordinates in the existing China range and use Google overseas; unavailable AMap results fall back to Google. Cross-border routes show dashed connections and endpoint distances without requesting directions. Search uses the map area center, or the country when no area is supplied. See [env.example](env.example) for all settings.
+For the recommended AMap / Google setup, explicitly set `MAP_RENDERER=amap` in `.env`: AMap is used within the supported China region and Google elsewhere. Place and route services also select providers by region, with Google fallback when AMap is unavailable. Keys are listed by purpose below; see [env.example](env.example) for the full configuration reference.
 
-Example with the AMap basemap and both backend services:
+### 2. Map keys and required services
+
+#### Google Maps Platform
+
+Create a project in [Google Cloud Console](https://console.cloud.google.com/google/maps-apis/overview), attach an active billing account, and set API restrictions for each key. **Use separate server, browser and iOS keys: their application restrictions are not interchangeable.**
+
+| Purpose | Configuration | APIs to enable | Key restrictions |
+| --- | --- | --- | --- |
+| Server place search and details, destinations, address lookup and route planning; shared by web and iOS | Server `.env`: `GOOGLE_API_KEY` | **Places API (Legacy)**, **Geocoding API**, **Directions API (Legacy)** | Optionally restrict to server egress IPs; do not apply website or iOS application restrictions |
+| Overseas web basemap | Server `.env`: `GOOGLE_JS_KEY` | **Maps JavaScript API** | Website HTTP referrers for your deployment; allow localhost separately for local use |
+| Native Google basemap on iOS | iOS `Config/Local.xcconfig`: `GOOGLE_MAPS_IOS_KEY` | **Maps SDK for iOS** | iOS application restriction matching the final Bundle ID |
+
+**The current server uses legacy Places and Directions endpoints. Enabling only Places API (New) or Routes API does not replace them.** Google limits activation of legacy APIs for new projects. If activation is unavailable, check the project's eligibility first; changing the key alone does not resolve this. Check service availability, quotas and pricing before deployment.
+
+If `GOOGLE_JS_KEY` is empty, the browser uses `GOOGLE_API_KEY`, which is then exposed to the browser and must also allow Maps JavaScript API. Avoid sharing a server-IP-restricted key. The iOS client does not require Places SDK for iOS: its place search and route planning use the server services above. Opening navigation in the external Google Maps app does not require a native map key.
+
+#### AMap
+
+Create an application in the [AMap console](https://console.amap.com/) and request keys for each platform below. Check account verification, service permissions and quotas; do not substitute a key from another platform.
+
+| Purpose | Configuration | Platform and required capabilities | Notes |
+| --- | --- | --- | --- |
+| Server place search and details, destinations, address lookup and route planning in China; shared by web and iOS | Server `.env`: `AMAP_API_KEY` | **Web Service**; POI search (text, polygon, details), geocoding / reverse geocoding, walking / driving / cycling / public-transit directions | Verify account permissions and quotas for these services; use server egress IPs if configuring an IP allowlist |
+| Web basemap in China | `.env`: `AMAP_JS_KEY` and matching `AMAP_JS_SECURITY_CODE` | **Web (JS API)** for JS API 2.0 | Configure the deployment domain allowlist. The security code must match the JS key; both are currently provided to the browser |
+| Native AMap basemap on iOS | iOS `Config/Local.xcconfig`: `AMAP_IOS_KEY` | **iOS** platform key for the AMap SDK | Bind to the final signed Bundle ID; re-signing with AltStore or similar tools may change it |
+
+Unlike Google, AMap setup is not a matching set of API checkboxes: the key must have the **correct platform type, with the required Web Service permissions and quotas available**. An iOS SDK key alone does not provide server search or directions.
+
+#### iOS users and app builders
+
+- Users installing a prebuilt client only enter the server URL and `API_TOKEN` in app settings, not server map keys.
+- When building the app, put native map keys in the iOS repository's `Config/Local.xcconfig`, not this server's `.env`. See the [iOS repository](https://github.com/RicterZ/mapannai-ios).
+- Apple Maps does not need a Google / AMap basemap key or an Apple Maps Server API key. Place search, destination lookup and route planning still depend on the map services configured on your server.
+
+### 3. Other keys and optional features
+
+| Setting | Purpose and requirements |
+| --- | --- |
+| `API_TOKEN` | A server access token you generate. Web, iOS and MCP use the same value. Recommended for public deployments; without it, anyone who can reach the service can modify data |
+| AI API key | Enter the API URL, key and model in web AI settings, not in a map-key field. Use an OpenAI-compatible Chat Completions service with tool calling; images also require vision support. iOS has its own AI settings |
+| `BRAVE_API_KEY` | Optional Brave Search API access for AI web search |
+| `FIRECRAWL_API_KEY` | Optional Firecrawl access for AI page reading |
+| `TENCENT_COS_SECRET_ID`, `TENCENT_COS_SECRET_KEY` | Optional Tencent Cloud credentials for place photos and AI image uploads. Prefer a subaccount restricted to the required operations on the target bucket |
+| `TENCENT_COS_REGION`, `TENCENT_COS_BUCKET` | Region and bucket for uploads. Configure bucket CORS to allow PUT uploads and required headers from your site; images must be readable by browsers and vision models |
+| `NEXT_PUBLIC_IMAGE_DOMAINS` | Comma-separated image hostnames without protocols, set before building when deploying image features |
+| `AGENT_TOKEN` | Optional generated internal credential shared by Web and the AI service, not a model key and never sent to the browser. Required for non-loopback listening; normally unchanged in the default Docker setup |
+
+Maps, AI, storage and web retrieval may each incur charges. Browser and native SDK keys ship with clients: apply platform-appropriate restrictions. Never put server map keys, COS secrets or internal credentials in frontend code or commit them to the repository.
+
+Recommended map configuration:
 
 ```dotenv
 MAP_RENDERER=amap
-AMAP_JS_KEY=your-web-js-key
-AMAP_JS_SECURITY_CODE=your-js-security-code
-AMAP_API_KEY=your-web-service-key
-GOOGLE_API_KEY=your-google-api-key
+AMAP_API_KEY=your-amap-web-service-key
+AMAP_JS_KEY=your-amap-js-key
+AMAP_JS_SECURITY_CODE=your-matching-js-security-code
+GOOGLE_API_KEY=your-google-server-key
+GOOGLE_JS_KEY=your-google-browser-key
 API_TOKEN=your-access-token
 ```
 
-Use a matching AMap JS key and security code and configure the deployment domain. Obtain the backend Web Service key separately. Enable Google Places, Geocoding and Directions APIs for overseas services and fallback. Google basemaps use a fresh light palette while retaining place and transit labels, and require Maps JavaScript API and billing. They reuse `GOOGLE_API_KEY` by default; set `GOOGLE_JS_KEY` for a separate browser key. Backend selection and frontend basemap switching are independent. The old `MAP_*_PROVIDER` service settings no longer control automatic selection.
+### 4. Run the GHCR image (recommended)
 
-When `API_TOKEN` is set, the web app asks for it on first access, and iOS and MCP use the same token. If left empty, anyone who can reach the service can modify its data. For image uploads, configure `TENCENT_COS_*`, the bucket's upload CORS rules, and `NEXT_PUBLIC_IMAGE_DOMAINS`.
+No local build is needed. Create `.env` on the server. This is the minimum recommended configuration for AMap / Google maps, search and routes. `API_TOKEN` is technically optional but should not be omitted for public deployments. A separate `GOOGLE_JS_KEY` is recommended; leaving it blank reuses the server key. No other keys are needed without AI or image uploads.
 
-### 2. Start with Docker Compose
+```dotenv
+MAP_RENDERER=amap
+AMAP_API_KEY=your-amap-web-service-key
+AMAP_JS_KEY=your-amap-js-key
+AMAP_JS_SECURITY_CODE=your-matching-js-security-code
+GOOGLE_API_KEY=your-google-server-key
+GOOGLE_JS_KEY=your-google-browser-key
+API_TOKEN=replace-with-a-long-random-token
+```
 
-With Docker and Compose installed, run from the project directory:
+Run:
+
+```bash
+docker run -d --name mapannai --restart unless-stopped \
+  -p 3000:3000 --env-file .env \
+  -v mapannai_data:/app/data \
+  ghcr.io/ricterz/mapannai-plus:latest
+```
+
+Open `http://localhost:3000`, preferably behind HTTPS for remote access. Both Web and AI services are included; do not expose an extra AI port. The image cannot be pulled until first published. For anonymous pulls, make the GHCR package Public; otherwise log in with credentials granting `read:packages`.
+
+Alternatively, use the included Compose file:
+
+```bash
+docker compose -f docker-compose.ghcr.yml up -d
+# Update
+docker compose -f docker-compose.ghcr.yml pull
+docker compose -f docker-compose.ghcr.yml up -d
+```
+
+The default is `latest`. Set `MAPANNAI_IMAGE=ghcr.io/ricterz/mapannai-plus:v1.2.0` in `.env` to pin an actually published version (the version shown is an example).
+
+#### Full configuration example
+
+Keep only the optional features you need. Remove or leave unused keys blank; **do not keep placeholder values unchanged**. Configure the model URL, model and AI key in app settings. Native iOS map keys belong in the app build, not the container.
+
+```dotenv
+# Map services / 地图服务
+MAP_RENDERER=amap
+AMAP_API_KEY=your-amap-web-service-key
+AMAP_JS_KEY=your-amap-js-key
+AMAP_JS_SECURITY_CODE=your-matching-js-security-code
+AMAP_API_BASE_URL=https://restapi.amap.com
+GOOGLE_API_KEY=your-google-server-key
+GOOGLE_JS_KEY=your-google-browser-key
+GOOGLE_API_BASE_URL=https://maps.googleapis.com
+
+# Access and persistent data / 认证与持久化
+API_TOKEN=replace-with-a-long-random-token
+SQLITE_PATH=/app/data/mapannai.db
+AGENT_SQLITE_PATH=/app/data/agent.db
+
+# Optional image uploads / 可选图片上传
+TENCENT_COS_SECRET_ID=your-cos-secret-id
+TENCENT_COS_SECRET_KEY=your-cos-secret-key
+TENCENT_COS_REGION=ap-chongqing
+TENCENT_COS_BUCKET=your-bucket-appid
+
+# Optional AI web access / 可选 AI 联网
+BRAVE_API_KEY=your-brave-api-key
+FIRECRAWL_API_KEY=your-firecrawl-api-key
+
+# Internal AI service / 内部 AI 服务
+AGENT_HOST=127.0.0.1
+AGENT_PORT=3100
+AGENT_URL=http://127.0.0.1:3100
+AGENT_MCP_URL=http://127.0.0.1:3000/api/mcp
+AGENT_TOKEN=replace-with-another-long-random-token
+AI_ALLOW_PRIVATE_ENDPOINTS=false
+AGENT_TRACE_ENABLED=false
+```
+
+`NEXT_PUBLIC_IMAGE_DOMAINS` is a build setting, not a runtime parameter for a prebuilt image. Current image displays use direct image URLs. To customize Next.js image domains, set the `NEXT_PUBLIC_IMAGE_DOMAINS` Actions repository variable before building your own image, or build from source. COS uploads still require bucket permissions, CORS and readable image URLs.
+
+#### Publish your own image
+
+Choose **Actions → Publish container image → Run workflow**, or publish a GitHub Release to trigger a build. Images go to `ghcr.io/<owner>/<repository>` for `linux/amd64` and `linux/arm64`. The workflow uses the built-in `GITHUB_TOKEN`; no personal publishing token or map keys are needed.
+
+- Stable releases publish the version tag and `latest`. Prereleases publish the version tag without replacing `latest`.
+- Manual builds on the default branch publish `edge` and a commit SHA tag, without replacing stable `latest`. Other branches publish only a SHA tag.
+- Check package visibility in GitHub Packages after the first publish. Test a manual build with `MAPANNAI_IMAGE=ghcr.io/<owner>/<repository>:edge`. Adding the workflow does not build historical releases automatically.
+
+#### Build from source (optional)
 
 ```bash
 docker compose up -d --build mapannai
 docker compose logs -f mapannai
 ```
 
-After configuring AMap, open `http://localhost:3000`. For remote deployments, use the server address or configure an HTTPS domain through a reverse proxy. To update:
+Back up the `mapannai_data` volume before updating; it contains places, trips, route caches and AI records. **Do not run `docker compose down -v`: it deletes the volume.** Custom database paths must be inside persistent mounts. Rebuilding or replacing a container does not undo saved itinerary changes.
 
-```bash
-git pull
-docker compose up -d --build mapannai
-```
+<details>
+<summary>Optional: OSM basemap</summary>
 
-Compose stores `/app/data` in the `mapannai_data` named volume, including places, trips, and route caches. Keep and back up this volume when updating; `docker compose down -v` deletes it. If you customize `SQLITE_PATH`, point it to a persistent mounted directory.
+Only relevant if you choose `MAP_RENDERER=osm`. AMap / Google deployments need neither an OSM key nor a tile proxy. The current application still defaults to OSM when unspecified, so explicitly set `MAP_RENDERER=amap` for the recommended deployment.
 
-### 3. Configure the OSM basemap
-
-By default, OSM tiles load from the same-origin path `/osm-tiles/{z}/{x}/{y}.png`, which requires a reverse proxy in front of the app. Add this rule to an existing Nginx `server` block alongside the rule forwarding application requests to port 3000:
+OSM needs no map key but does not replace place-search or route-service keys. By default, tiles use the same-origin `/osm-tiles/` path, requiring a reverse-proxy rule:
 
 ```nginx
 location /osm-tiles/ {
@@ -90,74 +214,54 @@ location /osm-tiles/ {
 }
 ```
 
-Replace the contact email with your own. Accessing the application's port 3000 directly bypasses this proxy rule.
+Replace the contact email and follow the tile service's usage policy. For local Node deployments, set `NEXT_PUBLIC_OSM_TILE_PROXY=false` before building to load tiles directly. The current Docker build does not forward this variable; add a build argument yourself if needed.
 
-For local development or a direct Node build, set `NEXT_PUBLIC_OSM_TILE_PROXY=false` in `.env` to load OSM tiles directly in the browser. `NEXT_PUBLIC_*` settings take effect at build time. The current Docker build forwards only `NEXT_PUBLIC_IMAGE_DOMAINS`; disabling the tile proxy in Docker also requires adding the corresponding build argument to both the Dockerfile and Compose, then rebuilding.
+</details>
 
-Restart the service after changing server settings; rebuild after changing `NEXT_PUBLIC_*` settings.
+## Use AI in the web app
 
-## Plan with AI in the web app
+Open **AI 规划** and enter your API URL, key and model in settings. Discuss preferences, answer follow-up questions and choose dates, then review the full draft before confirming the save. Review the actual saved days afterward; changes to existing trips follow the corresponding confirmation flow.
 
-Open **AI 规划** in the top-right corner and enter your API URL, API key, and model name in the settings dialog. The integration supports OpenAI-compatible **Chat Completions** APIs with function tools. Enter either an API base URL such as `https://your-api.example/v1` or the full `/chat/completions` endpoint. Services offering only Responses, Anthropic Messages, or other protocols need a compatible gateway.
+Upload or paste JPG, PNG or WebP images, up to four per message and 10 MB per image. Preview or remove them before sending. Image storage and a vision-capable model are required; avoid sensitive documents and private information.
 
-The assistant goes by **M酱**, and chats like an upbeat travel companion, without emoji and with occasional kaomoji.
+Create, switch or delete conversations without deleting saved trips. Interaction cards wait for your response. After a refresh or disconnection, retrieve recorded background results. Stopping does not undo completed saves, and service restarts can interrupt active tasks.
 
-Discuss your preferences first, then ask the assistant to create or edit your itinerary. It reuses this server's MCP tools to search and save places, create trips, and arrange routes; changes refresh on the map. Create, switch, or delete conversations. Deleting a conversation keeps saved trips and places.
-
-Each conversation keeps its own context. Requests include the current trip list and IDs so the assistant can use them without repeatedly listing trips. AI replies render Markdown with compact headings. Newly created places automatically come into view on the map. You can keep the chat panel open while interacting with the map.
-
-Conversations, API URL, and model settings stay in the current browser and do not sync across devices. The key stays in the current page by default; selecting the remember-key option stores it as plain text locally. Each request sends the current conversation, relevant itinerary tool results, and key through this server to your configured AI service. This server does not store keys or conversations in its database.
-
-Only public HTTPS endpoints are allowed by default. To use a private network or HTTP endpoint for a self-hosted model, the deployment owner can set `AI_ALLOW_PRIVATE_ENDPOINTS=true` in `.env` and restart. The endpoint must be reachable from the application server; inside Docker, `localhost` refers to the container itself.
-
-Stopping a reply does not undo saved itinerary changes, and an executing tool may still complete. Check the map before continuing after stopping or losing the connection.
+The conversation list and model settings remain in the current browser, without guaranteed cross-device synchronization. Remembering a key stores it as plain text in the browser. Your selected model service receives conversations and relevant itinerary information, including image links for vision requests. The server saves AI results and tool records for recovery; diagnostic logging can also retain conversation material. Treat databases and backups as private data.
 
 ## Connect an external AI assistant
 
-Configure `BRAVE_API_KEY` and `FIRECRAWL_API_KEY` in the server `.env` to enable `search_web` and `fetch_web`. The Node 22 application container includes the pinned official Brave and Firecrawl MCP packages and calls them over stdio; no additional containers, ports or MCP URLs are needed. Run `docker compose up -d --build`. Retrieval uses third-party services and may incur charges. For non-Docker deployments, install `@brave/brave-search-mcp-server@2.1.4` and `firecrawl-mcp@3.29.1` globally under Node 22.
-
-Add `https://your-domain/api/mcp` to an MCP client supporting **Streamable HTTP**, or use `http://localhost:3000/api/mcp` locally. With authentication enabled, set the request header `Authorization: Bearer YOUR_TOKEN`.
-
-For clients using the `mcpServers` configuration format:
+Add `https://your-domain/api/mcp` to an MCP client supporting **Streamable HTTP**. With authentication enabled, use `Authorization: Bearer YOUR_TOKEN`:
 
 ```json
 {
   "mcpServers": {
     "mapannai": {
       "type": "http",
-      "url": "http://localhost:3000/api/mcp",
-      "headers": {
-        "Authorization": "Bearer YOUR_TOKEN"
-      }
+      "url": "https://your-domain/api/mcp",
+      "headers": { "Authorization": "Bearer YOUR_TOKEN" }
     }
   }
 }
 ```
 
-Remove `headers` if `API_TOKEN` is unset. Follow your client's settings for its exact configuration format.
-
-Once connected, your assistant can search and save places, create trips, organize daily visits, and build routes from existing places. Clients supporting prompts can read `workflow` for the operating guide. Include a city in place names and specify the country for overseas searches; ask the assistant to confirm search results before saving the itinerary.
-
-Official POI identities from search can stay with saved places across clients; older places remain usable with coordinates. See the [client API contract](docs/place-references.md) for iOS integration.
+Remove `headers` if `API_TOKEN` is unset. Follow your client's configuration format. Connected assistants can search and save places, create trips, arrange days, and edit routes, visits and transport arrangements shared with web and iOS.
 
 ## Local development
 
-Use Node.js 20 and npm. From the project directory:
+Use Node.js 22 and npm. Configure settings using [env.example](env.example), then run:
 
 ```bash
-cp env.example .env
 npm ci
-```
-
-Edit `.env` to configure map services. If you use the default OSM basemap without a tile reverse proxy, set `NEXT_PUBLIC_OSM_TILE_PROXY=false`, then start:
-
-```bash
 npm run dev
 ```
 
-Open `http://localhost:3000`. For another port, run `npm run dev -- --port 3101`. The database is created automatically at `./data/mapannai.db` on first use.
+For web AI, run in another terminal:
 
-Common checks and production commands:
+```bash
+npm run agent:start
+```
+
+Open `http://localhost:3000`. Checks and production commands:
 
 ```bash
 npm run type-check
@@ -166,22 +270,4 @@ npm start
 git diff --check
 ```
 
-Stop the development server in the same directory before building to avoid conflicts in `.next`. `npm start` serves a completed build; this is also an option for running without Docker, with the `data` directory persisted. If changing Node versions causes a SQLite native dependency ABI error, run `npm rebuild better-sqlite3`.
-
-Web AI runs in a separate Node Agent while retaining the existing browser chat API. For local use, run `npm run agent:start` alongside `npm run dev`. Docker starts Web and Agent as two processes in one container; all configuration stays in the repository `.env`, and both databases persist under `/app/data`. No Agent container or extra env file is needed. See [Agent service](docs/agent-service.md) for setup, limitations, and acceptance checks.
-
-The Node server fills missing marker addresses in the background on startup, then scans again one hour after each completed pass. It uses AMap first in China with Google fallback, and Google directly overseas. Coordinates and existing addresses are preserved. Configure the corresponding map service keys; bulk lookups may incur API charges and require a continuously running Node server.
-
-The project uses Next.js, React, TypeScript, and SQLite. See [AGENTS.md](AGENTS.md) for development conventions, source responsibilities, and validation requirements. Environment settings are maintained in [env.example](env.example).
-
-For debugging, enable `AGENT_TRACE_ENABLED` in the same `.env` to record redacted transcripts in the existing Agent database. These still contain private conversations; do not publish them. See [Agent service](docs/agent-service.md).
-
-Web AI can request date/time, single/multiple choice and daily draft previews inside chat. Selections wait up to 60 seconds; timeout switches to a text question and waits for the user instead of making assumptions, not permission to save, delete or book. Legacy clients retain text chat compatibility.
-
-AI presents a full draft for confirmation before saving. After saving and verification, a real itinerary overview appears in chat; normal conversation remains in the workflow and can return to planning for new requests.
-
-Web AI tasks run in the background and reconnect to recorded results after refresh or network loss. Stop explicitly cancels. Container restarts interrupt active execution but retain recorded results; uncertain writes are never automatically replayed.
-
-### AI Image Input
-
-Attach up to four JPG, PNG, or WebP images per message (10 MB each) in the web AI composer. This uses the existing COS configuration and requires a vision-capable model that can access the uploaded URLs. Preview or remove images before sending. Image URLs are shared with your configured model service; avoid sensitive documents or private information.
+Do not run the development server and build in the same directory at once. After changing Node versions, use `npm rebuild better-sqlite3` if the native SQLite dependency reports an ABI error. Non-Docker deployments also need the AI service for web AI. See [Agent service](docs/agent-service.md) for optional web-tool installation and detailed setup, and [AGENTS.md](AGENTS.md) for development conventions.
