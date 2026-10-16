@@ -1,6 +1,8 @@
 export class AgentStageError extends Error {
     constructor(public readonly stage: string, public readonly kind: string, message: string) { super(message); this.name = 'AgentStageError' }
 }
+/** Known gate or model-correctable failure; its message is safe to return to the model. */
+export class WorkflowBlocked extends Error {}
 export function agentErrorMessage(error: unknown): string {
     if (error instanceof AgentStageError) {
         console.warn('[agent-failure]', error.stage, error.kind)

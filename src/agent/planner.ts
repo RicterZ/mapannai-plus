@@ -11,13 +11,28 @@ import { planningPrompt } from '../lib/ai/prompt'
 import { Annotation, StateGraph, START, END } from '@langchain/langgraph'
 import { assessWorkflow, workflowInstruction, canChangeTitle, type Workflow } from './workflow'
 import { completedDates, verifySavedDay, progressTools } from './day-progress'
-import { AgentStageError } from './errors'
+import { AgentStageError, WorkflowBlocked } from './errors'
 import { generateStage } from './plan-stages'
 import { traceAgent } from '../lib/ai/trace'
 
 const changeTitleSchema = z.object({ title: z.string().trim().min(1).max(60) }).strict()
 const MAX_MODEL_ROUNDS = 64
-class WorkflowBlocked extends Error {}
+const MAX_TOOL_ERROR_TEXT = 1000
+const toolErrorText = (result: object) => (Array.isArray((result as { content?: unknown }).content) ? (result as { content: unknown }).content as { type: string; text?: string }[] : [])
+    .filter(item => item.type === 'text').map(item => item.text || '').join('\n').trim().slice(0, MAX_TOOL_ERROR_TEXT)
+const parseJsonText = (result: object, label: string) => {
+    const text = (Array.isArray((result as { content?: unknown }).content) ? (result as { content: unknown }).content as { type: string; text?: string }[] : []).filter(item => item.type === 'text').map(item => item.text || '').join('')
+    try { return JSON.parse(text) } catch { throw new WorkflowBlocked(`${label}返回的数据不是有效 JSON，无法核实；请先查询当前数据再决定下一步。`) }
+}
+/** Classify transport failures without echoing upstream text; MCP tool errors arrive as isError results instead. */
+const transportFailure = (error: unknown) => {
+    const code = typeof (error as { code?: unknown })?.code === 'number' ? (error as { code: number }).code : undefined
+    const message = error instanceof Error ? error.message : ''
+    if (code === -32001 || /timed? ?out/i.test(message)) return '地图工具调用超时，结果可能已部分保存。先查询当前数据确认，不要直接重复写入。'
+    if (/\b(401|403)\b/.test(message)) return '地图工具鉴权失败（服务配置问题），本次未能执行。不要重试，请向用户报告服务配置异常。'
+    if (/\b5\d\d\b/.test(message) || /ECONNREFUSED|ECONNRESET|fetch failed/i.test(message)) return '地图服务暂时不可用，结果可能已部分保存。稍后先查询当前数据确认，不要连续重复写入。'
+    return '地图工具调用异常，结果可能已部分保存。先查询当前数据再决定下一步，不要重复写入；若持续失败请报告服务异常。'
+}
 const changeTitleTool = { type: 'function' as const, function: {
     name: 'change_title', description: '修改当前网页会话的标题，概括用户的旅游意图。',
     parameters: { type: 'object', properties: { title: { type: 'string', minLength: 1, maxLength: 60, description: '简短的会话标题，例如东京秋日旅行' } }, required: ['title'], additionalProperties: false },
@@ -46,10 +61,8 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
     const pendingDates = () => (workflow?.phase === 'revising' && workflow.affectedDays.length ? workflow.affectedDays : workflow?.dayOutline.map(day => day.date) ?? []).filter(date => !completed.has(date))
     const detail = async (tripId: string) => {
         const result = await bridge.call('get_trip_detail', { tripId }, signal)
-        if (result.isError) throw new Error('读取行程失败')
-        const text = (result.content as { type: string; text?: string }[]).find(item => item.type === 'text')?.text
-        if (!text) throw new Error('行程详情无效')
-        return JSON.parse(text)
+        if (result.isError) throw new WorkflowBlocked(`读取行程失败：${toolErrorText(result) || '未返回原因'}。请检查 tripId/dayId 是否来自最新 get_trip_detail 后修正重试。`)
+        return parseJsonText(result, '行程详情')
     }
     try {
         let round = 0
@@ -100,9 +113,17 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             }
             // Validate the entire batch before executing any side effects.
             const ids = new Set<string>()
-            for (const call of assistant.tool_calls || []) {
-                if (ids.has(call.id)) throw new Error('AI 返回重复工具调用 ID')
-                ids.add(call.id)
+            const duplicated = (assistant.tool_calls || []).some(call => ids.size === ids.add(call.id).size)
+            if (duplicated) {
+                // Rename IDs so every tool reply pairs uniquely, then reject the whole batch unexecuted.
+                const renamed = { ...assistant, tool_calls: assistant.tool_calls!.map((call, index) => ({ ...call, id: `${call.id}_${index}` })) }
+                history.push(renamed)
+                emit({ type: 'message', message: renamed })
+                for (const call of renamed.tool_calls) {
+                    const message = chatMessageSchema.parse({ role: 'tool', name: call.function.name, tool_call_id: call.id, content: JSON.stringify({ isError: true, code: 'WORKFLOW_BLOCKED', executed: false, content: [{ type: 'text', text: '本批工具调用 ID 重复，未执行任何操作。请为每个调用使用唯一 ID 后重新发出。' }] }) })
+                    history.push(message); emit({ type: 'message', message })
+                }
+                return { done: false, calls: [] }
             }
             history.push(assistant)
             emit({ type: 'message', message: assistant })
@@ -259,9 +280,8 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                             try { verifySavedDay(saved, day.id) } catch (error) { throw new WorkflowBlocked(`${day.date}核实失败：${error instanceof Error ? error.message : '安排无效'}`) }
                         }
                         const markersResult = await bridge.call('list_markers', {}, signal)
-                        if (markersResult.isError) throw new WorkflowBlocked('无法读取地点名称，不能生成概览')
-                        const markerText = (markersResult.content as {type:string;text?:string}[]).filter(item => item.type === 'text').map(item => item.text || '').join('')
-                        const markerData = JSON.parse(markerText)
+                        if (markersResult.isError) throw new WorkflowBlocked(`无法读取地点名称，不能生成概览：${toolErrorText(markersResult) || '未返回原因'}`)
+                        const markerData = parseJsonText(markersResult, '地点列表')
                         const markers = Array.isArray(markerData) ? markerData : markerData.markers || []
                         const names = new Map(markers.map((marker: {id:string;title?:string;name?:string}) => [marker.id, marker.title || marker.name || '未命名地点']))
                         result = { phase: 'chatting', tripId, verified: true, savedOverview: { ...saved, days: saved.days.map((day: {markerIds:string[];chains:string[][]}) => ({ ...day, places: Array.from(new Set([...day.chains.flat(), ...day.markerIds])).map(id => names.get(id) || '未命名地点') })) } }
@@ -286,7 +306,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                     if (signal.aborted) throw new Error('请求已停止；正在执行的工具可能已保存数据，请查询后继续')
                     const validation = error instanceof z.ZodError
                     const code = error instanceof WorkflowBlocked ? 'WORKFLOW_BLOCKED' : validation ? 'INVALID_ARGUMENTS' : invoked ? 'TOOL_EXECUTION_FAILED' : 'INTERNAL_ERROR'
-                    const reason = error instanceof WorkflowBlocked ? error.message : validation ? `参数校验失败：${error.issues.map(issue => `${issue.path.join('.') || '参数'}: ${issue.code}`).join('；')}。请按工具schema修正后重试。` : invoked ? '地图工具调用异常，结果可能已部分保存。先查询当前数据再决定下一步，不要重复写入；若持续失败请报告服务异常。' : '内部执行异常，本次调用未进入地图工具。不要重复相同调用，请向用户报告问题。'
+                    const reason = error instanceof WorkflowBlocked ? error.message : validation ? `参数校验失败：${error.issues.map(issue => `${issue.path.join('.') || '参数'}: ${issue.code}（${issue.message}）`).join('；')}。请按工具schema修正后重试。` : invoked ? transportFailure(error) : '内部执行异常，本次调用未进入地图工具。不要重复相同调用，请向用户报告问题。'
                     traceAgent('tool-failure', { tool: available.has(call.function.name) ? call.function.name : 'unavailable-tool', code, invoked, errorType: error instanceof Error ? error.name : 'UnknownError', reason })
                     result = { isError: true, code, executed: invoked ? 'unknown' : false, content: [{ type: 'text', text: reason }] }
                 } finally {

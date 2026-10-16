@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { interactionSchema, validateSelection, type InteractionPrompt } from '../lib/ai/interaction'
+import { WorkflowBlocked } from './errors'
 const pending = new Map<string, { token: string; input: InteractionPrompt['input']; deadline: number; resolve: (value: unknown) => void }>()
 const context = new AsyncLocalStorage<(prompt: InteractionPrompt) => void>()
 export const withInteractions = <T>(emit: (prompt: InteractionPrompt) => void, run: () => T) => context.run(emit, run)
@@ -17,7 +18,7 @@ export function answerInteraction(id: string, token: string, value: unknown) {
 }
 export async function requestInteraction(name: string, args: Record<string, unknown>, signal: AbortSignal) {
     const input = interactionSchema.parse({ ...args, kind: name })
-    if (input.kind === 'ask_choice' && new Set(input.options.map(option => option.id)).size !== input.options.length) throw new Error('Duplicate option IDs')
+    if (input.kind === 'ask_choice' && new Set(input.options.map(option => option.id)).size !== input.options.length) throw new WorkflowBlocked('ask_choice 的选项 id 重复，请为每个选项使用唯一 id 后重试；本次未弹出卡片。')
     const emit = context.getStore()
     if (!emit) return { status: 'unsupported', selection: null, source: 'none' }
     signal.throwIfAborted()
