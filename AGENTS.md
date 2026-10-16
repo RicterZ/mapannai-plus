@@ -341,3 +341,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - 新Web聊天使用后台任务API POST /api/ai/runs、GET /api/ai/runs/{id}?after=序号、DELETE显式停止；执行与订阅连接解耦，断网/刷新不取消任务。每run独立随机能力token放x-run-token（不在URL），原API认证叠加；游标和会话归属及待交互卡片保存在浏览器，消息与游标同步落盘后续拉，不用同文匹配其他端。原/api/ai/chat保持旧流兼容。事件持久化到原agent.db，模型Key仅内存；完整消息和每秒累计partial支持追上生成。进程/容器重启仅保留已落盘结果、运行任务标interrupted，不自动重放未知写入或承诺完整checkpoint恢复。后台交互仍60秒截止，离线超时转文字询问。scripts/test-background-runs.ts覆盖独立运行、能力隔离、游标、显式取消及重启读取。
 
 - 独立地点查询/收藏/编辑使用acting状态：无需旅行日期、每日归属、骨架和全程草案；只允许只读工具及明确授权的create_marker/update_marker，旅行写入仍走规划审批。评估missing仅限当前操作必需信息；历史草案批准不得将acting/chatting转成planning。自然聊天及超时/拒选的动态尾部不得再追加调用规划工具的指令，固定工具列表不变，不解析执行正文DSML。scripts/test-agent-acting.ts验证独立收藏和聊天尾部。无新增环境变量。
+
+- Web AI支持每条最多4张JPG/PNG/WebP图片，每张10MB以内，复用COS直传并保存HTTPS展示URL；发送前可移除，上传失败不发送。协议user.images为可选HTTPS URL数组，旧文本客户端兼容；模型传输边界转换为标准text/image_url内容块，需求评估和阶段生成也保留附件。需要支持视觉输入的模型及可访问图片URL，图片会发送给用户配置的模型服务，勿上传敏感资料。无需新增环境变量。scripts/test-ai-images.ts验证格式与URL限制。

@@ -1,5 +1,7 @@
 'use client'
 
+import { uploadFileToS3 } from '@/lib/upload/direct-upload'
+
 import { v4 as uuidv4 } from 'uuid'
 import type { InteractionPrompt } from '@/lib/ai/interaction'
 import { PENDING_RUN_KEY, startBackground, pollBackground, cancelBackground, type PendingRun } from '@/lib/ai/background-client'
@@ -23,6 +25,8 @@ const fieldClass = 'w-full rounded-xl border border-gray-200 bg-white px-3 py-2.
 const iconClass = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-500 hover:bg-gray-100 disabled:opacity-40'
 
 export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string[], panel: DOMRect | null) => void }) {
+    const [images, setImages] = useState<string[]>([])
+    const [uploading, setUploading] = useState(false)
     const [open, setOpen] = useState(false)
     const [hydrated, setHydrated] = useState(false)
     const [history, setHistory] = useState<LocalHistory>(emptyHistory)
@@ -121,23 +125,24 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
         return refreshRef.current
     }
     useEffect(() => {
-        if (!hydrated || requestRef.current) return
+        if (!hydrated || requestRef.current || uploading) return
         try { const raw=localStorage.getItem(PENDING_RUN_KEY); if(raw){const run=JSON.parse(raw) as PendingRun;if(run.id && history.conversations.some(item=>item.id===run.conversationId))void send(run)} } catch {}
     }, [hydrated])
     async function send(resume?: PendingRun) {
-        const content = text.trim()
+        const content = text.trim() || (images.length ? '请识别这些图片，结合当前对话帮助我。' : '')
         if ((!content && !resume) || requestRef.current) return
         if (!resume && pendingRef.current?.id) { setError('还有后台任务，请先继续获取结果或停止任务。'); return }
         if (!resume && !aiSettingsSchema.safeParse(settings).success) { setShowSettings(true); setError('请先填写 API 地址与模型'); return }
         if (!conversation && history.conversations.length >= 20) { toast.error('请先删除一个旧会话'); return }
         const current = (resume ? history.conversations.find(item=>item.id===resume.conversationId) : conversation) || newConversation()
-        const messages: ChatMessage[] = resume ? current.messages : [...repairInterruptedMessages(current.messages), { role: 'user', content }]
+        const messages: ChatMessage[] = resume ? current.messages : [...repairInterruptedMessages(current.messages), { role: 'user', content, ...(images.length ? { images } : {}) }]
         if (messages.length > MAX_AI_HISTORY_MESSAGES) { setError('这个会话已较长，请新建会话继续规划；原记录会保留。'); return }
         const requestId = uuidv4()
         const controller = new AbortController()
         requestRef.current = controller
         followRef.current = true
         setInteraction(resume?.prompt && resume.prompt.deadline > Date.now() ? resume.prompt : null)
+        if (!resume) setImages([])
         setBusy(true); setError(null); setPartial(''); setStatus('正在思考…'); setText('')
         if (!resume) setHistory(previous => ({ ...previous, activeId: current.id, conversations: [
             { ...current, title: current.messages.length ? current.title : content.slice(0, 40), messages, updatedAt: new Date().toISOString() },
@@ -241,12 +246,19 @@ export function AiPlanner({ onMarkersCreated }: { onMarkersCreated: (ids: string
                     {error && <p role="alert" className="rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800">{error}</p>}
                 </div>
                 <form className="shrink-0 border-t border-gray-100 px-4 pt-2" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }} onSubmit={e => { e.preventDefault(); void send() }}>
+                    {images.length > 0 && <div className="mb-2 flex gap-2">{images.map((url, i) => <button type="button" key={url} disabled={busy || uploading} aria-label="移除图片" onClick={() => setImages(v => v.filter((_, n) => n !== i))}><img src={url} alt="待发送图片，点击移除" className="h-16 w-16 rounded-lg object-cover" /></button>)}</div>}
+                    <label className="mb-2 inline-block cursor-pointer text-xs text-gray-600">{uploading ? '正在上传…' : '添加图片（最多4张，需视觉模型）'}<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" disabled={busy || uploading || images.length >= 4} onChange={async e => {
+                        const file = e.target.files?.[0]; e.target.value = ''; if (!file) return
+                        if (!['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) { setError('请选择10MB以内的JPG、PNG或WebP图片'); return }
+                        setUploading(true)
+                        try { const result = await uploadFileToS3(file); if (!result.success || !result.url) throw new Error(); setImages(v => [...v, result.url!]); setError(null) } catch { setError('图片上传失败，请检查图片存储配置后重试') } finally { setUploading(false) }
+                    }} /></label>
                     <div className="flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-50 pl-3 pr-1 transition-colors focus-within:border-accent-400 focus-within:bg-white">
                         <textarea ref={inputRef} aria-label="发给 AI 的消息" className="my-2 max-h-[120px] min-h-6 min-w-0 flex-1 resize-none border-0 bg-transparent p-0 text-sm leading-6 text-gray-800 outline-none placeholder:text-gray-400" rows={1} maxLength={30_000} disabled={busy} value={text} onChange={e => setText(e.target.value)} placeholder="输入消息…" onKeyDown={e => {
                             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && window.matchMedia('(pointer: fine)').matches) { e.preventDefault(); void send() }
                         }} />
                         {busy ? <button type="button" onClick={() => { const run=pendingRef.current; if(run?.id) void cancelBackground(run).then(()=>{localStorage.removeItem(PENDING_RUN_KEY);requestRef.current?.abort()}).catch(()=>setError('停止任务失败，请重试')); else requestRef.current?.abort() }} className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-600" aria-label="停止回复"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 transition-colors group-hover:bg-gray-200"><Square size={14} /></span></button>
-                            : <button type="submit" disabled={!text.trim()} className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-accent-600 disabled:text-gray-300" aria-label="发送消息"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-50 transition-colors group-hover:bg-accent-100 group-disabled:bg-transparent"><Send size={16} /></span></button>}
+                            : <button type="submit" disabled={uploading || (!text.trim() && !images.length)} className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-accent-600 disabled:text-gray-300" aria-label="发送消息"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent-50 transition-colors group-hover:bg-accent-100 group-disabled:bg-transparent"><Send size={16} /></span></button>}
                     </div>
                 </form>
             </div>
@@ -275,7 +287,7 @@ function ChatBubble({ message }: { message: ChatMessage }) {
     if (message.role === 'tool') return null
     if (!message.content) return null
     return message.role === 'user'
-        ? <div className="ml-6 whitespace-pre-wrap break-words rounded-2xl bg-accent-50 p-3 text-sm leading-6 text-accent-950">{message.content}</div>
+        ? <div className="ml-6 whitespace-pre-wrap break-words rounded-2xl bg-accent-50 p-3 text-sm leading-6 text-accent-950">{message.content}{message.images?.map(url => <img key={url} src={url} alt="发送的图片" className="mt-2 max-h-64 rounded-lg object-contain" />)}</div>
         : <div className="mr-2 min-w-0 rounded-2xl bg-gray-50 p-3 text-gray-800"><ChatMarkdown content={message.content} /></div>
 }
 

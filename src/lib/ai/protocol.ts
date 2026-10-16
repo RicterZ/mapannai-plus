@@ -9,7 +9,7 @@ export const toolCallSchema = z.object({
     function: z.object({ name: z.string().min(1).max(100), arguments: z.string().max(200_000) }),
 })
 export const chatMessageSchema = z.discriminatedUnion('role', [
-    z.object({ role: z.literal('user'), content: z.string().min(1).max(30_000) }),
+    z.object({ role: z.literal('user'), content: z.string().min(1).max(30_000), images: z.array(z.string().url().max(4096).refine(v => new URL(v).protocol === 'https:', '图片必须使用HTTPS')).max(4).optional() }),
     z.object({ role: z.literal('assistant'), content: z.string().max(200_000).nullable(), tool_calls: z.array(toolCallSchema).max(16).optional() }),
     z.object({ role: z.literal('tool'), content: z.string().max(1_000_000), tool_call_id: z.string().min(1).max(200), name: z.string().max(100).optional() }),
 ])
@@ -84,4 +84,14 @@ export const toolLabels: Record<string, string> = {
     list_trips: '查看已有旅行', get_trip_detail: '查看旅行安排', create_trip: '创建旅行', add_day_to_trip: '添加行程日',
     assign_marker_to_day: '安排当天地点', plan_trip_day: '规划当天行程', create_day_chain: '建立路线',
     reorder_day_markers: '调整地点顺序', delete_trip: '删除旅行',
+}
+
+/** Convert app image attachments to standard Chat Completions vision parts. */
+export function visionRequest(body: unknown): unknown {
+    if (!body || typeof body !== 'object' || !Array.isArray((body as any).messages)) return body
+    return { ...body, messages: (body as any).messages.map((message: any) => {
+        const { images, ...rest } = message
+        if (message.role !== 'user' || !images?.length) return rest
+        return { ...rest, content: [{ type: 'text', text: message.content }, ...images.map((url: string) => ({ type: 'image_url', image_url: { url } }))] }
+    }) }
 }

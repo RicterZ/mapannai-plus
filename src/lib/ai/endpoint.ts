@@ -1,3 +1,4 @@
+import { visionRequest } from './protocol'
 import { traceAgent } from './trace'
 import { randomUUID } from 'node:crypto'
 import { lookup } from 'node:dns'
@@ -34,6 +35,7 @@ export function completionUrl(baseUrl: string, allowPrivate = process.env.AI_ALL
 
 /** Validate the address resolved for this connection; do not follow redirects with a key. */
 export function requestCompletion(url: URL, apiKey: string, body: unknown, signal: AbortSignal, allowPrivate = process.env.AI_ALLOW_PRIVATE_ENDPOINTS === 'true'): Promise<Response> {
+    body = visionRequest(body)
     const callId = randomUUID(), started = Date.now()
     traceAgent('model-request', { callId, url: url.toString(), body })
     return new Promise((resolve, reject) => {

@@ -25,10 +25,10 @@ export function canChangeTitle(state: Workflow): boolean {
 
 /** Separate assessment sees conversation only, never web/tool content as authorization. */
 export async function assessWorkflow(request: ChatRequest, signal: AbortSignal, complete = requestCompletion): Promise<Workflow> {
-    const messages: { role: 'user' | 'assistant'; content: string | null }[] = []
+    const messages: { role: 'user' | 'assistant'; content: string | null; images?: string[] }[] = []
     for (const message of request.messages) {
         if (message.role === 'user' || message.role === 'assistant') {
-            messages.push({ role: message.role, content: message.content })
+            messages.push({ role: message.role, content: message.content, ...(message.role === 'user' && message.images ? { images: message.images } : {}) })
             continue
         }
         // Keep selected facts in chronological order, without granting write permission.

@@ -181,3 +181,7 @@ Web AI can request date/time, single/multiple choice and daily draft previews in
 AI presents a full draft for confirmation before saving. After saving and verification, a real itinerary overview appears in chat; normal conversation remains in the workflow and can return to planning for new requests.
 
 Web AI tasks run in the background and reconnect to recorded results after refresh or network loss. Stop explicitly cancels. Container restarts interrupt active execution but retain recorded results; uncertain writes are never automatically replayed.
+
+### AI Image Input
+
+Attach up to four JPG, PNG, or WebP images per message (10 MB each) in the web AI composer. This uses the existing COS configuration and requires a vision-capable model that can access the uploaded URLs. Preview or remove images before sending. Image URLs are shared with your configured model service; avoid sensitive documents or private information.

@@ -170,3 +170,7 @@ Events live in the same Agent SQLite file. Model keys remain in memory. This sur
 ### 独立地点操作
 
 `acting` 用于地点查询、收藏及单项编辑，不要求旅行日期或每日归属，不运行标题、骨架、逐日核实与全程草案确认。写入仍需明确用户授权，当前仅开放 create_marker/update_marker；旅行操作不得借此绕过草案批准。chatting/completed 与超时拒选后的模型请求保留固定工具定义，但动态尾部只指示文字回复，不再混入规划工具执行要求。历史草案批准只作用于规划状态，不改变独立任务状态。
+
+### 图片输入
+
+用户消息可附加 `images: string[]`，最多4个HTTPS图片URL；content仍是文本，旧客户端无需变更。Web复用已有COS上传，支持每张10MB以内JPG/PNG/WebP、预览及发送前移除。模型请求在传输边界转成标准Chat Completions的text/image_url内容块，需求评估和执行均可看图。模型必须支持视觉输入且能够访问该URL；图片会交给用户配置的第三方模型服务，请勿上传敏感证件。
