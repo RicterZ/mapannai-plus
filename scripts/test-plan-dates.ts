@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { validPlanDate,validatePlanDays,datesFromFacts } from '../src/agent/plan-dates'
+import { validPlanDate,validatePlanDays,datesFromFacts,resolveRevisionDates } from '../src/agent/plan-dates'
 import { generateStage } from '../src/agent/plan-stages'
 async function main(){
  for(const date of ['0000-00-00','2026-02-29','2026-13-01'])assert.equal(validPlanDate(date),false)
@@ -13,6 +13,13 @@ async function main(){
  const result=await generateStage(request,workflow,'skeleton',new AbortController().signal,async()=>Response.json({choices:[{message:{content:JSON.stringify({days:[{date:calls++?'2026-10-21':'0000-00-00',theme:'旅行',constraints:''}]})}}]}))
  assert.equal(calls,2);assert.ok('days' in result)
  await assert.rejects(generateStage(request,workflow,'skeleton',new AbortController().signal,async()=>Response.json({choices:[{message:{content:JSON.stringify({days:[{date:'0000-00-00',theme:'旅行',constraints:''}]})}}]})),{name:'StructuredOutputError'})
+ const trip=['2024-12-31','2025-01-01','2025-01-02','2025-01-03','2025-01-04','2025-01-05']
+ assert.deepEqual(resolveRevisionDates(trip,['2025-01-05'],['2025-01-06']),{dates:['2025-01-05','2025-01-06'],added:['2025-01-06'],unknown:[]})
+ assert.deepEqual(resolveRevisionDates(trip,['2025-01-06']).unknown,['2025-01-06'],'new days require explicit addedDays')
+ assert.deepEqual(resolveRevisionDates(trip,['12/31','1月5日']),{dates:['2024-12-31','2025-01-05'],added:[],unknown:[]})
+ assert.deepEqual(resolveRevisionDates(trip,['2026-12-31']),{dates:['2024-12-31'],added:[],unknown:[]})
+ assert.deepEqual(resolveRevisionDates(trip,[],['2025-02-10']).added,['2025-02-10'],'explicit additions need not be adjacent')
+ assert.deepEqual(resolveRevisionDates(trip,[],['1月6日']).unknown,['1月6日'],'additions must be ISO dates')
  console.log('Plan date checks passed: real dates, continuity, confirmed range and bounded repair without RangeError')
 }
 main().catch(e=>{console.error(e);process.exitCode=1})

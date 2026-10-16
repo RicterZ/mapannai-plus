@@ -78,7 +78,7 @@ async function main() {
             for (const name of ['create_day_chain', 'update_day_chain', 'delete_day_chain']) assert(payload.tools.some(tool => tool.function.name === name))
             assert.equal(payload.messages[0].content, planningPrompt)
             assert(planningPrompt.length < 4000, 'personality, workflow and safety rules should remain concise')
-            for (const rule of ['每轮只问一个最影响安排的问题', '标题与骨架由程序阶段生成', '禁止先创建标记再称作草案', '单独一句“保存”不能代替草案确认', '按日期顺序逐天', '<agent_instruction>', '同一工具同类失败第二次即停止', '没有补充就省略']) assert(planningPrompt.includes(rule), rule)
+            for (const rule of ['每轮只问一个最影响安排的问题', '标题与骨架由程序阶段生成', '禁止先创建标记再称作草案', '单独一句“保存”不能代替草案确认', '逐天（顺序不限）', '<agent_instruction>', '同一工具同类失败第二次即停止', '没有补充就省略']) assert(planningPrompt.includes(rule), rule)
             const firstUser = payload.messages.find(message => message.role === 'user' && message.content?.includes('<mapannai_context>'))!
             const attached = JSON.parse(firstUser.content!.split('以下为应用附加的当前数据：\n')[1].split('\n</mapannai_context>')[0])
             assert.equal(attached.trips.length, rounds === 0 ? 0 : 1, 'trip list refreshes after writes within the tool loop')

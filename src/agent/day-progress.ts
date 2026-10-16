@@ -13,10 +13,10 @@ export function completedDates(messages: ChatMessage[]): Set<string> {
 }
 
 /** Validate the actual saved day, not the model's claim that it finished. */
-export function verifySavedDay(detail: unknown, dayId: string, expectedDate?: string) {
+export function verifySavedDay(detail: unknown, dayId: string, allowedDates?: string[]) {
     const trip = detail as { days?: { id: string; date: string; title?: string; markerIds: string[]; chains: string[][] }[] }
     const day = trip.days?.find(day => day.id === dayId)
-    if (!day || (expectedDate && day.date !== expectedDate)) throw new Error('必须先完成当前日期')
+    if (!day || (allowedDates && !allowedDates.includes(day.date))) throw new Error(`该日期不在待完成范围内${allowedDates?.length ? `（${allowedDates.join('、')}）` : ''}`)
     if (!day.title?.trim()) throw new Error('请先保存当天名称')
     const ids = new Set(day.markerIds)
     if (!ids.size) throw new Error('当天尚无有效地点')
@@ -26,6 +26,6 @@ export function verifySavedDay(detail: unknown, dayId: string, expectedDate?: st
 
 export const progressTools: { type: 'function'; function: { name: string; description: string; parameters: { type: 'object'; properties: Record<string, object>; required: string[]; additionalProperties: boolean } } }[] = [
     { type: 'function', function: { name: 'record_plan_skeleton', description: '由程序骨架节点写入的阶段记录，模型不要主动调用', parameters: { type: 'object', properties: {}, required: [], additionalProperties: false } } },
-    { type: 'function' as const, function: { name: 'finish_planning_day', description: '当天名称、成员、路线保存后读取核实并标记完成；必须按每日骨架顺序完成后再继续下一天', parameters: { type: 'object' as const, properties: { tripId: { type: 'string' }, dayId: { type: 'string' } }, required: ['tripId', 'dayId'], additionalProperties: false } } },
+    { type: 'function' as const, function: { name: 'finish_planning_day', description: '当天名称、成员、路线保存后读取核实并标记完成；可按任意顺序核实待完成日期，全部核实后再提交审阅', parameters: { type: 'object' as const, properties: { tripId: { type: 'string' }, dayId: { type: 'string' } }, required: ['tripId', 'dayId'], additionalProperties: false } } },
     { type: 'function' as const, function: { name: 'submit_trip_review', description: '所有相关日期已完成并核实后提交整体审阅，本轮后续禁止写入，等待用户批准或整改意见', parameters: { type: 'object' as const, properties: { tripId: { type: 'string' } }, required: ['tripId'], additionalProperties: false } } },
 ]

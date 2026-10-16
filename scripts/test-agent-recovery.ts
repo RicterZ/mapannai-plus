@@ -34,9 +34,9 @@ try {
     assert.equal(readFileSync(filename).includes(Buffer.from(request.settings.apiKey)), false)
     assert.notEqual(store.key({ ...request, settings: { ...request.settings, apiKey: 'other-owner' } }), id)
     const detail = { days: [{ id: 'day1', date: '2026-10-15', title: '巷陌闲步', markerIds: ['a', 'b'], chains: [['a', 'b']] }] }
-    const verified = verifySavedDay(detail, 'day1', '2026-10-15')
+    const verified = verifySavedDay(detail, 'day1', ['2026-10-15'])
     assert.equal(verified.verified, true)
-    assert.throws(() => verifySavedDay(detail, 'day1', '2026-10-16'))
+    assert.throws(() => verifySavedDay(detail, 'day1', ['2026-10-16']))
     assert.throws(() => verifySavedDay({ days: [{ ...detail.days[0], title: '' }] }, 'day1'))
     assert.equal(verifySavedDay({ days: [{ ...detail.days[0], chains: [] }] }, 'day1').verified, true, 'saved members do not require an artificial route')
     assert.throws(() => verifySavedDay({ days: [{ ...detail.days[0], chains: [['a', 'unknown']] }] }, 'day1'))

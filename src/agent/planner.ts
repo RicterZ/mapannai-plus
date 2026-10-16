@@ -1,4 +1,4 @@
-import { validPlanDate, validatePlanDays } from './plan-dates'
+import { resolveRevisionDates, validPlanDate, validatePlanDays } from './plan-dates'
 import { hasReviewWaiver, reviewState } from './plan-review'
 import { interactionTools } from '../lib/ai/interaction'
 import { requestInteraction } from './interactions'
@@ -94,7 +94,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                     ? `当前为独立地点/单项操作，不执行旅行规划、标题、骨架、逐日核实或草案审阅。只读查询可直接执行；写入仅在用户明确授权时执行，授权=${workflow.authorized}。收藏独立地点无需日期或全程草案，先搜索核实身份坐标，再收藏。缺项仅询问本操作必需的信息。需求数据：${JSON.stringify(workflow)}`
                     : workflowInstruction(workflow) + (workflow.missing.length
                         ? '\n关键需求未齐，先逐个澄清missing，禁止展示草案确认或写入。'
-                        : `\n草案${draftApproved ? '已确认，可以按批准草案保存' : '未确认，先核实并展示完整草案等待确认'}。已核实日期：${JSON.stringify(Array.from(completed))}；当前待完成日期：${pendingDates()[0] || '请核实全程并提交审阅'}。每天保存后调用finish_planning_day，全程完成调用submit_trip_review。`)
+                        : `\n草案${draftApproved ? '已确认，可以按批准草案保存' : '未确认，先核实并展示完整草案等待确认'}。已核实日期：${JSON.stringify(Array.from(completed))}；待完成日期：${pendingDates().length ? JSON.stringify(pendingDates()) : '无，请提交审阅'}，顺序不限。每天保存后调用finish_planning_day，全程完成调用submit_trip_review。`)
                 messages = [...messages, { role: 'user', content: `<agent_instruction>\n${instruction}\n</agent_instruction>` }]
             }
             if (failureStop) messages = [...messages, { role: 'user', content: `<agent_instruction>\n工具连续失败，程序已停止本轮工具调用：${failureStop}\n现在不要调用任何工具，也不要复述计划或再说“接下来去做”。用一两句话如实告诉用户哪一步没完成、原因，以及需要用户做什么，然后结束本轮。\n</agent_instruction>` }]
@@ -152,12 +152,15 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             if (workflow?.phase === 'revising' && request.context.tripId) {
                 const saved = await detail(request.context.tripId)
                 if (saved.days?.length && saved.days.every((day: {date:string}) => validPlanDate(day.date))) {
-                    const affected = workflow.affectedDays
-                    const normalize = (date: string) => saved.days.find((day: {date:string}) => day.date === date)?.date
-                        || saved.days.find((day: {date:string}) => { const match = date.match(/^(\d{1,2})月(\d{1,2})日$/); return match && day.date.slice(5) === `${match[1].padStart(2,'0')}-${match[2].padStart(2,'0')}` })?.date
-                    const dates = affected.map(normalize)
-                    if (dates.some((date: string | undefined) => !date)) throw new AgentStageError('revision-dates', 'InvalidDate', '修改日期不属于当前旅行，请明确要修改的日期；本次尚未写入。')
-                    workflow = { ...workflow, affectedDays: dates, facts: { ...workflow.facts, dates: `${saved.days[0].date} ~ ${saved.days[saved.days.length - 1].date}` }, dayOutline: saved.days.map((day: {date:string;title?:string}) => ({ date: day.date, theme: day.title || '已有安排', constraints: '' })) }
+                    const savedDates: string[] = saved.days.map((day: {date:string}) => day.date).sort()
+                    const { dates, added, unknown } = resolveRevisionDates(savedDates, workflow.affectedDays, workflow.addedDays)
+                    const outline = [...saved.days.map((day: {date:string;title?:string}) => ({ date: day.date, theme: day.title || '已有安排', constraints: '' })), ...added.map(date => ({ date, theme: '新增日期', constraints: '旅行中尚无此日期：先用 add_day_to_trip（带当天名字）添加，再安排地点与路线' }))]
+                        .sort((a, b) => a.date.localeCompare(b.date))
+                    workflow = { ...workflow, affectedDays: dates, facts: { ...workflow.facts, dates: `${outline[0].date} ~ ${outline[outline.length - 1].date}` }, dayOutline: outline }
+                    if (unknown.length) {
+                        workflow = { ...workflow, phase: 'collecting', authorized: false, missing: Array.from(new Set([...workflow.missing, `要修改的日期“${unknown.join('、')}”无法对应当前旅行（${savedDates[0]} ~ ${savedDates[savedDates.length - 1]}）中的某一天，请向用户确认具体日期，或确认是否要新增这一天`])) }
+                        draftApproved = false
+                    }
                 }
             }
             if (workflow && ['outline','planning','revising'].includes(workflow.phase)) {
@@ -280,7 +283,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         const { tripId, dayId } = z.object({ tripId: z.string(), dayId: z.string() }).strict().parse(args)
                         const saved = await detail(tripId)
                         let verified: ReturnType<typeof verifySavedDay>
-                        try { verified = verifySavedDay(saved, dayId, pendingDates()[0]) } catch (error) { throw new WorkflowBlocked(error instanceof Error ? error.message : '当天核实失败') }
+                        try { verified = verifySavedDay(saved, dayId, pendingDates()) } catch (error) { throw new WorkflowBlocked(error instanceof Error ? error.message : '当天核实失败') }
                         completed.add(verified.date)
                         result = verified
                     } else if (call.function.name === 'submit_trip_review') {
@@ -306,9 +309,10 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         result = { content: [{ type: 'text', text: JSON.stringify({ title }) }] }
                     } else {
                         if (workflow?.phase !== 'acting' && workflow?.dayOutline.length && !pendingDates().length && !readOnlyTools.has(call.function.name)) throw new WorkflowBlocked('所有日期已核实，请提交审阅，不再添加安排')
-                        if (workflow && workflow.phase !== 'acting' && call.function.name !== 'update_trip_day' && !readOnlyTools.has(call.function.name) && typeof args.dayId === 'string' && typeof args.tripId === 'string' && pendingDates()[0]) {
+                        if (workflow && workflow.phase !== 'acting' && call.function.name !== 'update_trip_day' && !readOnlyTools.has(call.function.name) && typeof args.dayId === 'string' && typeof args.tripId === 'string' && pendingDates().length) {
                             const saved = await detail(args.tripId)
-                            if (saved.days?.find((day: { id: string }) => day.id === args.dayId)?.date !== pendingDates()[0]) throw new WorkflowBlocked(`当前待完成日期为${pendingDates()[0]}，本次操作未执行。请先完成该日地点安排并调用finish_planning_day，再操作下一天；不要重复相同调用。标题修改不受此顺序限制。`)
+                            const date = saved.days?.find((day: { id: string }) => day.id === args.dayId)?.date
+                            if (!date || !pendingDates().includes(date)) throw new WorkflowBlocked(`该日期不在本次待完成范围内，未执行。可操作的日期：${pendingDates().join('、')}；已核实的日期需要修改时请先告诉用户。`)
                         }
                         invoked = true
                         result = await bridge.call(call.function.name, args, signal)

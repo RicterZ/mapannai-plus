@@ -10,15 +10,15 @@ const approved = [
     { role: 'tool' as const, name: 'preview_itinerary', tool_call_id: 'p', content: JSON.stringify({ status: 'selected', selection: { action: 'continue' } }) },
 ]
 
-async function run(options: { phase: Workflow['phase']; history: any[]; affectedDays?: string[]; call: { name: string; args: object }; repeat?: boolean }) {
+async function run(options: { phase: Workflow['phase']; history: any[]; affectedDays?: string[]; addedDays?: string[]; call: { name: string; args: object }; repeat?: boolean }) {
     const writes: string[] = []
     const toolChoices: string[] = []
     let round = 0
     await runPlanner({ settings: { baseUrl: 'https://example.com', model: 'mock', apiKey: '' }, messages: [...options.history, { role: 'user', content: '把机场排进12/31，直接保存' }], context: { localDate: '2026-10-16', tripId: 't1', dayId: null } }, () => {}, new AbortController().signal, {
-        assess: async () => ({ phase: options.phase, facts, missing: [], assumptions: [], authorized: true, authorizationQuote: '直接保存', dayOutline: [{ date: '2026-12-31', theme: '测试', constraints: '' }], affectedDays: options.affectedDays || [] }),
+        assess: async () => ({ phase: options.phase, facts, missing: [], assumptions: [], authorized: true, authorizationQuote: '直接保存', dayOutline: [{ date: '2026-12-31', theme: '测试', constraints: '' }], affectedDays: options.affectedDays || [], addedDays: options.addedDays }),
         context: h => h,
         connect: async () => ({
-            tools: [tool('create_marker'), tool('create_day_chain'), tool('get_trip_detail')],
+            tools: [tool('create_marker'), tool('create_day_chain'), tool('get_trip_detail'), tool('add_day_to_trip')],
             call: async (name: string) => {
                 if (name === 'get_trip_detail') return { content: [{ type: 'text', text: JSON.stringify(trip) }] }
                 writes.push(name)
@@ -41,6 +41,12 @@ async function run(options: { phase: Workflow['phase']; history: any[]; affected
 async function main() {
     const revision = await run({ phase: 'revising', history: approved, affectedDays: ['2026-12-31'], call: { name: 'create_day_chain', args: { tripId: 't1', dayId: 'd2', markerIds: ['a', 'b'] } } })
     assert.deepEqual(revision.writes, ['create_day_chain'], 'approved revision writes the affected day without being forced through unaffected dates')
+
+    const extension = await run({ phase: 'revising', history: approved, affectedDays: [], addedDays: ['2027-01-01'], call: { name: 'add_day_to_trip', args: { tripId: 't1', date: '2027-01-01', title: '归途' } } })
+    assert.deepEqual(extension.writes, ['add_day_to_trip'], 'explicitly added days are revision targets instead of a fatal date error')
+
+    const anyOrder = await run({ phase: 'revising', history: approved, affectedDays: ['2026-12-30', '2026-12-31'], call: { name: 'create_day_chain', args: { tripId: 't1', dayId: 'd2', markerIds: ['a', 'b'] } } })
+    assert.deepEqual(anyOrder.writes, ['create_day_chain'], 'pending days can be saved in any order')
 
     const quoteOnly = await run({ phase: 'planning', history: [], call: { name: 'create_marker', args: {} } })
     assert.deepEqual(quoteOnly.writes, [], 'a save quote without draft approval cannot write itinerary data')

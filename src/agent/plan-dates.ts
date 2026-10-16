@@ -8,6 +8,27 @@ export function validatePlanDays(days: {date:string}[], expected: string[] = [])
     for (let i=1;i<days.length;i++) if (Date.parse(days[i].date)-Date.parse(days[i-1].date)!==86400000) throw new Error('骨架日期必须连续且不重复')
     if (expected.length && (expected.length !== days.length || expected.some((date,i)=>days[i]?.date!==date))) throw new Error('骨架必须完整覆盖已确认日期范围')
 }
+function monthDay(value: string): string | undefined {
+    const match = value.trim().match(/^(?:\d{4}-)?(\d{1,2})(?:-|\/|\.|月)(\d{1,2})日?$/)
+    return match ? `${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}` : undefined
+}
+/**
+ * Maps revision dates onto a saved trip. Existing days match exactly or by a unique month-day;
+ * new days come only from the assessment's explicit addedDays and must be real ISO dates.
+ */
+export function resolveRevisionDates(savedDates: string[], affected: string[], requestedAdditions: string[] = []) {
+    const added = Array.from(new Set(requestedAdditions.filter(date => validPlanDate(date) && !savedDates.includes(date)))).sort()
+    const invalidAdditions = requestedAdditions.filter(date => !validPlanDate(date))
+    const dates: string[] = [...added], unknown: string[] = [...invalidAdditions]
+    for (const value of affected) {
+        if (added.includes(value)) continue
+        const md = monthDay(value)
+        const matches = savedDates.includes(value) ? [value] : md ? savedDates.filter(date => date.slice(5) === md) : []
+        if (matches.length === 1) dates.push(matches[0])
+        else unknown.push(value)
+    }
+    return { dates: Array.from(new Set(dates)).sort(), added, unknown }
+}
 export function datesFromFacts(text: string): string[] {
     const matches: string[] = Array.from(text.match(/\d{4}-\d{2}-\d{2}/g) || [])
     if (!matches.length || matches.some(date=>!validPlanDate(date))) return []

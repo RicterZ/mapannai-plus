@@ -308,7 +308,7 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - AI 顺序固定：关键需求收集完成→change_title→制定全程骨架→逐日规划。收集期或有阻塞缺项时程序不提供 change_title，执行白名单同样拒绝；改标题无需地图保存授权。评估器只提取已有骨架，不提前生成。
 
 - 网页 system 提示词按身份→程序指令优先→任务类型→规划流程→交互工具→失败处理→数据边界组织，保持4000字以内；标题与骨架由程序节点生成，提示词不再要求模型自行调用 change_title/制定骨架；草案阶段只读，保存顺序为 create_trip 后按日期逐天建点、建路线、finish_planning_day。程序追加的阶段/熔断尾部指令统一包在 `<agent_instruction>` 中，与用户发言区分。
-- 写入授权统一：非acting阶段的 workflow.authorized 由程序按草案continue或skipReviewQuote免确认推导，评估器的原话授权仅用于acting地点写入；修改草案确认后保持revising，逐日顺序只覆盖affectedDays。评估器将“排进某天/调整路线/修改某天”判为revising/planning而非acting。`npx tsx scripts/test-agent-authorization.ts` 验证修改范围、无草案不写入及连续失败熔断。
+- 写入授权统一：非acting阶段的 workflow.authorized 由程序按草案continue或skipReviewQuote免确认推导，评估器的原话授权仅用于acting地点写入；修改草案确认后保持revising，待完成范围只覆盖affectedDays与addedDays。评估器将“排进某天/调整路线/修改某天”判为revising/planning而非acting。`npx tsx scripts/test-agent-authorization.ts` 验证修改范围、无草案不写入及连续失败熔断。
 - Agent 工具定义与顺序固定，不按阶段增删；权限由工具执行端独立检查，包括收集期禁止改标题。system 固定，旅行上下文及阶段指引仅追加在原始消息历史之后，不能改写第一条用户消息以破坏缓存前缀。缓存实际命中取决于上游服务，不能保证。
 
 - 图新增真实 title/skeleton 节点：assess 信息齐全后先生成标题并发 title 事件，成功后才生成骨架；收集/规划/审阅进入各自模型节点并复用固定工具集，骨架生成记录进入消息历史。脚本 test-agent-stage-order.ts 检查调用顺序及收集期拒绝改标题。仍无完整 checkpoint 自动续跑，不得混淆执行日志与图检查点。
@@ -347,11 +347,11 @@ ssh -p 2222 -o BatchMode=yes root@server \
 
 - Web AI支持每条最多4张JPG/PNG/WebP图片，每张10MB以内，复用COS直传并保存HTTPS展示URL；发送前可移除，上传失败不发送。协议user.images为可选HTTPS URL数组，旧文本客户端兼容；模型传输边界转换为标准text/image_url内容块，需求评估和阶段生成也保留附件。需要支持视觉输入的模型及可访问图片URL，图片会发送给用户配置的模型服务，勿上传敏感资料。无需新增环境变量。scripts/test-ai-images.ts验证格式与URL限制。
 
-- 修改当前旅行时日期骨架以数据库真实日期为准；affectedDays的明确月日按该旅行日期解析，无法匹配则停止并要求澄清，不将“1月4日”直接与ISO日期比较。跨年不推定年份，不改旅行日期。
+- 修改当前旅行时日期骨架以数据库真实日期为准；affectedDays的ISO/月日（12/31、1月5日等）按该旅行日期唯一匹配；新增日期只来自评估结果显式的 addedDays（真实ISO日期，不要求紧邻首尾），并入骨架由模型先 add_day_to_trip；无法匹配的日期回到collecting询问用户，不直接终止任务。逐日写入与 finish_planning_day 可按任意顺序处理待完成日期，submit_trip_review 前须全部核实，不将“1月4日”直接与ISO日期比较。跨年不推定年份，不改旅行日期。
 
 - finish_planning_day核实真实日期、标题、非空地点成员及已有路线引用完整性；地点成员不强制组成路线，禁止为通过核实捏造路线。已知核实失败原因通过WORKFLOW_BLOCKED返回模型，不吞成泛化参数错误。
 
-- update_trip_day仅修改标题，不受逐日地点/路线执行顺序限制；草案批准、授权和审阅后停止写入门禁仍适用。其他日期写入被顺序门禁拦截时返回当前待完成日期及WORKFLOW_BLOCKED，避免模型盲目重试。
+- update_trip_day仅修改标题，不受逐日地点/路线执行顺序限制；草案批准、授权和审阅后停止写入门禁仍适用。写入不在待完成范围内的日期时返回可操作日期列表及WORKFLOW_BLOCKED，避免模型盲目重试。
 
 - Agent工具执行错误统一区分WORKFLOW_BLOCKED（已知门禁/JSON格式）、INVALID_ARGUMENTS（schema字段路径及校验码）、TOOL_EXECUTION_FAILED（调用已进入MCP、写入结果未知）、INTERNAL_ERROR（未调用工具的内部异常）。每个失败写入tool消息供下一轮模型读取，并记录脱敏tool-failure trace；禁止向模型透传未知异常正文或凭据。submit_trip_review同样保留逐日核实原因。scripts/test-agent-tool-errors.ts覆盖模型实际收到原因及未知错误脱敏。核实/概览内部读取的MCP isError正文（截断1000字）与JSON解析失败按WORKFLOW_BLOCKED返回；INVALID_ARGUMENTS附Zod message；传输失败按超时/鉴权/服务不可用分类且不透传原文；同批工具调用ID重复时改名配对并整批不执行退回模型；结构化输出修复重试附上次校验原因。同一工具同一错误码（含MCP isError）在单次请求内第二次失败即熔断：后续tool_choice=none、执行端拒绝工具，追加尾部指令要求只如实说明失败原因与所需用户操作后结束；acting阶段的未授权/旅行写入拦截文案不提及全程草案。取消、轮数/历史上限、模型网络/结构化输出失败属于任务终止，反馈客户端而不是假装模型能在同次请求继续修复。
 
