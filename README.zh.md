@@ -219,3 +219,5 @@ git diff --check
 ```
 
 不要在同一目录同时跑开发服务和构建。换了 Node 版本后 SQLite 报错，运行 `npm rebuild better-sqlite3`。AI 服务与联网工具的细节见 [Agent 服务](docs/agent-service.md)，开发约定见 [AGENTS.md](AGENTS.md)。
+
+旅行侧栏按顺序展示每天的全部路线地点，以及已填写的游览时间、交通车次和出发时间。进入某一天，可在地图旁查看完整安排。
