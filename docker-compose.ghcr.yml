@@ -1,0 +1,13 @@
+services:
+  mapannai:
+    image: ${MAPANNAI_IMAGE:-ghcr.io/ricterz/mapannai-plus:latest}
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - mapannai_data:/app/data
+
+volumes:
+  mapannai_data:

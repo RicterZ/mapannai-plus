@@ -15,6 +15,10 @@ MapAnNai Plus（マップ案内）是地图上的地点整理与旅行行程编�
 
 ## 文档维护
 
+- GHCR 发布入口 `.github/workflows/publish-image.yml`：手动构建及 Release published 触发，amd64/arm64，GITHUB_TOKEN packages:write；稳定 Release 更新 latest，预发布不覆盖，默认分支手动构建仅更新 edge。`docker-compose.ghcr.yml` 使用预构建镜像并持久化同一数据卷；所有服务 Key 运行时传入，不烘焙到镜像。`NEXT_PUBLIC_IMAGE_DOMAINS` 为构建配置，通过同名仓库变量传递。Docker context 必须排除全部 .env 变体、SQLite 与 data/，避免私人数据进入镜像层。
+
+- README 功能介绍只描述产品能力，不追加实现细节或阶段日志；中英文同步。部署以显式 `MAP_RENDERER=amap` 的高德/Google 为推荐路径，OSM 仅可选，不要求所有部署配置瓦片代理。部署指南列明全部 Key 的用途与平台、Google 旧版 Places/Directions 的兼容限制、网页/iOS SDK 所需 API 和原生 Key 的构建位置；完整变量定义仍以 `env.example` 为准。
+
 - `README.md` 与 `README.zh.md` 面向产品使用者，保持功能介绍、使用方式、部署与本地开发内容同步，并保留 iOS 客户端入口。
 - 环境变量说明集中在 `env.example`；架构边界、交互约定与开发验证要求维护在本文件。不要把接口细节、测试记录或逐次变更日志追加到 README 或环境变量示例。
 - 清理与当前源码不符的旧设计文档；AI 接入以现有 MCP 为准。

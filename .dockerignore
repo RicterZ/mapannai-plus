@@ -94,3 +94,11 @@ jspm_packages/
 
 # DynamoDB Local files
 .dynamodb/
+
+# Never include databases, private local references or other env files in image layers.
+data/
+docs/local/
+.env.*
+*.db
+*.db-wal
+*.db-shm
