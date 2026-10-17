@@ -22,3 +22,6 @@ const sharedHotel = layoutItineraryCards([0, 1, 2, 3].map(i => ({ id: `trip-day-
 assert.equal(sharedHotel.length, 4, 'All four days sharing a hotel must have their own compact label')
 assert.equal(new Set(sharedHotel.map(card => `${card.left}:${card.top}`)).size, 4)
 assert.equal(layoutItineraryCards([{ id: 'airport', x: bounds.right + 25, y: 400 }], bounds).length, 1, 'An anchor beside the control gutter must retain its label inside safe bounds')
+const routed = layoutItineraryCards([{ id: 'route-label', x: 900, y: 450 }], bounds, [[{x:420,y:450},{x:1400,y:450}]])
+assert.equal(routed.length, 1)
+assert.ok(routed[0].top + height < 438 || routed[0].top > 462, 'Card must avoid the actual route corridor')

@@ -137,11 +137,22 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
         const projected = mapRef.current?.project([point.longitude, point.latitude])
         return projected && { x: projected.x, y: projected.y }
     }, [isNative, basemap])
-    const subscribeItineraryCamera = useCallback((update: () => void) => {
-        if (isNative) return sdkRef.current?.subscribeCamera(update) || (() => {})
+    const itineraryRoutePaths = useCallback(() => {
+        if (isNative) return sdkRef.current?.routeScreenPaths() || []
+        const state = useMapStore.getState()
+        const byId = new globalThis.Map(state.markers.map(marker => [marker.id, marker]))
+        return state.tripDays.filter(day => state.activeView.mode === 'day' ? day.id === state.activeView.dayId : day.tripId === state.activeView.tripId).flatMap(day => day.chains.map(chain => chain.flatMap(id => {
+            const marker = byId.get(id)
+            const point = marker && projectItineraryPoint(marker.coordinates)
+            return point ? [point] : []
+        })))
+    }, [isNative, projectItineraryPoint])
+    const subscribeItineraryCamera = useCallback((update: () => void, moving: () => void) => {
+        if (isNative) return sdkRef.current?.subscribeCamera(update, moving) || (() => {})
         const map = mapRef.current?.getMap()
         map?.on('moveend', update)
-        return () => { map?.off('moveend', update) }
+        map?.on('movestart', moving)
+        return () => { map?.off('moveend', update); map?.off('movestart', moving) }
     }, [isNative, basemap])
 
     const flyMap = useCallback((options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }) => {
@@ -294,7 +305,7 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
         if (!camera) return
         state.closePopup()
         if (window.innerWidth < 1024) state.closeLeftSidebar()
-        flyMap({ center: [camera.longitude, camera.latitude], zoom: camera.zoom, duration: flyDuration(camera), offset: viewport.offset })
+        flyMap({ center: [camera.longitude, camera.latitude], zoom: Math.max(2, camera.zoom - 0.5), duration: flyDuration(camera), offset: viewport.offset })
     }, [flyMap, flyDuration, isNative])
 
     const handleAiMarkersCreated = useCallback((ids: string[], panel: DOMRect | null) => {
@@ -1058,7 +1069,7 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
 
             {/* Keep overlay identity distinct from the sibling SDK map to prevent remount loops. */}
             {mapInitialized && !searchOpen && !addMarkerEnabled && activeView.mode !== 'overview' &&
-                <ItineraryMapCards key={`itinerary:${basemap}`} project={projectItineraryPoint} subscribe={subscribeItineraryCamera} onMarkerClick={handleMarkerClick} onFitMarkers={handleFitMarkers} />}
+                <ItineraryMapCards key={`itinerary:${basemap}`} project={projectItineraryPoint} routePaths={itineraryRoutePaths} subscribe={subscribeItineraryCamera} onMarkerClick={handleMarkerClick} onFitMarkers={handleFitMarkers} />}
 
             {/* 新增标记弹窗 */}
             <AddMarkerModal
