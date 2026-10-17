@@ -273,3 +273,5 @@ git diff --check
 Do not run the development server and build in the same directory at once. After changing Node versions, use `npm rebuild better-sqlite3` if the native SQLite dependency reports an ABI error. Non-Docker deployments also need the AI service for web AI. See [Agent service](docs/agent-service.md) for optional web-tool installation and detailed setup, and [AGENTS.md](AGENTS.md) for development conventions.
 
 The trip sidebar shows every route stop in order, with saved visit times, transport services and departure times. Open a day to read the full arrangements beside the map.
+
+Desktop trip and day maps show floating itinerary cards linked to their locations. Use the map controls to fit the itinerary or hide the cards; zoom in to reveal cards omitted to prevent overlap.
