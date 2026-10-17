@@ -8,7 +8,6 @@ import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react'
 import { toast } from 'sonner'
 
 import { SDKMapRenderer, MapRendererHandle } from './sdk-map-renderer'
-import { ItineraryMapCards } from './itinerary-map-cards'
 import { regionalRenderer, visibleMapCenter } from '@/lib/map/regional-renderer'
 import { createBasemapStyle, toMapCoordinates, fromMapCoordinates } from '@/lib/map/basemap'
 import { config } from '@/lib/config'
@@ -131,19 +130,6 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
     const [basemap, setBasemap] = useState(() => regionalRenderer(renderer, viewState))
     const isNative = basemap !== 'osm'
     const sdkRef = useRef<MapRendererHandle>(null)
-    const projectItineraryPoint = useCallback((coordinates: MarkerCoordinates) => {
-        if (isNative) return sdkRef.current?.project(coordinates)
-        const point = toMapCoordinates(coordinates, basemap)
-        const projected = mapRef.current?.project([point.longitude, point.latitude])
-        return projected && { x: projected.x, y: projected.y }
-    }, [isNative, basemap])
-    const subscribeItineraryCamera = useCallback((update: () => void) => {
-        if (isNative) return sdkRef.current?.subscribeCamera(update) || (() => {})
-        const map = mapRef.current?.getMap()
-        map?.on('moveend', update)
-        return () => { map?.off('moveend', update) }
-    }, [isNative, basemap])
-
     const flyMap = useCallback((options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }) => {
         if (isNative) sdkRef.current?.flyTo(options)
         else mapRef.current?.flyTo(options)
@@ -1036,9 +1022,6 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
                 )}
                 </MapLibreComponent>
                 </React.Fragment>}
-
-            {mapInitialized && !searchOpen && !addMarkerEnabled && activeView.mode !== 'overview' &&
-                <ItineraryMapCards key={basemap} project={projectItineraryPoint} subscribe={subscribeItineraryCamera} onMarkerClick={handleMarkerClick} onFitMarkers={handleFitMarkers} />}
 
             {/* 新增标记弹窗 */}
             <AddMarkerModal

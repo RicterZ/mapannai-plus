@@ -69,8 +69,6 @@ function loadAMap(key: string, securityCode: string): Promise<SDKMapNamespace> {
 export interface MapCamera { longitude: number; latitude: number; zoom: number; bearing?: number; pitch?: number }
 export interface MapRendererHandle {
     flyTo(options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }): void
-    project(coordinates: MarkerCoordinates): { x: number; y: number } | undefined
-    subscribeCamera(handler: () => void): () => void
     getSearchBounds(): MapSearchBounds | undefined
 }
 interface Props {
@@ -120,17 +118,6 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
     const locationNodeRef = useRef<HTMLElement | null>(null)
 
     useImperativeHandle(ref, () => ({
-        project(coordinates) {
-            const display = toMapCoordinates(coordinates, latest.current.renderer)
-            const point = mapRef.current?.lngLatToContainer([display.longitude, display.latitude])
-            return point && { x: point.getX(), y: point.getY() }
-        },
-        subscribeCamera(handler) {
-            const map = mapRef.current
-            const events = latest.current.renderer === 'google' ? ['idle'] : ['moveend', 'zoomend']
-            events.forEach(event => map?.on(event, handler))
-            return () => events.forEach(event => map?.off(event, handler))
-        },
         getSearchBounds() {
             const bounds = mapRef.current?.getBounds()
             if (!bounds) return
