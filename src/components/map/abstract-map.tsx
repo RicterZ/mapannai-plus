@@ -140,8 +140,8 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
     const subscribeItineraryCamera = useCallback((update: () => void) => {
         if (isNative) return sdkRef.current?.subscribeCamera(update) || (() => {})
         const map = mapRef.current?.getMap()
-        map?.on('move', update)
-        return () => { map?.off('move', update) }
+        map?.on('moveend', update)
+        return () => { map?.off('moveend', update) }
     }, [isNative, basemap])
 
     const flyMap = useCallback((options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }) => {

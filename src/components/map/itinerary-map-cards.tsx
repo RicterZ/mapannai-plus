@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useMapStore } from '@/store/map-store'
 import { routeColor } from '@/lib/map/route-presentation'
-import { itineraryCardSize, layoutItineraryCards, type MapCardPlacement } from '@/lib/map/itinerary-card-layout'
+import { itineraryCardSize, layoutItineraryCards, sameItineraryPlacements, type MapCardPlacement } from '@/lib/map/itinerary-card-layout'
 import type { MarkerCoordinates } from '@/types/marker'
 import { formatPlannedDuration } from '../trips/route-schedule'
 
@@ -59,12 +59,15 @@ export function ItineraryMapCards({ project, subscribe, onMarkerClick, onFitMark
         if (!element || hidden) return
         let frame = 0
         const update = () => {
-            cancelAnimationFrame(frame)
+            if (frame) return
             frame = requestAnimationFrame(() => {
+                frame = 0
+                if (element.clientWidth < 1024) return
                 const rect = element.getBoundingClientRect()
                 const anchors = cards.flatMap(card => { const p = project(card.coordinates); return p ? [{ id: card.id, ...p }] : [] })
                 const rightPanel = interactionState.isSidebarOpen ? document.querySelector('.right-sidebar')?.getBoundingClientRect().width || 400 : 0
-                setPlacements(layoutItineraryCards(anchors, { left: leftSidebar.isOpen ? 420 : 20, top: 100, right: rect.width - rightPanel - 76, bottom: rect.height - 90 }))
+                const next = layoutItineraryCards(anchors, { left: leftSidebar.isOpen ? 420 : 20, top: 100, right: rect.width - rightPanel - 76, bottom: rect.height - 90 })
+                setPlacements(previous => sameItineraryPlacements(previous, next) ? previous : next)
             })
         }
         const observer = new ResizeObserver(update)
@@ -87,12 +90,15 @@ export function ItineraryMapCards({ project, subscribe, onMarkerClick, onFitMark
         {!hidden && <>
             <svg aria-hidden="true" className="absolute inset-0 h-full w-full overflow-hidden">
                 {placements.map(p => {
-                    const color = cards.find(card => card.id === p.id)!.color
+                    const card = cards.find(card => card.id === p.id)
+                    if (!card) return null
+                    const color = card.color
                     return <g key={p.id}><line x1={p.x} y1={p.y} x2={Math.max(p.left, Math.min(p.left + itineraryCardSize.width, p.x))} y2={Math.max(p.top, Math.min(p.top + itineraryCardSize.height, p.y))} stroke={color} strokeWidth="1" /><circle cx={p.x} cy={p.y} r="4" fill="white" stroke={color} strokeWidth="2" /></g>
                 })}
             </svg>
             {placements.map(p => {
-                const card = cards.find(card => card.id === p.id)!
+                const card = cards.find(card => card.id === p.id)
+                if (!card) return null
                 return <button key={card.id} type="button" onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
                     className="pointer-events-auto absolute overflow-hidden rounded-lg border border-gray-200 border-l-[3px] bg-white/95 px-4 py-3 text-left shadow-[0_3px_18px_rgba(0,0,0,0.08)] transition-shadow hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
                     style={{ left: p.left, top: p.top, width: itineraryCardSize.width, height: itineraryCardSize.height, borderLeftColor: card.color }}>

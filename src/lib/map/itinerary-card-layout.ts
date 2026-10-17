@@ -21,3 +21,10 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: { left: n
     }
     return placed
 }
+
+export function sameItineraryPlacements(previous: MapCardPlacement[], next: MapCardPlacement[]): boolean {
+    return previous.length === next.length && previous.every((item, i) => {
+        const other = next[i]
+        return item.id === other.id && item.x === other.x && item.y === other.y && item.left === other.left && item.top === other.top
+    })
+}

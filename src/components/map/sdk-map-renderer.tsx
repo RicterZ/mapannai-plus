@@ -127,7 +127,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
         },
         subscribeCamera(handler) {
             const map = mapRef.current
-            const events = latest.current.renderer === 'google' ? ['bounds_changed'] : ['mapmove', 'zoomchange']
+            const events = latest.current.renderer === 'google' ? ['idle'] : ['moveend', 'zoomend']
             events.forEach(event => map?.on(event, handler))
             return () => events.forEach(event => map?.off(event, handler))
         },
