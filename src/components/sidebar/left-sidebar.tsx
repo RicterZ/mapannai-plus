@@ -1112,6 +1112,11 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         }}>
         <div className="flex-1 overflow-y-auto custom-scrollbar">
             <div className="p-3">
+                <div className="border-b border-gray-100 px-2 pb-4 pt-2">
+                    <div className="text-[11px] tracking-widest text-gray-400">行程安排</div>
+                    <p className="mt-2 text-sm leading-6 text-gray-600">{currentTripDays.length} 天的路线与交通</p>
+                    <p className="mt-1 text-xs leading-5 text-gray-400">沿着每天的访问顺序浏览，点击一天查看完整安排。</p>
+                </div>
                 {currentTripDays.length === 0 ? (
                     <div className="text-center py-8 text-gray-400">
                         <PlaceIcon emoji="📅" size={32} className="mx-auto mb-2" />
@@ -1119,7 +1124,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     </div>
                 ) : (
                     currentTripDays.map((day, idx) => {
-                        const dayMarkers = day.markerIds
+                        const dayMarkers = Array.from(new Set([...day.markerIds, ...day.chains.flat()]))
                             .map(id => markers.find(m => m.id === id))
                             .filter(Boolean) as typeof markers
                         return (
@@ -1330,6 +1335,10 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         return (
             <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <div className="p-3 flex flex-col gap-3">
+                    <div className="px-2 pb-1">
+                        <div className="text-[11px] tracking-widest text-gray-400">当天安排</div>
+                        <p className="mt-1 text-xs leading-5 text-gray-500">{currentDayMarkers.length} 个地点 · {chainedGroups.length} 条路线，按访问顺序查看游览与交通。</p>
+                    </div>
                     {/* 路线分组 */}
                     {chainedGroups.map((group, chainIdx) => (
                         <div key={`chain-${chainIdx}`} className="journey-route-card journey-route-reader" style={{ borderColor: `${routeColor(chainIdx, currentDay?.id, currentDay?.colorIndex)}30`, backgroundColor: '#fff' }}>
