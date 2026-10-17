@@ -62,8 +62,10 @@ export function ItineraryMapCards({ project, routePaths, subscribe, onMarkerClic
                 const rect = element.getBoundingClientRect()
                 const anchors = cards.flatMap(card => { const p = project(card.coordinates); return p ? [{ id: card.id, ...p }] : [] })
                 const rightPanel = interactionState.isSidebarOpen ? document.querySelector('.right-sidebar')?.getBoundingClientRect().width || 400 : 0
-                const next = layoutItineraryCards(anchors, { left: leftSidebar.isOpen ? 420 : 20, top: 100, right: rect.width - rightPanel - 76, bottom: rect.height - 90 }, routePaths())
-                setPlacements(previous => sameItineraryPlacements(previous, next) ? previous : next)
+                setPlacements(previous => {
+                    const next = layoutItineraryCards(anchors, { left: leftSidebar.isOpen ? 420 : 20, top: 100, right: rect.width - rightPanel - 76, bottom: rect.height - 90 }, routePaths(), previous)
+                    return sameItineraryPlacements(previous, next) ? previous : next
+                })
                 setMoving(false)
             })
         }
