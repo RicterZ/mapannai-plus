@@ -100,12 +100,12 @@ export function ItineraryMapCards({ project, subscribe, onMarkerClick, onFitMark
                 const card = cards.find(card => card.id === p.id)
                 if (!card) return null
                 return <button key={card.id} type="button" onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
-                    className="pointer-events-auto absolute overflow-hidden rounded-lg border border-gray-200 border-l-[3px] bg-white/95 px-4 py-3 text-left shadow-[0_3px_18px_rgba(0,0,0,0.08)] transition-shadow hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+                    className="pointer-events-auto absolute overflow-hidden rounded-md border border-gray-200 border-l-[3px] bg-white px-3 py-2.5 text-left shadow-[0_3px_18px_rgba(0,0,0,0.08)] transition-shadow hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
                     style={{ left: p.left, top: p.top, width: itineraryCardSize.width, height: itineraryCardSize.height, borderLeftColor: card.color }}>
                     <div className="text-[11px]" style={{ color: card.color }}>{card.eyebrow}</div>
                     <div className="mt-1 truncate text-sm font-medium text-gray-900">{card.title}</div>
-                    <div className="mt-2 line-clamp-2 break-words text-xs leading-5 text-gray-500">{card.description}</div>
-                    {card.detail && <div className="mt-2 line-clamp-2 break-words text-[11px] leading-4 text-gray-600">{card.detail}</div>}
+                    <div className="mt-1 line-clamp-2 break-words text-xs leading-4 text-gray-500">{card.description}</div>
+                    {card.detail && <div className="mt-1 line-clamp-2 break-words text-[11px] leading-4 text-gray-600">{card.detail}</div>}
                 </button>
             })}
         </>}

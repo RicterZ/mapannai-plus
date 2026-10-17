@@ -293,7 +293,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
     }
 
     // 当缩放级别小于阈值时，隐藏连接线
-    if (zoom < zoomThreshold) {
+    if (zoom < zoomThreshold && activeView.mode === 'overview') {
         return null
     }
 
@@ -315,7 +315,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         ],
                         'line-opacity': [
                             'case',
-                            ['>', ['length', ['literal', highlightedLineIds]], 0],
+                            ['all', ['literal', activeView.mode === 'overview'], ['>', ['length', ['literal', highlightedLineIds]], 0]],
                             0.4,
                             0.8
                         ],
@@ -337,7 +337,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         ],
                         'line-opacity': [
                             'case',
-                            ['>', ['length', ['literal', highlightedLineIds]], 0],
+                            ['all', ['literal', activeView.mode === 'overview'], ['>', ['length', ['literal', highlightedLineIds]], 0]],
                             0.25,
                             0.8
                         ],
@@ -383,7 +383,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         'line-opacity': [
                             'case',
                             ['in', ['get', 'id'], ['literal', highlightedLineIds]], 1,
-                            ['>', ['length', ['literal', highlightedLineIds]], 0], 0.25,
+                            ['all', ['literal', activeView.mode === 'overview'], ['>', ['length', ['literal', highlightedLineIds]], 0]], 0.25,
                             0.8,
                         ],
                     }}

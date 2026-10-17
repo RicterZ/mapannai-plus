@@ -301,7 +301,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
     useEffect(() => {
         const map = mapRef.current, SDK = namespaceRef.current
         if (!ready || !map || !SDK) return
-        if (props.viewState.zoom < zoomThreshold) {
+        if (props.viewState.zoom < zoomThreshold && activeView.mode === 'overview') {
             map.remove(Array.from(routeOverlaysRef.current.values()).flatMap(entry => [entry.casing, entry.line, entry.hitArea, ...(entry.dot ? [entry.dot] : [])]))
             routeOverlaysRef.current.clear()
             pickableRoutesRef.current = []
@@ -329,8 +329,8 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
                 const key = `${day.id}:${chainIndex}:${index}`
                 liveKeys.add(key)
                 let entry = routeOverlaysRef.current.get(key)
-                const casingOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: '#ffffff', strokeWeight: width + 2, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.4 : 0.8, zIndex: highlighted ? 52 : 48 }
-                const lineOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: color, strokeStyle: planned.enabled && (!cachedPath || isRangeFallback(cachedPath)) ? 'dashed' : 'solid', strokeDasharray: [8, 6], strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId ? 0.25 : 0.8, zIndex: highlighted ? 53 : 49 }
+                const casingOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: '#ffffff', strokeWeight: width + 2, strokeOpacity: highlighted ? 1 : effectiveDayId && activeView.mode === 'overview' ? 0.4 : 0.95, zIndex: highlighted ? 52 : 48 }
+                const lineOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: color, strokeStyle: planned.enabled && (!cachedPath || isRangeFallback(cachedPath)) ? 'dashed' : 'solid', strokeDasharray: [8, 6], strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId && activeView.mode === 'overview' ? 0.25 : 0.9, zIndex: highlighted ? 53 : 49 }
                 const hitOptions = { path, strokeColor: color, strokeWeight: 28, strokeOpacity: 0, zIndex: highlighted ? 56 : 55, bubble: false }
                 if (!entry) {
                     entry = { casing: new SDK.Polyline(casingOptions), line: new SDK.Polyline(lineOptions), hitArea: new SDK.Polyline(hitOptions) }
@@ -359,7 +359,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
                     entry.line.setOptions(lineOptions)
                     entry.hitArea.setOptions(hitOptions)
                 }
-                if (highlighted) {
+                if (highlighted && props.viewState.zoom >= zoomThreshold) {
                     if (!entry.dot) {
                         entry.node = document.createElement('div')
                         entry.dot = new SDK.Marker({ position: [from.lng, from.lat], content: entry.node, offset: new SDK.Pixel(-5, -5), zIndex: 54, clickable: false })

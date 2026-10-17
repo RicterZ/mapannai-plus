@@ -29,6 +29,7 @@ export function loadGoogleMap(apiKey: string): Promise<SDKMapNamespace> {
 
 // A light travel palette keeps saved places and itinerary colors in the foreground.
 const travelMapStyles = [
+    { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
     { elementType: 'geometry', stylers: [{ color: '#f7f8f5' }] },
     { elementType: 'labels.text.fill', stylers: [{ color: '#536664' }] },
     { elementType: 'labels.text.stroke', stylers: [{ color: '#ffffff' }] },

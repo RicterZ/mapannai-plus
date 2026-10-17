@@ -275,3 +275,5 @@ Do not run the development server and build in the same directory at once. After
 The trip sidebar shows every route stop in order, with saved visit times, transport services and departure times. Open a day to read the full arrangements beside the map.
 
 Desktop trip and day maps show floating itinerary cards linked to their locations. Fit the itinerary or hide the cards from the map controls; zoom in to reveal cards omitted to prevent overlap.
+
+Trip and day maps keep itinerary lines visible when zoomed out. Compact map annotations use available space, while full-width daily timelines leave more room for place names and transport notes.

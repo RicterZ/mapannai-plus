@@ -1,6 +1,6 @@
 export interface MapCardAnchor { id: string; x: number; y: number }
 export interface MapCardPlacement extends MapCardAnchor { left: number; top: number }
-export const itineraryCardSize = { width: 224, height: 156 }
+export const itineraryCardSize = { width: 224, height: 128 }
 
 // Keep cards inside the free map viewport; hide excess rather than overlap them.
 export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: { left: number; top: number; right: number; bottom: number }): MapCardPlacement[] {
@@ -14,6 +14,11 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: { left: n
             { left: anchor.x - width / 2, top: anchor.y - height - 28 },
             { left: anchor.x - width / 2, top: anchor.y + 28 },
         ].map(p => ({ left: Math.max(bounds.left, Math.min(bounds.right - width, p.left)), top: Math.max(bounds.top, Math.min(bounds.bottom - height, p.top)) }))
+        // Search the free map area as well as nearby positions when days share a base.
+        for (let top = bounds.top; top + height <= bounds.bottom; top += height + 12) {
+            for (const left of [bounds.left, bounds.right - width]) candidates.push({ left, top })
+        }
+        candidates.sort((a, b) => Math.hypot(a.left + width / 2 - anchor.x, a.top + height / 2 - anchor.y) - Math.hypot(b.left + width / 2 - anchor.x, b.top + height / 2 - anchor.y))
         const candidate = candidates.find(p => p.left >= bounds.left && p.top >= bounds.top && p.left + width <= bounds.right && p.top + height <= bounds.bottom
             && !(anchor.x > p.left - 14 && anchor.x < p.left + width + 14 && anchor.y > p.top - 14 && anchor.y < p.top + height + 14)
             && !placed.some(other => p.left < other.left + width + 12 && p.left + width + 12 > other.left && p.top < other.top + height + 12 && p.top + height + 12 > other.top))

@@ -1132,18 +1132,20 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                             <div className="journey-day-chapter flex items-stretch border-b border-gray-100 bg-white">
                             <button
                                 onClick={() => { setActiveView('day', activeView.tripId, day.id) }}
-                                className="flex-1 min-w-0 flex items-start gap-4 px-2 py-5 text-left hover:bg-gray-50"
+                                className="flex-1 min-w-0 px-2 py-5 text-left hover:bg-gray-50"
                             >
 
+                                <div className="flex items-start gap-4">
                                 <span className="w-9 shrink-0 text-[26px] leading-8 tabular-nums" style={{ color: routeColor(0, day.id, day.colorIndex) }}>{String(idx + 1).padStart(2, '0')}</span>
                                 <div className="flex-1 min-w-0">
                                     <div className="break-words text-base font-semibold leading-6 text-gray-900">{day.title || `第${idx + 1}天`}</div>
                                     <div className="mt-1 text-xs text-gray-400">{formatDate(day.date)}</div>
-                                    <DayRoutePreview day={day} markers={dayMarkers} />
                                 </div>
                                 <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
+                                </div>
+                                <div className="px-1"><DayRoutePreview day={day} markers={dayMarkers} /></div>
                             </button>
                             {addMarkerEnabled && <button
                                 type="button"
