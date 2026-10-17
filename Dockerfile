@@ -32,16 +32,16 @@ ENV BRAVE_MCP_TRANSPORT=stdio
 ENV BRAVE_MCP_ENABLED_TOOLS=brave_web_search
 ENV HTTP_STREAMABLE_SERVER=false
 
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/dist/agent.cjs ./agent.cjs
-COPY scripts/start-services.cjs ./start-services.cjs
-COPY --from=builder /app/.next/static ./.next/static
+COPY --chown=nextjs:nodejs --from=builder /app/.next/standalone ./
+COPY --chown=nextjs:nodejs --from=builder /app/node_modules ./node_modules
+COPY --chown=nextjs:nodejs --from=builder /app/dist/agent.cjs ./agent.cjs
+COPY --chown=nextjs:nodejs scripts/start-services.cjs ./start-services.cjs
+COPY --chown=nextjs:nodejs --from=builder /app/.next/static ./.next/static
 
 RUN mkdir -p ./public
-COPY --from=builder /app/public/ ./public/
+COPY --chown=nextjs:nodejs --from=builder /app/public/ ./public/
 
-RUN mkdir -p /app/data && chown -R nextjs:nodejs /app
+RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
 USER nextjs
 
 EXPOSE 3000
