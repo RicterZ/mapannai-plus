@@ -18,3 +18,6 @@ assert.ok(!sameItineraryPlacements(cards, cards.map((card, i) => i === 0 ? { ...
 console.log('Itinerary map card layout checks passed')
 const clustered = layoutItineraryCards(Array.from({ length: 6 }, (_, i) => ({ id: `day-${i}`, x: 900, y: 450 })), bounds)
 assert.equal(clustered.length, 6, 'Shared overnight bases should use free map space rather than lose day cards')
+const sharedHotel = layoutItineraryCards([0, 1, 2, 3].map(i => ({ id: `trip-day-${i}`, x: 1150, y: 450 })), bounds)
+assert.equal(sharedHotel.length, 4, 'All four days sharing a hotel must have their own compact label')
+assert.equal(new Set(sharedHotel.map(card => `${card.left}:${card.top}`)).size, 4)
