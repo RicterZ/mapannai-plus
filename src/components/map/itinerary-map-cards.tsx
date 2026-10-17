@@ -35,8 +35,8 @@ export function ItineraryMapCards({ project, routePaths, subscribe, onMarkerClic
                 return (anchors.get(day.id) || []).map(id => ({
                     id: `${day.id}:${id}`, dayId: day.id, markerId: null as string | null,
                     coordinates: byId.get(id)!.coordinates, color,
-                    eyebrow: `第${dayIndex}天 · ${date}`,
-                    title: day.title || byId.get(id)!.content.title || '当天行程',
+                    eyebrow: `${date} · ${["周日","周一","周二","周三","周四","周五","周六"][new Date(day.date + "T12:00:00").getDay()]}`,
+                    title: `第${dayIndex}天`,
                 }))
             }
             return ids.map((id, index) => {
@@ -107,8 +107,8 @@ export function ItineraryMapCards({ project, routePaths, subscribe, onMarkerClic
                 return <button key={card.id} type="button" title={`${card.eyebrow} · ${card.title}`} onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
                     disabled={moving} className="pointer-events-auto disabled:pointer-events-none absolute overflow-hidden rounded-md border border-gray-200 border-l-[3px] bg-white px-3 py-2.5 text-left shadow-[0_3px_18px_rgba(0,0,0,0.08)] transition-shadow hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
                     style={{ left: p.left, top: p.top, width: itineraryCardSize.width, height: itineraryCardSize.height, borderLeftColor: card.color }}>
-                    <div className="text-[11px]" style={{ color: card.color }}>{card.eyebrow}</div>
-                    <div className="mt-1 truncate text-sm font-medium text-gray-900">{card.title}</div>
+                    <div className="truncate text-sm font-medium text-gray-900">{card.title}</div>
+                    <div className="mt-1 text-[11px] text-gray-400">{card.eyebrow}</div>
                 </button>
             })}
         </div>}

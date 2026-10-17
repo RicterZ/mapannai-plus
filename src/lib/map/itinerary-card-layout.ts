@@ -14,12 +14,27 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: { left: n
             { left: anchor.x - width / 2, top: anchor.y - height - 100 },
             { left: anchor.x - width / 2, top: anchor.y + 100 },
         ].map(p => ({ left: Math.max(bounds.left, Math.min(bounds.right - width, p.left)), top: Math.max(bounds.top, Math.min(bounds.bottom - height, p.top)) }))
+        // Radial candidates let leader angles follow free space, rather than fixed axes.
+        for (const radius of [180, 260, 360]) {
+            for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 8) {
+                candidates.push({ left: anchor.x + Math.cos(angle) * radius - width / 2, top: anchor.y + Math.sin(angle) * radius - height / 2 })
+            }
+        }
         // Search the free map area as well as nearby positions when days share a base.
         for (let top = bounds.top; top + height <= bounds.bottom; top += height + 12) {
             for (let left = bounds.left; left + width <= bounds.right; left += width + 16) candidates.push({ left, top })
             candidates.push({ left: bounds.right - width, top })
         }
-        candidates.sort((a, b) => Math.hypot(a.left + width / 2 - anchor.x, a.top + height / 2 - anchor.y) - Math.hypot(b.left + width / 2 - anchor.x, b.top + height / 2 - anchor.y))
+        const score = (p: { left: number; top: number }) => {
+            const end = { x: p.left + width / 2, y: p.top + height / 2 }
+            const cross = (a: { x: number; y: number }, b: { x: number; y: number }, c: { x: number; y: number }) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+            const crossings = placed.filter(other => {
+                const target = { x: other.left + width / 2, y: other.top + height / 2 }
+                return cross(anchor, end, other) * cross(anchor, end, target) < 0 && cross(other, target, anchor) * cross(other, target, end) < 0
+            }).length
+            return Math.hypot(end.x - anchor.x, end.y - anchor.y) + crossings * 1000
+        }
+        candidates.sort((a, b) => score(a) - score(b))
         const candidate = candidates.find(p => p.left >= bounds.left && p.top >= bounds.top && p.left + width <= bounds.right && p.top + height <= bounds.bottom
             && Math.hypot(Math.max(p.left - anchor.x, 0, anchor.x - p.left - width), Math.max(p.top - anchor.y, 0, anchor.y - p.top - height)) >= 80
             && !anchors.some(point => point.x > p.left - 14 && point.x < p.left + width + 14 && point.y > p.top - 14 && point.y < p.top + height + 14)
