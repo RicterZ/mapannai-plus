@@ -5,7 +5,7 @@ import { useMapStore } from '@/store/map-store'
 import { routeColor } from '@/lib/map/route-presentation'
 import { itineraryCardSize, layoutItineraryCards, sameItineraryPlacements, type MapCardPlacement } from '@/lib/map/itinerary-card-layout'
 import type { MarkerCoordinates } from '@/types/marker'
-import { formatPlannedDuration } from '../trips/route-schedule'
+import { itineraryAnchors } from '@/lib/map/itinerary-anchors'
 
 interface Props {
     project: (coordinates: MarkerCoordinates) => { x: number; y: number } | undefined
@@ -13,7 +13,7 @@ interface Props {
     onMarkerClick: (id: string) => void
     onFitMarkers: (ids: string[]) => void
 }
-const modeLabels: Record<string, string> = { walking: '步行', cycling: '骑行', driving: '驾车', taxi: '出租车', bus: '公交', subway: '地铁', train: '火车', flight: '飞机', ferry: '轮船', other: '交通' }
+
 
 export function ItineraryMapCards({ project, subscribe, onMarkerClick, onFitMarkers }: Props) {
     const { activeView, tripDays, markers, leftSidebar, interactionState, setActiveView } = useMapStore()
@@ -23,32 +23,25 @@ export function ItineraryMapCards({ project, subscribe, onMarkerClick, onFitMark
     const cards = useMemo(() => {
         const byId = new Map(markers.map(marker => [marker.id, marker]))
         const days = tripDays.filter(day => day.tripId === activeView.tripId).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
+        const anchors = itineraryAnchors(days, markers)
         return days.filter(day => activeView.mode === 'trip' || day.id === activeView.dayId).flatMap(day => {
             const ids = Array.from(new Set([...day.chains.flat(), ...day.markerIds])).filter(id => byId.has(id))
             const dayIndex = days.findIndex(item => item.id === day.id) + 1
             const color = routeColor(0, day.id, day.colorIndex)
             const date = `${Number(day.date.slice(5, 7))}月${Number(day.date.slice(8, 10))}日`
             if (activeView.mode === 'trip') {
-                const first = byId.get(ids[0])
-                if (!first) return []
-                const legs = (day.routeChains || []).filter((route, index) => route.stops.length === day.chains[index]?.length && route.stops.every((stop, i) => stop.markerId === day.chains[index][i])).flatMap(route => route.legs.filter(leg => route.stops.some((stop, i) => stop.id === leg.fromStopId && route.stops[i + 1]?.id === leg.toStopId)))
-                return [{ id: day.id, dayId: day.id, markerId: null as string | null, coordinates: first.coordinates, color,
-                    eyebrow: `第${dayIndex}天 · ${date}`, title: day.title || '当天行程',
-                    description: ids.map(id => byId.get(id)!.content.title || '未命名地点').join(' → '),
-                    detail: legs.map(leg => [leg.startTime, modeLabels[leg.mode], leg.serviceNumber].filter(Boolean).join(' ')).join(' · ') || `${ids.length} 个地点`,
-                }]
+                return (anchors.get(day.id) || []).map(id => ({
+                    id: `${day.id}:${id}`, dayId: day.id, markerId: null as string | null,
+                    coordinates: byId.get(id)!.coordinates, color,
+                    eyebrow: `第${dayIndex}天 · ${date}`,
+                    title: day.title || byId.get(id)!.content.title || '当天行程',
+                }))
             }
             return ids.map((id, index) => {
                 const marker = byId.get(id)!
-                const route = day.routeChains?.find((route, routeIndex) => route.stops.length === day.chains[routeIndex]?.length && route.stops.every((stop, i) => stop.markerId === day.chains[routeIndex][i]) && route.stops.some(stop => stop.markerId === id))
-                const stopIndex = route?.stops.findIndex(stop => stop.markerId === id) ?? -1
-                const stop = route?.stops[stopIndex]
-                const next = route?.stops[stopIndex + 1]
-                const leg = next && route?.legs.find(leg => leg.fromStopId === stop?.id && leg.toStopId === next.id)
                 return { id: `${day.id}:${id}`, dayId: day.id, markerId: id as string | null, coordinates: marker.coordinates, color,
                     eyebrow: `${date} · 地点 ${index + 1}`, title: marker.content.title || '未命名地点',
-                    description: stop?.note || marker.content.address || '查看地点详情',
-                    detail: [stop?.startTime && `${stop.startTime} 游览`, stop?.durationMinutes !== undefined && `停留 ${formatPlannedDuration(stop.durationMinutes)}`, leg && [leg.startTime, modeLabels[leg.mode], leg.serviceNumber].filter(Boolean).join(' ')].filter(Boolean).join(' · '),
+
                 }
             })
         })
