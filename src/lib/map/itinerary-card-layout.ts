@@ -7,7 +7,7 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: { left: n
     const { width, height } = itineraryCardSize
     const placed: MapCardPlacement[] = []
     for (const anchor of anchors) {
-        if (!Number.isFinite(anchor.x) || !Number.isFinite(anchor.y) || anchor.x < bounds.left || anchor.x > bounds.right || anchor.y < bounds.top || anchor.y > bounds.bottom) continue
+        if (!Number.isFinite(anchor.x) || !Number.isFinite(anchor.y) || anchor.x < bounds.left - 100 || anchor.x > bounds.right + 100 || anchor.y < bounds.top - 100 || anchor.y > bounds.bottom + 100) continue
         const candidates = [
             { left: anchor.x + 28, top: anchor.y - height / 2 },
             { left: anchor.x - width - 28, top: anchor.y - height / 2 },
