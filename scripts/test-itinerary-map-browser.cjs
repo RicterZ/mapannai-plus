@@ -1,0 +1,24 @@
+// Run with Playwright available through NODE_PATH; all application API requests use fixtures.
+const {chromium}=require('playwright');const assert=require('node:assert/strict');const fs=require('fs');
+const base=process.env.REVIEW_BASE_URL || 'http://127.0.0.1:3101';
+const output=process.env.REVIEW_OUTPUT_DIR || '/tmp/mapannai-itinerary-browser';fs.mkdirSync(output,{recursive:true});
+const markers=Array.from({length:12},(_,i)=>({type:'Feature',id:`m${i}`,geometry:{type:'Point',coordinates:[139.70+(i%4)*.04,35.64+Math.floor(i/4)*.04]},properties:{metadata:{id:`m${i}`,title:`测试地点 ${i+1}`},address:'隔离浏览器测试地点',iconType:'culture',markdownContent:''}}));
+const days=Array.from({length:3},(_,i)=>({id:`d${i}`,tripId:'t',date:`2027-01-0${i+1}`,title:`测试第${i+1}天`,markerIds:markers.slice(i*4,i*4+4).map(x=>x.id),chains:[markers.slice(i*4,i*4+4).map(x=>x.id)]}));
+const trip={id:'t',name:'QA 浮动卡片旅行',startDate:'2027-01-01',endDate:'2027-01-03',createdAt:'2026-10-18',updatedAt:'2026-10-18',days};
+const clean=s=>String(s).replace(/https?:\/\/[^\s"']+/g,'[URL]');
+(async()=>{const browser=await chromium.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',headless:true,args:['--no-sandbox']});
+const page=await browser.newPage({viewport:{width:1600,height:1000}});let errors=[],api=0;page.on('pageerror',e=>{errors.push(clean(e.message));});page.on('console',m=>{if(m.type()==='error' && /same key|Maximum update depth|Too many re-renders/.test(m.text()))errors.push(clean(m.text()).slice(0,500));});
+await page.route('**/api/**',route=>{const u=new URL(route.request().url());if(u.origin!==base)return route.continue();api++;if(route.request().method()!=='GET')throw Error('Unexpected write in read-only test');let data=u.pathname==='/api/dataset'?{success:true,data:{type:'FeatureCollection',features:markers}}:u.pathname==='/api/trips'?[trip]:[];return route.fulfill({json:data});});
+await page.addInitScript(()=>{localStorage.setItem('mapannai_route_settings','{"enabled":false}');localStorage.setItem('addMarkerEnabled','false');window.__mapCount=0;new MutationObserver(changes=>{for(const change of changes)for(const node of change.addedNodes)if(node.nodeType===1)window.__mapCount+=(node.matches('.gm-style')?1:0)+node.querySelectorAll('.gm-style').length;}).observe(document,{childList:true,subtree:true});window.qa={longTasks:[],frames:0};new PerformanceObserver(list=>window.qa.longTasks.push(...list.getEntries().map(x=>Math.round(x.duration)))).observe({type:'longtask',buffered:true});});
+let previousApi=api;await page.goto(base,{waitUntil:'domcontentloaded'});await page.getByText(trip.name,{exact:true}).first().waitFor({timeout:60000});
+await page.locator('.gm-style').first().waitFor({timeout:45000}); await page.waitForTimeout(2000); await page.getByText(trip.name,{exact:true}).first().click();
+await page.getByRole('button',{name:'查看全程',exact:true}).waitFor({timeout:45000});
+await page.getByRole('button',{name:'查看全程',exact:true}).click();
+await page.waitForTimeout(2500);await page.screenshot({path:output+'/trip.png'});
+console.log('TRIP',await page.locator('[aria-label="地图行程说明"]').innerText());
+await page.getByText('测试第1天',{exact:true}).first().click();await page.getByRole('button',{name:'查看当天',exact:true}).waitFor();await page.getByRole('button',{name:'查看当天',exact:true}).click();await page.waitForTimeout(1800);
+await page.screenshot({path:output+'/day.png'});
+await page.getByRole('button',{name:'隐藏行程卡片',exact:true}).click();await page.getByRole('button',{name:'显示行程卡片',exact:true}).click();
+await page.mouse.move(1200,550);await page.mouse.down();await page.mouse.move(1300,600,{steps:8});await page.mouse.up();await page.waitForTimeout(700);
+previousApi=api;const count=await page.evaluate(()=>window.__mapCount);await page.waitForTimeout(1500);assert.equal(api,previousApi,'Idle must not trigger extra application API requests');assert.equal(await page.evaluate(()=>window.__mapCount),count,'Idle must not recreate map instances');assert.ok(count <= 2,'Trip/day changes must retain the map instance');assert.equal(errors.length,0,errors.join('\n'));console.log('DAY',await page.locator('[aria-label="地图行程说明"]').innerText());console.log('RESULT',JSON.stringify({errors,api,perf:await page.evaluate(()=>({ ...window.qa,mapInstances:window.__mapCount}))}));await browser.close();if(errors.length)process.exitCode=1;
+})().catch(e=>{console.error(clean(e.message));process.exit(1)});
