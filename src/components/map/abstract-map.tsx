@@ -333,17 +333,36 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
         ? tripDestinations(trips.find(trip => trip.id === activeView.tripId)) : []
     const activeDestination = activeDestinations[0]
     const destinationKey = activeDestinations.length ? `${activeView.tripId}:${activeDestinations.map(item => `${item.longitude}:${item.latitude}`).join('|')}` : null
+    const lastFocusedTripRef = useRef<string | null>(null)
+    useEffect(() => {
+        if (activeView.mode !== 'trip') { lastFocusedTripRef.current = null; return }
+        if (!mapInitialized || activeView.focusFirstMarker === false || lastFocusedTripRef.current === activeView.tripId) return
+        const trip = trips.find(item => item.id === activeView.tripId)
+        if (!trip) return
+        const days = tripDays.filter(day => day.tripId === trip.id)
+        const ids = Array.from(new Set([...(trip.markerIds || []), ...days.flatMap(day => [...day.markerIds, ...day.chains.flat()])]))
+        const validIds = markers.filter(marker => ids.includes(marker.id) && Number.isFinite(marker.coordinates.longitude) && Number.isFinite(marker.coordinates.latitude) && Math.abs(marker.coordinates.longitude) <= 180 && Math.abs(marker.coordinates.latitude) <= 90).map(marker => marker.id)
+        if (!validIds.length) return
+        lastFocusedTripRef.current = trip.id
+        handleFitMarkers(validIds)
+    }, [activeView.mode, activeView.tripId, activeView.focusFirstMarker, mapInitialized, trips, tripDays, markers, handleFitMarkers])
+
     const lastDestinationRef = useRef<string | null>(null)
     useEffect(() => {
         if (!destinationKey || !activeDestination) { lastDestinationRef.current = null; return }
         if (!mapInitialized || lastDestinationRef.current === destinationKey || activeView.focusFirstMarker === false) return
         lastDestinationRef.current = destinationKey
+        if (activeView.mode === 'trip') {
+            const trip = trips.find(item => item.id === activeView.tripId)
+            const ids = new Set([...(trip?.markerIds || []), ...tripDays.filter(day => day.tripId === activeView.tripId).flatMap(day => [...day.markerIds, ...day.chains.flat()])])
+            if (markers.some(marker => ids.has(marker.id))) return
+        }
         if (activeView.mode === 'day') {
             const day = tripDays.find(day => day.id === activeView.dayId)
             if (day && markers.some(marker => day.markerIds.includes(marker.id) || day.chains.some(chain => chain.includes(marker.id)))) return
         }
-        flyMap({ center: [activeDestination.longitude, activeDestination.latitude], zoom: 11, duration: 1000 })
-    }, [destinationKey, activeDestination, mapInitialized, activeView.mode, activeView.dayId, activeView.focusFirstMarker, tripDays, markers, flyMap])
+        flyMap({ center: [activeDestination.longitude, activeDestination.latitude], zoom: 11, duration: 1000, offset: mapWorkspaceViewport().offset })
+    }, [destinationKey, activeDestination, mapInitialized, activeView.mode, activeView.dayId, activeView.focusFirstMarker, tripDays, trips, markers, flyMap])
 
     const lastFocusedDayRef = useRef<string | null>(null)
     useEffect(() => {
