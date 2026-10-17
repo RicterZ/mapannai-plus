@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useMapStore } from '@/store/map-store'
 import { routeColor } from '@/lib/map/route-presentation'
-import { itineraryCardSize, layoutItineraryCards, sameItineraryPlacements, type MapCardPlacement } from '@/lib/map/itinerary-card-layout'
+import { itineraryCardSize, itineraryLeaderEnd, layoutItineraryCards, sameItineraryPlacements, type MapCardPlacement } from '@/lib/map/itinerary-card-layout'
 import type { MarkerCoordinates } from '@/types/marker'
 import { itineraryAnchors } from '@/lib/map/itinerary-anchors'
 
@@ -98,17 +98,18 @@ export function ItineraryMapCards({ project, routePaths, subscribe, onMarkerClic
                     const card = cards.find(card => card.id === p.id)
                     if (!card) return null
                     const color = card.color
-                    return <g key={p.id}><line x1={p.x} y1={p.y} x2={Math.max(p.left, Math.min(p.left + itineraryCardSize.width, p.x))} y2={Math.max(p.top, Math.min(p.top + itineraryCardSize.height, p.y))} stroke={color} strokeWidth="1" /><circle cx={p.x} cy={p.y} r="4" fill="white" stroke={color} strokeWidth="2" /></g>
+                    const end = itineraryLeaderEnd(p)
+                    return <g key={p.id}><line x1={p.x} y1={p.y} x2={end.x} y2={end.y} stroke={color} strokeWidth="1" /><circle cx={p.x} cy={p.y} r="4" fill="white" stroke={color} strokeWidth="2" /></g>
                 })}
             </svg>
             {placements.map(p => {
                 const card = cards.find(card => card.id === p.id)
                 if (!card) return null
                 return <button key={card.id} type="button" title={`${card.eyebrow} · ${card.title}`} onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
-                    disabled={moving} className="pointer-events-auto disabled:pointer-events-none absolute overflow-hidden rounded-md border border-gray-200 border-l-[3px] bg-white px-3 py-2.5 text-left shadow-[0_3px_18px_rgba(0,0,0,0.08)] transition-shadow hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+                    disabled={moving} className="pointer-events-auto disabled:pointer-events-none absolute flex items-center gap-2 overflow-hidden rounded-md border border-gray-200 border-l-[3px] bg-white px-3 text-left shadow-[0_3px_18px_rgba(0,0,0,0.08)] transition-shadow hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
                     style={{ left: p.left, top: p.top, width: itineraryCardSize.width, height: itineraryCardSize.height, borderLeftColor: card.color }}>
-                    <div className="truncate text-sm font-medium text-gray-900">{card.title}</div>
-                    <div className="mt-1 text-[11px] text-gray-400">{card.eyebrow}</div>
+                    <span className="min-w-0 truncate text-sm font-medium text-gray-900">{card.title}</span>
+                    <span className="shrink-0 text-[11px] text-gray-400">{card.eyebrow}</span>
                 </button>
             })}
         </div>}

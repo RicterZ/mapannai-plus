@@ -1,6 +1,15 @@
 export interface MapCardAnchor { id: string; x: number; y: number }
 export interface MapCardPlacement extends MapCardAnchor { left: number; top: number }
-export const itineraryCardSize = { width: 208, height: 64 }
+export const itineraryCardSize = { width: 208, height: 40 }
+
+// Intersect the center-to-anchor ray with the card edge, preserving its angle.
+export function itineraryLeaderEnd(p: MapCardPlacement): { x: number; y: number } {
+    const { width, height } = itineraryCardSize
+    const cx = p.left + width / 2, cy = p.top + height / 2
+    const dx = p.x - cx, dy = p.y - cy
+    const scale = 1 / Math.max(Math.abs(dx) / (width / 2), Math.abs(dy) / (height / 2), 1)
+    return { x: cx + dx * scale, y: cy + dy * scale }
+}
 
 // Keep cards inside the free map viewport; hide excess rather than overlap them.
 export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: { left: number; top: number; right: number; bottom: number }, paths: Array<Array<{ x: number; y: number }>> = []): MapCardPlacement[] {
@@ -32,7 +41,12 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: { left: n
                 const target = { x: other.left + width / 2, y: other.top + height / 2 }
                 return cross(anchor, end, other) * cross(anchor, end, target) < 0 && cross(other, target, anchor) * cross(other, target, end) < 0
             }).length
-            return Math.hypot(end.x - anchor.x, end.y - anchor.y) + crossings * 1000
+            const leader = itineraryLeaderEnd({ ...anchor, ...p })
+            const dx = Math.abs(leader.x - anchor.x), dy = Math.abs(leader.y - anchor.y)
+            const length = Math.hypot(dx, dy)
+            // Prefer visibly diagonal leaders, not the shortest horizontal/vertical slot.
+            const axisPenalty = Math.max(0, 0.35 - Math.min(dx, dy) / Math.max(1, length)) * 2000
+            return Math.hypot(end.x - anchor.x, end.y - anchor.y) + crossings * 1000 + axisPenalty
         }
         candidates.sort((a, b) => score(a) - score(b))
         const candidate = candidates.find(p => p.left >= bounds.left && p.top >= bounds.top && p.left + width <= bounds.right && p.top + height <= bounds.bottom

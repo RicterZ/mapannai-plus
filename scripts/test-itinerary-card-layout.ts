@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { layoutItineraryCards, itineraryCardSize, sameItineraryPlacements } from '../src/lib/map/itinerary-card-layout'
+import { layoutItineraryCards, itineraryCardSize, itineraryLeaderEnd, sameItineraryPlacements } from '../src/lib/map/itinerary-card-layout'
 const bounds = { left: 420, top: 100, right: 1400, bottom: 850 }
 const cards = layoutItineraryCards(Array.from({ length: 20 }, (_, i) => ({ id: String(i), x: 800 + i * 5, y: 400 + i * 4 })), bounds)
 assert.ok(cards.length > 0)
@@ -25,3 +25,8 @@ assert.equal(layoutItineraryCards([{ id: 'airport', x: bounds.right + 25, y: 400
 const routed = layoutItineraryCards([{ id: 'route-label', x: 900, y: 450 }], bounds, [[{x:420,y:450},{x:1400,y:450}]])
 assert.equal(routed.length, 1)
 assert.ok(routed[0].top + height < 438 || routed[0].top > 462, 'Card must avoid the actual route corridor')
+const diagonal = layoutItineraryCards([{id:'diagonal',x:900,y:450}],bounds)[0]
+const end = itineraryLeaderEnd(diagonal)
+assert.ok(Math.abs(end.x-diagonal.x)>30 && Math.abs(end.y-diagonal.y)>30, 'Free-space layout must choose a visibly diagonal leader')
+assert.ok(end.x>=diagonal.left && end.x<=diagonal.left+width && end.y>=diagonal.top && end.y<=diagonal.top+height)
+assert.equal(height,40,'Single-row day/date cards should remain compact')
