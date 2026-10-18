@@ -42,7 +42,7 @@ function enqueueRequest<T>(request: () => Promise<T>): Promise<T> {
 export function routeCacheKey(provider: string, segment: RouteSegment): string {
     const mode = resolveRouteMode(segment.origin, segment.destination, segment.transportMode) ?? 'schematic'
     const point = (p: RouteCoordinate) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`
-    return `${mode === 'transit' ? 'mapannai_route_v2:' : cachePrefix}${provider}${segment.transportMode === 'train' ? ':osm-rail-offline-v2' : ''}:${mode}:${segment.fromId}:${segment.toId}:${point(segment.origin)}:${point(segment.destination)}`
+    return `${mode === 'transit' ? 'mapannai_route_v2:' : cachePrefix}${provider}${segment.transportMode === 'train' ? ':osm-rail-offline-v3' : ''}:${mode}:${segment.fromId}:${segment.toId}:${point(segment.origin)}:${point(segment.destination)}`
 }
 export function readCachedRoute(key: string): RoutePath | null {
     const memory = memoryCache.get(key)

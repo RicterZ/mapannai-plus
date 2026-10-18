@@ -36,7 +36,7 @@ node scripts/import-railway-snapshot.mjs /tmp/china-railway-export.json china
 npx tsx scripts/test-railway-route.ts
 ```
 
-Commit the gzip and source metadata together. Change the `osm-rail-offline-v2`
+Commit the gzip and source metadata together. Change the `osm-rail-offline-v3`
 cache version in both `direction-service.ts` and `route-cache.ts` when replacing
 the snapshot. Docker explicitly copies the data; Next standalone tracing also
 includes this directory. Neither deployment nor startup downloads the data.

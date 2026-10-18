@@ -30,6 +30,7 @@ async function main() {
         { type: 'way', nodes: [4, 5], tags: { railway: 'rail' } },
     ]
     assert.equal(railwayPath(parallel, a, b).fallback, undefined, 'parallel disconnected nearest track must not hide a connected track')
+    assert.equal(railwayPath(elements, { lat: 35.06, lng: 139 }, b).fallback, 'NO_ROUTE', 'places beyond 5km must not snap to distant tracks')
     const segment = { fromId: 'a', toId: 'b', origin: a, destination: b }
     assert.notEqual(routeCacheKey('regional-v1', { ...segment, transportMode: 'train' }), routeCacheKey('regional-v1', { ...segment, transportMode: 'bus' }))
     const original = globalThis.fetch
@@ -51,6 +52,8 @@ async function main() {
         },
     }) as ReturnType<typeof createProvider>
     const cases = [
+        ['Sapporo-place-Asahikawa', { lat: 43.054690, lng: 141.354884 }, { lat: 43.762762, lng: 142.358510 }],
+        ['Sapporo-place-Asahikawa-east', { lat: 43.054690, lng: 141.354884 }, { lat: 43.768971, lng: 142.479131 }],
         ['Beijing-Tianjin', { lat: 39.8652, lng: 116.3785 }, { lat: 39.1342, lng: 117.2093 }],
         ['Tokyo-Shinagawa', { lat: 35.6812, lng: 139.7671 }, { lat: 35.6285, lng: 139.7388 }],
         ['Kyoto-ShinOsaka', { lat: 34.9858, lng: 135.7588 }, { lat: 34.7335, lng: 135.5001 }],

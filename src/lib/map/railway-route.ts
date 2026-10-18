@@ -46,7 +46,7 @@ function routeNetwork({ nodes, graph }: RailNetwork, origin: RoutePoint, destina
         const nearby: { id: number; gap: number }[] = []
         graph.forEach((_, id) => {
             const gap = distance(point, nodes.get(id)!)
-            if (gap < 1500) nearby.push({ id, gap })
+            if (gap <= 5000) nearby.push({ id, gap })
         })
         const nearest = nearby.reduce((gap, node) => Math.min(gap, node.gap), Infinity)
         // Stations have parallel tracks: do not lock both ends to unrelated nearest tracks.
