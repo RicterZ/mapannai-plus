@@ -33,6 +33,14 @@ const transportFailure = (error: unknown) => {
     if (/\b5\d\d\b/.test(message) || /ECONNREFUSED|ECONNRESET|fetch failed/i.test(message)) return '地图服务暂时不可用，结果可能已部分保存。稍后先查询当前数据确认，不要连续重复写入。'
     return '地图工具调用异常，结果可能已部分保存。先查询当前数据再决定下一步，不要重复写入；若持续失败请报告服务异常。'
 }
+/** Annotation-only edits on existing itineraries (highlight/time/note/transport, day title) keep stops and route order unchanged. */
+const isAnnotationEdit = (name: string, raw: string) => {
+    let args: Record<string, unknown>
+    try { args = JSON.parse(raw) } catch { return false }
+    if (!args || typeof args !== 'object' || Array.isArray(args)) return false
+    if (name === 'update_trip_day') return Object.keys(args).every(key => ['tripId', 'dayId', 'title'].includes(key))
+    return name === 'update_day_chain' && args.markerIds === undefined
+}
 const changeTitleTool = { type: 'function' as const, function: {
     name: 'change_title', description: '修改当前网页会话的标题，概括用户的旅游意图。',
     parameters: { type: 'object', properties: { title: { type: 'string', minLength: 1, maxLength: 60, description: '简短的会话标题，例如东京秋日旅行' } }, required: ['title'], additionalProperties: false },
@@ -256,7 +264,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                 let result: unknown
                 let invoked = false
                 try {
-                    if (workflow?.phase === 'acting' && !readOnlyTools.has(call.function.name) && !['create_marker', 'update_marker', 'ask_choice', 'ask_datetime'].includes(call.function.name)) throw new WorkflowBlocked('当前是独立地点操作，不能修改旅行、日期或路线，也不展示草案，未执行。只完成用户明确授权的地点收藏/编辑；若用户要把地点排进某天，告诉用户这属于修改行程，需要用户说明要改哪天后再走修改草案确认，然后结束本轮。')
+                    if (workflow?.phase === 'acting' && !readOnlyTools.has(call.function.name) && !['create_marker', 'update_marker', 'ask_choice', 'ask_datetime'].includes(call.function.name) && !isAnnotationEdit(call.function.name, call.function.arguments)) throw new WorkflowBlocked('当前是独立地点操作，未执行。允许：地点收藏/编辑；update_day_chain仅修改已有访问/交通的重点、时间、时长、车次、备注（不带markerIds）；update_trip_day仅改标题。增删地点、调整路线顺序或新建/删除路线属于修改行程，需要用户说明要改哪天后走修改草案确认，然后结束本轮。')
                     if (workflow?.missing.length && (call.function.name === 'preview_itinerary' || (!readOnlyTools.has(call.function.name) && !['ask_choice', 'ask_datetime'].includes(call.function.name)))) {
                         throw new WorkflowBlocked(`关键需求未齐，未执行本次操作。先逐个向用户澄清：${workflow.missing.join('；')}。不要重试保存，也不要展示草案确认；收到回答后重新评估并展示完整草案。`)
                     }
