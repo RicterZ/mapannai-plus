@@ -394,4 +394,6 @@ ssh -p 2222 -o BatchMode=yes root@server \
 
 编辑态路线地点卡片隐藏地址，浏览态地址保留；访问备注显示为可点击编辑入口，空时显示“添加访问备注”，复用游览安排弹窗与ChainStop.note，不修改全局地点富文本。
 
-重点只属于ChainStop/ChainLeg的isHighlight，与note同级；整条RouteChain不支持重点，读取旧路线级字段时丢弃，不迁移给成员。地点/交通安排弹窗内编辑，支持所有交通方式，旅行/日期视图仅为手动重点生成地点/交通标签。字段省略保留、false/null取消、remove交通清除重点，排序跟随访问/有向交通归属。
+重点只属于ChainStop/ChainLeg的isHighlight，与note同级；整条RouteChain不支持重点。地点/交通安排弹窗内编辑，支持所有交通方式，旅行/日期视图仅为手动重点生成地点/交通标签。字段省略保留、false/null取消、remove交通清除重点，排序跟随访问/有向交通归属。
+
+每日路线色使用高区分度多色调色板，沿用持久化colorIndex，不修改每日色号或日期顺序；地图、侧栏和标签共用routeColor。

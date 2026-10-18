@@ -17,7 +17,7 @@ export const transportLabels: Record<TransportMode, string> = {
 
 export const planeIconSvg = (color: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path d="M21.5 12c0-.7-.6-1.2-1.3-1.2h-5.6L9.9 3.5H7.8l2.4 7.3H5.4L3.6 8.6H2l1.2 3.4L2 15.4h1.6l1.8-2.2h4.8l-2.4 7.3h2.1l4.7-7.3h5.6c.7 0 1.3-.5 1.3-1.2z" fill="${color}" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" paint-order="stroke"/></svg>`
 
-const colors = ['#526f5d', '#a86660', '#807398', '#517f85', '#9e7949', '#956f87', '#717c4b', '#627c96']
+const colors = ['#167c45', '#d34435', '#7251bc', '#008ca8', '#ba7800', '#c13d87', '#70851a', '#3164c0', '#b55c22', '#008778', '#ad4270', '#596426']
 // Persisted palette slots keep adjacent days distinct and survive date edits.
 export function routeColor(index: number, dayId?: string, colorIndex?: number): string {
     if (!dayId) return colors[index % colors.length]
