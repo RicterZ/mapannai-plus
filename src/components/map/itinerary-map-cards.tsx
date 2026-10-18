@@ -200,13 +200,13 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                         </span>
                     </span>
                     {card.visits.map((visit, index) => <span key={visit.dayId} className={index ? 'mt-2 border-t border-gray-100 pt-2' : 'mt-2'}>
-                        <span className="flex items-center gap-1.5 whitespace-nowrap pl-[38px] text-[11px] leading-4">
+                        <span className="flex items-center gap-1.5 whitespace-nowrap text-[11px] leading-4">
                             <span className="rounded px-1.5 py-px font-semibold text-white" style={{ backgroundColor: visit.color }}>{visit.dayLabel}</span>
                             <span className="text-gray-400">{visit.eyebrow}</span>
                             {visit.time && <span className="ml-auto rounded px-1.5 py-px font-semibold tabular-nums text-gray-800" style={{ backgroundColor: `color-mix(in srgb, ${visit.color} 10%, #f3f4f6)` }}>{visit.time}</span>}
                             {visit.duration && <span className={`${visit.time ? '' : 'ml-auto '}tabular-nums text-gray-600`}>{visit.duration}</span>}
                         </span>
-                        {visit.note && <span className="mt-1.5 block whitespace-pre-wrap break-words pl-[38px] text-xs leading-[18px] text-gray-600" style={clamp(3)}>{visit.note}</span>}
+                        {visit.note && <span className="mt-1.5 block whitespace-pre-wrap break-words text-xs leading-[18px] text-gray-600" style={clamp(3)}>{visit.note}</span>}
                     </span>)}
                 </button>
             </>, node, p.id)
