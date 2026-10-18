@@ -67,7 +67,10 @@ function loadAMap(key: string, securityCode: string): Promise<SDKMapNamespace> {
 }
 
 export interface MapCamera { longitude: number; latitude: number; zoom: number; bearing?: number; pitch?: number }
+/** Zero-size native overlay at a coordinate; content positioned inside moves with the map like a marker. */
+export interface MapAnchor { node: HTMLElement; dispose(): void }
 export interface MapRendererHandle {
+    createAnchor(coordinates: MarkerCoordinates, zIndex?: number): MapAnchor | undefined
     flyTo(options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }): void
     project(coordinates: MarkerCoordinates): { x: number; y: number } | undefined
     routeScreenPaths(): Array<Array<{ x: number; y: number }>>
@@ -121,6 +124,15 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
     const locationNodeRef = useRef<HTMLElement | null>(null)
 
     useImperativeHandle(ref, () => ({
+        createAnchor(coordinates, zIndex = 125) {
+            const map = mapRef.current, SDK = namespaceRef.current
+            if (!map || !SDK) return
+            const node = document.createElement('div')
+            node.style.cssText = 'position:relative;width:0;height:0;overflow:visible'
+            const overlay = new SDK.Marker({ position: toDisplayPoint(coordinates), content: node, offset: new SDK.Pixel(0, 0), zIndex, bubble: true })
+            map.add([overlay])
+            return { node, dispose: () => { map.remove([overlay]); node.remove() } }
+        },
         project(coordinates) {
             const display = toMapCoordinates(coordinates, latest.current.renderer)
             const point = mapRef.current?.lngLatToContainer([display.longitude, display.latitude])

@@ -7,7 +7,7 @@ import type { PlaceReferences } from '@/types/place-references'
 import React, { useCallback, useRef, useEffect, useState, useMemo } from 'react'
 import { toast } from 'sonner'
 
-import { SDKMapRenderer, MapRendererHandle } from './sdk-map-renderer'
+import { SDKMapRenderer, MapRendererHandle, type MapAnchor } from './sdk-map-renderer'
 import { ItineraryMapCards } from './itinerary-map-cards'
 import { regionalRenderer, visibleMapCenter } from '@/lib/map/regional-renderer'
 import { createBasemapStyle, toMapCoordinates, fromMapCoordinates } from '@/lib/map/basemap'
@@ -147,6 +147,18 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
             return point ? [point] : []
         })))
     }, [isNative, projectItineraryPoint])
+    const maplibreModule = useRef<typeof import('maplibre-gl') | null>(null)
+    useEffect(() => { if (!isNative) import('maplibre-gl').then(module => { maplibreModule.current = module }) }, [isNative])
+    const createItineraryAnchor = useCallback((coordinates: MarkerCoordinates): MapAnchor | undefined => {
+        if (isNative) return sdkRef.current?.createAnchor(coordinates)
+        const map = mapRef.current?.getMap(), module = maplibreModule.current
+        if (!map || !module) return
+        const node = document.createElement('div')
+        node.style.cssText = 'width:0;height:0;overflow:visible;z-index:3'
+        const point = toMapCoordinates(coordinates, basemap)
+        const marker = new module.Marker({ element: node, anchor: 'top-left' }).setLngLat([point.longitude, point.latitude]).addTo(map)
+        return { node, dispose: () => { marker.remove(); node.remove() } }
+    }, [isNative, basemap])
     const subscribeItineraryCamera = useCallback((update: () => void, moving: () => void) => {
         if (isNative) return sdkRef.current?.subscribeCamera(update, moving) || (() => {})
         const map = mapRef.current?.getMap()
@@ -1070,7 +1082,7 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
 
             {/* Keep overlay identity distinct from the sibling SDK map to prevent remount loops. */}
             {mapInitialized && !searchOpen && !addMarkerEnabled && activeView.mode !== 'overview' &&
-                <ItineraryMapCards key={`itinerary:${basemap}`} project={projectItineraryPoint} routePaths={itineraryRoutePaths} subscribe={subscribeItineraryCamera} onMarkerClick={handleMarkerClick} onFitMarkers={handleFitMarkers} />}
+                <ItineraryMapCards key={`itinerary:${basemap}`} createAnchor={createItineraryAnchor} project={projectItineraryPoint} routePaths={itineraryRoutePaths} subscribe={subscribeItineraryCamera} onMarkerClick={handleMarkerClick} onFitMarkers={handleFitMarkers} />}
 
             {/* 新增标记弹窗 */}
             <AddMarkerModal
