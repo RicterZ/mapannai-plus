@@ -46,7 +46,6 @@ export function updateRouteChain(tripId: string, dayId: string, chainId: string,
             if (patch.markerIds.some(id => !getMarkerById(id))) throw new Error('路线包含不存在的地点')
         }
         let updated = patch.markerIds ? reorderRouteStops(route, patch.markerIds) : route
-        updated = patchFields(updated, patch, ['isHighlight'])
         const stops = updated.stops.map(stop => ({ ...stop }))
         const legs = updated.legs.map(leg => ({ ...leg }))
         let inactiveLegs = updated.inactiveLegs ?? []
@@ -67,13 +66,13 @@ export function updateRouteChain(tripId: string, dayId: string, chainId: string,
             inactiveLegs = inactiveLegs.filter(leg => leg.fromStopId !== change.fromStopId || leg.toStopId !== change.toStopId)
             const index = legs.findIndex(leg => leg.fromStopId === change.fromStopId && leg.toStopId === change.toStopId)
             if (change.remove) {
-                if ([...scheduleKeys, 'mode', 'serviceNumber'].some(key => (change as Record<string, unknown>)[key] !== undefined)) throw new Error('清除路段时不能同时修改字段')
+                if ([...scheduleKeys, 'mode', 'serviceNumber', 'isHighlight'].some(key => (change as Record<string, unknown>)[key] !== undefined)) throw new Error('清除路段时不能同时修改字段')
                 if (index >= 0) legs.splice(index, 1)
                 continue
             }
             const mode = change.mode ?? (index >= 0 ? legs[index].mode : undefined)
             if (!mode) throw new Error('新建交通安排必须指定交通方式')
-            const leg: ChainLeg = patchFields(index >= 0 ? legs[index] : { fromStopId: change.fromStopId, toStopId: change.toStopId, mode }, change, [...scheduleKeys, 'mode', 'serviceNumber'])
+            const leg: ChainLeg = patchFields(index >= 0 ? legs[index] : { fromStopId: change.fromStopId, toStopId: change.toStopId, mode }, change, [...scheduleKeys, 'mode', 'serviceNumber', 'isHighlight'])
             if (index < 0) legs.push(leg)
             else legs[index] = leg
         }

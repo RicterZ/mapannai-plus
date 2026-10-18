@@ -54,6 +54,7 @@ export interface ChainStop extends Schedule {
   note?: string
 }
 export interface ChainLeg extends Schedule {
+  isHighlight?: boolean
   fromStopId: string
   toStopId: string
   mode: TransportMode
@@ -61,7 +62,6 @@ export interface ChainLeg extends Schedule {
   note?: string
 }
 export interface RouteChain {
-  isHighlight?: boolean
   id: string
   stops: ChainStop[]
   legs: ChainLeg[] // Active manually defined directed adjacent legs

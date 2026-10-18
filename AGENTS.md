@@ -387,6 +387,11 @@ ssh -p 2222 -o BatchMode=yes root@server \
 
 - 铁路与地铁绘图分离：train仅加载rail，中国/日本；subway仅加载subway，目前内置日本地铁快照，中国及其他地区回退原provider。不自动跨轨道类型换乘；混合行程需显式中间地点分段。成功OSM路径source=osm-offline，浏览器与SQLite永久缓存，按坐标/模式/算法及快照版本失效；在线公共交通几何也永久缓存。NO_ROUTE永久缓存，临时失败不缓存。
 
-重点路线：RouteChain.isHighlight 可选布尔，PATCH/MCP省略保留false/null取消，JSON持久化不增列。编辑态路线标题旁勾选，旅行/日期地图生成独立重点路线标签，点击框选路线成员；与重点地点共存，不自动标记成员、不改变线型颜色，复用标签避让与原生锚点。验证 test-route-chain-schedules.ts / test-itinerary-anchors.ts；无新增环境变量。
 
-地图标签当前采用手动模式：旅行/日期视图仅显示isHighlight重点访问与重点路线；自动停留/长途/末站及交通卡片暂停触发，保留算法与优先级代码，itineraryAnchors第三参数false控制，不自动恢复。
+地图标签当前采用手动模式：旅行/日期视图仅显示isHighlight重点地点访问与重点交通路段；自动停留/长途/末站及自动交通卡片暂停触发，保留算法与优先级代码，itineraryAnchors第三参数false控制，不自动恢复。
+
+公交绘图回退：显式bus按公共交通规划→driving→walking→贝塞尔示意；每级复用区域服务与缓存，境内高德→Google，境外Google，MCP显式provider限定同一服务。缓存隔离bus-fallback-v1，不改交通安排或计划时长；任一级临时故障且全链无有效路径保留重试、不缓存最终失败。跨境规则不变，无新环境变量。
+
+编辑态路线地点卡片隐藏地址，浏览态地址保留；访问备注显示为可点击编辑入口，空时显示“添加访问备注”，复用游览安排弹窗与ChainStop.note，不修改全局地点富文本。
+
+重点只属于ChainStop/ChainLeg的isHighlight，与note同级；整条RouteChain不支持重点，读取旧路线级字段时丢弃，不迁移给成员。地点/交通安排弹窗内编辑，支持所有交通方式，旅行/日期视图仅为手动重点生成地点/交通标签。字段省略保留、false/null取消、remove交通清除重点，排序跟随访问/有向交通归属。

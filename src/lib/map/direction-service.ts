@@ -23,8 +23,9 @@ export async function getSavedDirection(origin: RoutePoint, destination: RoutePo
     const fromChina = isInChina(origin.lng, origin.lat), toChina = isInChina(destination.lng, destination.lat)
     const railway = transportMode === 'train' || transportMode === 'subway'
     const railProvider = `osm-rail-offline-v4:${transportMode}`
-    const provider = railway && override ? override : fromChina ? 'amap' : 'google'
-    const key = directionCacheKey(`regional-v1:${fromChina !== toChina ? 'cross-border' : railway ? `${railProvider}:${provider}` : provider}`, mode, origin, destination)
+    const bus = transportMode === 'bus'
+    const provider = (railway || bus) && override ? override : fromChina ? 'amap' : 'google'
+    const key = directionCacheKey(`regional-v1:${fromChina !== toChina ? 'cross-border' : railway ? `${railProvider}:${provider}` : bus ? `bus-fallback-v1:${provider}` : provider}`, mode, origin, destination)
     if (fromChina !== toChina) {
         const cached = getCachedDirection(key)
         if (cached) return withRouteDistance(cached, origin, destination)
@@ -32,7 +33,7 @@ export async function getSavedDirection(origin: RoutePoint, destination: RoutePo
         cacheDirection(key, route)
         return route
     }
-    if (override && !railway) return getProviderDirection(origin, destination, mode, override)
+    if (override && !railway && !bus) return getProviderDirection(origin, destination, mode, override)
     const cached = getCachedDirection(key)
     if (cached) return withRouteDistance(cached, origin, destination)
     const existing = inFlight.get(key)
@@ -46,6 +47,16 @@ export async function getSavedDirection(origin: RoutePoint, destination: RoutePo
             route = await getProviderDirection(origin, destination, mode, 'google')
             // A temporary primary failure still needs a retry if neither service supplied a route.
             if (route.fallback && primary.fallback === 'PLANNING_FAILED') route = primary
+        }
+        if (bus && route.fallback) {
+            let temporary = route.fallback === 'PLANNING_FAILED' ? route : undefined
+            for (const fallbackMode of ['driving', 'walking'] as const) {
+                const candidate = await getSavedDirection(origin, destination, fallbackMode, override)
+                if (!candidate.fallback) { route = candidate; break }
+                if (candidate.fallback === 'PLANNING_FAILED') temporary = candidate
+                route = candidate
+            }
+            if (route.fallback && temporary) route = temporary
         }
         if (route.fallback && rail?.fallback === 'PLANNING_FAILED') route = rail
         if (route.fallback !== 'PLANNING_FAILED') cacheDirection(key, route)

@@ -38,25 +38,8 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
         const anchors = itineraryAnchors(days, markers, false)
         return days.filter(day => activeView.mode === 'trip' || day.id === activeView.dayId).flatMap(day => {
             const ids = Array.from(new Set([...day.chains.flat(), ...day.markerIds])).filter(id => byId.has(id))
-            const dayIndex = days.findIndex(item => item.id === day.id) + 1
             const color = routeColor(0, day.id, day.colorIndex)
             const date = `${Number(day.date.slice(5, 7))}月${Number(day.date.slice(8, 10))}日`
-            const highlights = (day.routeChains || []).flatMap((route, index) => {
-                if (!route.isHighlight || route.stops.length !== day.chains[index]?.length || !route.stops.every((stop, i) => stop.markerId === day.chains[index][i])) return []
-                const members = route.stops.map(stop => byId.get(stop.markerId)).filter((m): m is NonNullable<typeof m> => !!m)
-                if (!members.length) return []
-                return [{ id: `${day.id}:route:${route.id}`, dayId: day.id, markerId: null as string | null, coordinates: members[Math.floor((members.length - 1) / 2)].coordinates,
-                    color, routeKey: null as string | null, legMarkerIds: members.map(m => m.id) as string[] | null,
-                    eyebrow: `${date} · 重点路线`, title: `第${dayIndex}天 · 路线 ${index + 1}` }]
-            })
-            if (activeView.mode === 'trip') {
-                return [...highlights, ...(anchors.get(day.id) || []).map(id => ({
-                    id: `${day.id}:${id}`, dayId: day.id, markerId: null as string | null,
-                    coordinates: byId.get(id)!.coordinates, color, routeKey: null as string | null, legMarkerIds: null as string[] | null,
-                    eyebrow: `${date} · ${["周日","周一","周二","周三","周四","周五","周六"][new Date(day.date + "T12:00:00").getDay()]}`,
-                    title: `第${dayIndex}天`,
-                }))]
-            }
             const places = ids.filter(id => anchors.get(day.id)?.includes(id)).map((id, index) => {
                 const marker = byId.get(id)!
                 return { id: `${day.id}:${id}`, dayId: day.id, markerId: id as string | null, coordinates: marker.coordinates, color,
@@ -68,10 +51,11 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
             const legs = day.chains.flatMap((chain, chainIndex) => chain.slice(1).flatMap((toId, index) => {
                 const fromId = chain[index], route = day.routeChains?.[chainIndex]
                 const from = byId.get(fromId), to = byId.get(toId), mode = routeTransportMode(route, fromId, toId)
-                // Only long-haul legs get cards; local transit would crowd the day map.
-                if (!from || !to || (mode !== 'train' && mode !== 'flight') || !route) return []
+                // Manual highlights apply to any transport mode.
+                if (!from || !to || !mode || !route) return []
                 const fromStop = route.stops[index], toStop = route.stops[index + 1]
                 const leg = route.legs.find(item => item.fromStopId === fromStop?.id && item.toStopId === toStop?.id)
+                if (!leg?.isHighlight) return []
                 const curve = getBezierPath({ lat: from.coordinates.latitude, lng: from.coordinates.longitude }, { lat: to.coordinates.latitude, lng: to.coordinates.longitude })
                 const [lng, lat] = curve[curve.length >> 1]
                 const timing = [leg?.startTime, leg?.durationMinutes !== undefined ? formatPlannedDuration(leg.durationMinutes) : null].filter(Boolean).join(' · ')
@@ -79,9 +63,8 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                     eyebrow: timing || `${date} · 交通`, title: [transportLabels[mode], leg?.serviceNumber].filter(Boolean).join(' '),
                     routeKey: `${day.id}:${chainIndex}:${index}`, legMarkerIds: [fromId, toId] }]
             }))
-            // Automatic transport cards are paused; retain their generation rules for later.
-            void legs
-            return [...highlights, ...places]
+            // Automatic selection remains paused.
+            return [...places, ...legs]
         })
     }, [activeView.mode, activeView.tripId, activeView.dayId, tripDays, markers])
 

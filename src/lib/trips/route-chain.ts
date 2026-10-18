@@ -50,7 +50,7 @@ export function reconcileLegacyChains(previous: RouteChain[], chains: string[][]
             const best = Math.max(0, ...candidates.map(candidate => candidate.overlap))
             const winners = candidates.filter(candidate => candidate.overlap === best && best > 0)
             if (winners.length === 1) route = winners[0].item
-            else if (winners.some(({ item }) => (item.isHighlight || item.legs.length || item.inactiveLegs?.length) || item.stops.some(stop => stop.startTime !== undefined || stop.durationMinutes !== undefined || stop.note !== undefined || stop.isHighlight !== undefined))) {
+            else if (winners.some(({ item }) => (item.legs.length || item.inactiveLegs?.length) || item.stops.some(stop => stop.startTime !== undefined || stop.durationMinutes !== undefined || stop.note !== undefined || stop.isHighlight !== undefined))) {
                 throw new Error('旧版路线修改无法确定安排归属，请按 chainId 修改路线')
             }
             if (route) used.add(route.id)

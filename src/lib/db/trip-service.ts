@@ -223,7 +223,7 @@ function rowToDay(row: any): TripDay {
         emoji: row.emoji ?? undefined,
         colorIndex: row.color_index,
         markerIds: JSON.parse(row.marker_ids || '[]'),
-        routeChains: JSON.parse(row.route_chains || '[]'),
+        routeChains: JSON.parse(row.route_chains || '[]').map(({ isHighlight: _obsoleteRouteHighlight, ...route }: RouteChain & { isHighlight?: boolean }) => route),
         chains: projectChains(JSON.parse(row.route_chains || '[]')),
     }
 }

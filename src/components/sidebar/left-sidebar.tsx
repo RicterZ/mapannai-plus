@@ -44,7 +44,7 @@ import { CreateTripModal } from '@/components/modal/create-trip-modal'
 import { routeColor, shortAddress } from '@/lib/map/route-presentation'
 import { useRouteProgress } from '@/lib/map/route-progress'
 import { isRangeFallback, readCachedRoute, readRouteMetrics, routeCacheKey } from '@/lib/map/route-cache'
-import { RouteHighlight, StopSchedule, RouteLeg, formatPlannedDuration } from '@/components/trips/route-schedule'
+import { StopSchedule, RouteLeg, formatPlannedDuration } from '@/components/trips/route-schedule'
 import type { TripDay, RouteChain } from '@/types/trip'
 import { Modal } from '@/components/ui/modal'
 import { DayRoutePreview } from '@/components/trips/day-route-preview'
@@ -150,10 +150,9 @@ function ChainItem({ id, marker, index, hasArrowAfter, distance, onRemove, onFly
                         <button className="route-schedule-button min-w-0 flex-1 text-left" onClick={onFlyTo} title="跳转到此位置"><div className="break-words text-sm font-medium leading-6 text-gray-800" title={marker.content.title}>{marker.content.title || '未命名地点'}</div></button>
                         <div className="flex shrink-0 items-center"><StopSchedule day={day} route={route} markerId={marker.id} editable /></div>
                     </div>
-                    {marker.content.address && <button className="route-schedule-button mt-0.5 block w-full text-left" onClick={onFlyTo}><div className="break-words text-[11px] leading-4 text-gray-500" title={marker.content.address}>{shortAddress(marker.content.address)}</div></button>}
                 </div>
               </div>
-              {route?.stops.find(stop => stop.markerId === marker.id)?.note && <div className="whitespace-pre-wrap break-words px-2 pb-2 text-xs leading-5 text-gray-500" title={route.stops.find(stop => stop.markerId === marker.id)?.note}>{route.stops.find(stop => stop.markerId === marker.id)?.note}</div>}
+              <StopSchedule day={day} route={route} markerId={marker.id} editable noteOnly />
               <div className="flex items-center justify-end gap-1 border-t border-gray-100 px-2">
                 <button type="button" onClick={onRemove} className="route-item-action mr-auto px-2 text-xs text-gray-400 hover:text-red-500" aria-label={`从路线移除${marker.content.title || '地点'}`}>移除</button>
                 <button type="button" disabled={index === 0} onClick={() => onMove(-1)} className="route-item-action px-2 text-xs text-gray-500 hover:text-accent-600 disabled:opacity-30">上移</button>
@@ -1240,7 +1239,6 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                 路线 {slotIdx + 1}<span className="font-normal text-gray-500">· {chainGroup.length} 地点</span><span>{collapsedRoutes.has(slotIdx) ? '▸' : '▾'}</span>
                                             </button>
                                             <div className="flex gap-1">
-                                                {!isPending && currentDay?.routeChains?.[chainIdx] && <RouteHighlight day={currentDay} route={currentDay.routeChains[chainIdx]} />}
                                                 {chainGroup.length > 0 && <button type="button" onClick={() => onFitMarkers(chainGroup.map(marker => marker.id))} className="min-h-[44px] px-3 text-xs text-gray-600 hover:text-accent-600" aria-label={`查看路线 ${slotIdx + 1}`}>查看</button>}
                                                 <button type="button" onClick={() => setRoutePicker({ chainIndex: chainIdx })} className="min-h-[36px] px-2 text-xs font-medium text-accent-600">＋ 地点</button>
                                                 {isPending && <button type="button" aria-label="取消空路线" onClick={() => setPendingEmptyChains(value => Math.max(0, value - 1))} className="min-h-[36px] px-2 text-gray-500">×</button>}

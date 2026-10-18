@@ -14,6 +14,7 @@ export const stopPatchSchema = z.object({
 }).strict()
 export const transportModeSchema = z.enum(['walking', 'cycling', 'driving', 'taxi', 'bus', 'subway', 'train', 'flight', 'ferry', 'other'])
 export const legPatchSchema = z.object({
+    isHighlight: z.boolean().nullable().optional().describe('此次交通是否重点，与备注同级；省略保留false/null取消'),
     fromStopId: id.describe('相邻路段的起点访问 ID'),
     toStopId: id.describe('相邻路段的终点访问 ID；必须按路线方向相邻'),
     mode: transportModeSchema.optional().describe('交通方式；新建交通安排时必填'),
@@ -22,7 +23,6 @@ export const legPatchSchema = z.object({
     remove: z.boolean().optional().describe('true 清除整段交通安排，不删除地点；不能同时填写其他安排字段'),
 }).strict()
 export const routeChainPatchSchema = z.object({
-    isHighlight: z.boolean().nullable().optional().describe('路线是否重点；省略保留，false/null取消'),
     markerIds: z.array(id).min(2).optional().describe('可选的新完整地点顺序；同一路线不得重复 marker ID'),
     stops: z.array(stopPatchSchema).optional(),
     legs: z.array(legPatchSchema).optional(),
