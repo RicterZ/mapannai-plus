@@ -10,7 +10,7 @@ function separation(a: Marker, b: Marker): number {
     return 12742000 * Math.asin(Math.sqrt(Math.min(1, h)))
 }
 
-export function itineraryAnchors(days: TripDay[], markers: Marker[]): Map<string, string[]> {
+export function itineraryAnchors(days: TripDay[], markers: Marker[], automatic = true): Map<string, string[]> {
     const byId = new Map(markers.filter(m => Number.isFinite(m.coordinates.latitude) && Math.abs(m.coordinates.latitude) <= 90 && Number.isFinite(m.coordinates.longitude) && Math.abs(m.coordinates.longitude) <= 180).map(m => [m.id, m]))
     const segments = days.flatMap(day => day.chains.flatMap(chain => chain.slice(1).flatMap((id, i) => {
         const a = byId.get(chain[i]), b = byId.get(id)
@@ -25,6 +25,7 @@ export function itineraryAnchors(days: TripDay[], markers: Marker[]): Map<string
         const visits = (day.routeChains || []).filter((route, i) => route.stops.length === day.chains[i]?.length && route.stops.every((stop, j) => stop.markerId === day.chains[i][j])).flatMap(route => route.stops).filter(stop => byId.has(stop.markerId))
         const highlighted = visits.filter(stop => stop.isHighlight === true).map(stop => stop.markerId)
         if (highlighted.length) return [day.id, Array.from(new Set(highlighted))]
+        if (!automatic) return [day.id, []]
         const stops = visits.filter(stop => Number.isFinite(stop.durationMinutes) && stop.durationMinutes! > 0)
         const longest = Math.max(0, ...stops.map(stop => stop.durationMinutes!))
         const longSegments = segments.filter(segment => segment.dayId === day.id && segment.distance > threshold)

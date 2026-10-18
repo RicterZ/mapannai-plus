@@ -35,7 +35,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
     const cards = useMemo(() => {
         const byId = new Map(markers.map(marker => [marker.id, marker]))
         const days = tripDays.filter(day => day.tripId === activeView.tripId).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
-        const anchors = itineraryAnchors(days, markers)
+        const anchors = itineraryAnchors(days, markers, false)
         return days.filter(day => activeView.mode === 'trip' || day.id === activeView.dayId).flatMap(day => {
             const ids = Array.from(new Set([...day.chains.flat(), ...day.markerIds])).filter(id => byId.has(id))
             const dayIndex = days.findIndex(item => item.id === day.id) + 1
@@ -57,7 +57,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                     title: `第${dayIndex}天`,
                 }))]
             }
-            const places = ids.map((id, index) => {
+            const places = ids.filter(id => anchors.get(day.id)?.includes(id)).map((id, index) => {
                 const marker = byId.get(id)!
                 return { id: `${day.id}:${id}`, dayId: day.id, markerId: id as string | null, coordinates: marker.coordinates, color,
                     eyebrow: `${date} · 地点 ${index + 1}`, title: marker.content.title || '未命名地点',
@@ -79,7 +79,9 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                     eyebrow: timing || `${date} · 交通`, title: [transportLabels[mode], leg?.serviceNumber].filter(Boolean).join(' '),
                     routeKey: `${day.id}:${chainIndex}:${index}`, legMarkerIds: [fromId, toId] }]
             }))
-            return [...highlights, ...places, ...legs]
+            // Automatic transport cards are paused; retain their generation rules for later.
+            void legs
+            return [...highlights, ...places]
         })
     }, [activeView.mode, activeView.tripId, activeView.dayId, tripDays, markers])
 

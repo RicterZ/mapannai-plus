@@ -388,3 +388,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 - 铁路与地铁绘图分离：train仅加载rail，中国/日本；subway仅加载subway，目前内置日本地铁快照，中国及其他地区回退原provider。不自动跨轨道类型换乘；混合行程需显式中间地点分段。成功OSM路径source=osm-offline，浏览器与SQLite永久缓存，按坐标/模式/算法及快照版本失效；在线公共交通几何也永久缓存。NO_ROUTE永久缓存，临时失败不缓存。
 
 重点路线：RouteChain.isHighlight 可选布尔，PATCH/MCP省略保留false/null取消，JSON持久化不增列。编辑态路线标题旁勾选，旅行/日期地图生成独立重点路线标签，点击框选路线成员；与重点地点共存，不自动标记成员、不改变线型颜色，复用标签避让与原生锚点。验证 test-route-chain-schedules.ts / test-itinerary-anchors.ts；无新增环境变量。
+
+地图标签当前采用手动模式：旅行/日期视图仅显示isHighlight重点访问与重点路线；自动停留/长途/末站及交通卡片暂停触发，保留算法与优先级代码，itineraryAnchors第三参数false控制，不自动恢复。

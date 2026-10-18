@@ -19,3 +19,6 @@ assert.deepEqual(itineraryAnchors([highlighted],markers).get('day'),['0','3'], '
 assert.deepEqual(itineraryAnchors([scheduled],markers).get('day'),['1','2'], 'Highlights never affect another day/visit')
 const cancelled = {...highlighted,routeChains:[{...highlighted.routeChains[0],stops:highlighted.routeChains[0].stops.map(stop=>({...stop,isHighlight:false}))}]}
 assert.deepEqual(itineraryAnchors([cancelled],markers).get('day'),['1','2'], 'Clearing highlights restores automatic selection')
+
+assert.deepEqual(itineraryAnchors([scheduled],markers,false).get('day'),[], 'Manual-only mode suppresses automatic labels')
+assert.deepEqual(itineraryAnchors([highlighted],markers,false).get('day'),['0','3'], 'Manual-only mode retains explicit highlights')
