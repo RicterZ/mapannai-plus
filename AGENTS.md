@@ -397,3 +397,5 @@ ssh -p 2222 -o BatchMode=yes root@server \
 重点只属于ChainStop/ChainLeg的isHighlight，与note同级；整条RouteChain不支持重点。地点/交通安排弹窗内编辑，支持所有交通方式，旅行/日期视图仅为手动重点生成地点/交通标签。字段省略保留、false/null取消、remove交通清除重点，排序跟随访问/有向交通归属。
 
 每日路线色使用高区分度多色调色板，沿用持久化colorIndex，不修改每日色号或日期顺序；地图、侧栏和标签共用routeColor。
+
+重点地点在编辑/浏览地点标题前显示小星标，不在右侧时间区添加“重点地点”文字；安排弹窗保留勾选名称。

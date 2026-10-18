@@ -147,7 +147,7 @@ function ChainItem({ id, marker, index, hasArrowAfter, distance, onRemove, onFly
                 <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full', getMarkerColor(marker.content.iconType || 'location'))}><PlaceIcon emoji={icon.emoji} size={20} /></div>
                 <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-1.5">
-                        <button className="route-schedule-button min-w-0 flex-1 text-left" onClick={onFlyTo} title="跳转到此位置"><div className="break-words text-sm font-medium leading-6 text-gray-800" title={marker.content.title}>{marker.content.title || '未命名地点'}</div></button>
+                        <button className="route-schedule-button min-w-0 flex-1 text-left" onClick={onFlyTo} title="跳转到此位置"><div className="break-words text-sm font-medium leading-6 text-gray-800" title={marker.content.title}>{route?.stops.find(stop => stop.markerId === marker.id)?.isHighlight && <span aria-label="重点地点" title="重点地点" className="mr-1 text-amber-600">★</span>}{marker.content.title || '未命名地点'}</div></button>
                         <div className="flex shrink-0 items-center"><StopSchedule day={day} route={route} markerId={marker.id} editable /></div>
                     </div>
                 </div>
@@ -1367,7 +1367,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-start gap-2">
                                                             {marker.content.headerImage ? <img src={compressedImageUrl(marker.content.headerImage)} alt="" loading="lazy" className="h-8 w-8 shrink-0 rounded-md object-cover" /> : <span className="journey-category-icon flex h-8 w-8 shrink-0 items-center justify-center"><PlaceIcon emoji={icon.emoji} size={26} /></span>}
-                                                            <div className="min-w-0 flex-1 break-words text-base font-semibold leading-8 text-gray-900" title={marker.content.title}>{marker.content.title || '未命名地点'}</div>
+                                                            <div className="min-w-0 flex-1 break-words text-base font-semibold leading-8 text-gray-900" title={marker.content.title}>{stop?.isHighlight && <span aria-label="重点地点" title="重点地点" className="mr-1 text-amber-600">★</span>}{marker.content.title || '未命名地点'}</div>
                                                         </div>
                                                         {marker.content.address && (
                                                             <div className="text-[11px] leading-4 text-gray-400 break-words mt-1" title={marker.content.address}>{shortAddress(marker.content.address)}</div>

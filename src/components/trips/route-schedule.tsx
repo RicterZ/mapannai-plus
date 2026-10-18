@@ -53,9 +53,9 @@ export function StopSchedule({ day, route, markerId, editable, noteOnly = false 
     if (!stop || !route || !day) return null
     if (noteOnly) return <><button type="button" disabled={!editable} onClick={() => setOpen(true)} aria-label="编辑访问备注" className="route-schedule-button block w-full whitespace-pre-wrap break-words px-2 pb-2 text-left text-xs leading-5 text-gray-500 enabled:hover:bg-gray-100">{stop.note || <span className="text-gray-400">添加访问备注</span>}</button>{open && <ScheduleEditor day={day} route={route} stop={stop} title="游览安排与备注" onClose={() => setOpen(false)} />}</>
     const hasTime = !!stop.startTime || stop.durationMinutes !== undefined
-    if (!hasTime && !stop.isHighlight && !editable) return null
+    if (!hasTime && !editable) return null
     return <><button disabled={!editable} onClick={() => setOpen(true)} aria-label="编辑游览安排" title={hasTime ? "编辑游览时间和时长" : "设置游览时间和时长"} className="route-schedule-button ml-auto flex shrink-0 flex-col items-end gap-0.5 rounded px-1 text-[11px] tabular-nums text-gray-500 enabled:hover:bg-gray-100 disabled:cursor-default">
-        {stop.isHighlight && <span className="text-gray-600">重点地点</span>}{stop.startTime && <span>{stop.startTime}</span>}{stop.durationMinutes !== undefined && <span>{formatPlannedDuration(stop.durationMinutes)}</span>}{!hasTime && editable && <span className="flex items-center gap-1 text-gray-400"><Clock3 aria-hidden="true" size={12} /><span>--:--</span></span>}
+        {stop.startTime && <span>{stop.startTime}</span>}{stop.durationMinutes !== undefined && <span>{formatPlannedDuration(stop.durationMinutes)}</span>}{!hasTime && editable && <span className="flex items-center gap-1 text-gray-400"><Clock3 aria-hidden="true" size={12} /><span>--:--</span></span>}
     </button>{open && <ScheduleEditor day={day} route={route} stop={stop} title="游览安排" onClose={() => setOpen(false)} />}</>
 }
 
