@@ -3,7 +3,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMapStore } from '@/store/map-store'
-import { routeColor } from '@/lib/map/route-presentation'
+import { routeColor, transportLabels } from '@/lib/map/route-presentation'
+import { getBezierPath } from '@/lib/map/connection-geometry'
+import { routeTransportMode } from '@/lib/map/route-mode'
+import { formatPlannedDuration } from '@/components/trips/route-schedule'
 import { itineraryCardSize, itineraryLeaderEnd, layoutItineraryCards, sameItineraryPlacements, type MapCardPlacement } from '@/lib/map/itinerary-card-layout'
 import type { MarkerCoordinates } from '@/types/marker'
 import { itineraryAnchors } from '@/lib/map/itinerary-anchors'
@@ -11,6 +14,7 @@ import type { MapAnchor } from './sdk-map-renderer'
 
 interface Props {
     createAnchor: (coordinates: MarkerCoordinates) => MapAnchor | undefined
+    routeMidpoint: (key: string) => MarkerCoordinates | undefined
     routePaths: () => Array<Array<{ x: number; y: number }>>
     project: (coordinates: MarkerCoordinates) => { x: number; y: number } | undefined
     subscribe: (update: () => void, moving: () => void) => () => void
@@ -19,13 +23,13 @@ interface Props {
 }
 
 
-export function ItineraryMapCards({ createAnchor, project, routePaths, subscribe, onMarkerClick, onFitMarkers }: Props) {
+export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routePaths, subscribe, onMarkerClick, onFitMarkers }: Props) {
     const { activeView, tripDays, markers, leftSidebar, interactionState, setActiveView } = useMapStore()
     const root = useRef<HTMLDivElement>(null)
     const [placements, setPlacements] = useState<MapCardPlacement[]>([])
     const [moving, setMoving] = useState(false)
     // Each label lives inside a native map overlay at its anchor, so the map itself moves it during pan/zoom.
-    const anchorsRef = useRef(new Map<string, MapAnchor>())
+    const anchorsRef = useRef(new Map<string, MapAnchor & { coordinates: MarkerCoordinates }>())
     const [anchorNodes, setAnchorNodes] = useState<Map<string, HTMLElement>>(new Map())
     const [hidden, setHidden] = useState(false)
     const cards = useMemo(() => {
@@ -40,18 +44,33 @@ export function ItineraryMapCards({ createAnchor, project, routePaths, subscribe
             if (activeView.mode === 'trip') {
                 return (anchors.get(day.id) || []).map(id => ({
                     id: `${day.id}:${id}`, dayId: day.id, markerId: null as string | null,
-                    coordinates: byId.get(id)!.coordinates, color,
+                    coordinates: byId.get(id)!.coordinates, color, routeKey: null as string | null, legMarkerIds: null as string[] | null,
                     eyebrow: `${date} · ${["周日","周一","周二","周三","周四","周五","周六"][new Date(day.date + "T12:00:00").getDay()]}`,
                     title: `第${dayIndex}天`,
                 }))
             }
-            return ids.map((id, index) => {
+            const places = ids.map((id, index) => {
                 const marker = byId.get(id)!
                 return { id: `${day.id}:${id}`, dayId: day.id, markerId: id as string | null, coordinates: marker.coordinates, color,
                     eyebrow: `${date} · 地点 ${index + 1}`, title: marker.content.title || '未命名地点',
-
+                    routeKey: null as string | null, legMarkerIds: null as string[] | null,
                 }
             })
+            // Arranged legs get the same card at the midpoint of their displayed link.
+            const legs = day.chains.flatMap((chain, chainIndex) => chain.slice(1).flatMap((toId, index) => {
+                const fromId = chain[index], route = day.routeChains?.[chainIndex]
+                const from = byId.get(fromId), to = byId.get(toId), mode = routeTransportMode(route, fromId, toId)
+                if (!from || !to || !mode || !route) return []
+                const fromStop = route.stops[index], toStop = route.stops[index + 1]
+                const leg = route.legs.find(item => item.fromStopId === fromStop?.id && item.toStopId === toStop?.id)
+                const curve = getBezierPath({ lat: from.coordinates.latitude, lng: from.coordinates.longitude }, { lat: to.coordinates.latitude, lng: to.coordinates.longitude })
+                const [lng, lat] = curve[curve.length >> 1]
+                const timing = [leg?.startTime, leg?.durationMinutes !== undefined ? formatPlannedDuration(leg.durationMinutes) : null].filter(Boolean).join(' · ')
+                return [{ id: `${day.id}:leg:${chainIndex}:${index}`, dayId: day.id, markerId: null as string | null, coordinates: { latitude: lat, longitude: lng }, color,
+                    eyebrow: timing || `${date} · 交通`, title: [transportLabels[mode], leg?.serviceNumber].filter(Boolean).join(' '),
+                    routeKey: `${day.id}:${chainIndex}:${index}`, legMarkerIds: [fromId, toId] }]
+            }))
+            return [...places, ...legs]
         })
     }, [activeView.mode, activeView.tripId, activeView.dayId, tripDays, markers])
 
@@ -60,12 +79,16 @@ export function ItineraryMapCards({ createAnchor, project, routePaths, subscribe
         if (!element || hidden) return
         let frame = 0
         let settled: ReturnType<typeof setTimeout> | undefined
+        const position = (card: typeof cards[number]) => (card.routeKey && routeMidpoint(card.routeKey)) || card.coordinates
         const ensureAnchors = () => {
             let added = false
             for (const card of cards) {
-                if (anchorsRef.current.has(card.id)) continue
-                const anchor = createAnchor(card.coordinates)
-                if (anchor) { anchorsRef.current.set(card.id, anchor); added = true }
+                const coordinates = position(card), current = anchorsRef.current.get(card.id)
+                if (current && Math.abs(current.coordinates.latitude - coordinates.latitude) < 1e-7 && Math.abs(current.coordinates.longitude - coordinates.longitude) < 1e-7) continue
+                current?.dispose()
+                const anchor = createAnchor(coordinates)
+                if (anchor) anchorsRef.current.set(card.id, { ...anchor, coordinates }); else anchorsRef.current.delete(card.id)
+                added = true
             }
             if (added) setAnchorNodes(new Map(Array.from(anchorsRef.current, ([id, anchor]) => [id, anchor.node])))
         }
@@ -76,7 +99,7 @@ export function ItineraryMapCards({ createAnchor, project, routePaths, subscribe
                 ensureAnchors()
                 if (element.clientWidth < 1024) return
                 const rect = element.getBoundingClientRect()
-                const anchors = cards.flatMap(card => { const p = project(card.coordinates); return p ? [{ id: card.id, ...p }] : [] })
+                const anchors = cards.flatMap(card => { const p = project(position(card)); return p ? [{ id: card.id, ...p }] : [] })
                 const rightPanel = interactionState.isSidebarOpen ? document.querySelector('.right-sidebar')?.getBoundingClientRect().width || 400 : 0
                 setPlacements(previous => {
                     const next = layoutItineraryCards(anchors, { left: leftSidebar.isOpen ? 420 : 20, top: 100, right: rect.width - rightPanel - 76, bottom: rect.height - 90 }, routePaths(), previous)
@@ -87,6 +110,7 @@ export function ItineraryMapCards({ createAnchor, project, routePaths, subscribe
         }
         const observer = new ResizeObserver(update)
         observer.observe(element)
+        window.addEventListener('itineraryRoutesChanged', update)
         const unsubscribe = subscribe(() => {
             clearTimeout(settled)
             settled = setTimeout(update, 180)
@@ -97,8 +121,8 @@ export function ItineraryMapCards({ createAnchor, project, routePaths, subscribe
             setMoving(true)
         })
         update()
-        return () => { observer.disconnect(); unsubscribe(); clearTimeout(settled); cancelAnimationFrame(frame) }
-    }, [cards, createAnchor, project, routePaths, subscribe, leftSidebar.isOpen, interactionState.isSidebarOpen, hidden])
+        return () => { observer.disconnect(); window.removeEventListener('itineraryRoutesChanged', update); unsubscribe(); clearTimeout(settled); cancelAnimationFrame(frame) }
+    }, [cards, createAnchor, routeMidpoint, project, routePaths, subscribe, leftSidebar.isOpen, interactionState.isSidebarOpen, hidden])
 
     useEffect(() => () => {
         anchorsRef.current.forEach(anchor => anchor.dispose())
@@ -125,7 +149,7 @@ export function ItineraryMapCards({ createAnchor, project, routePaths, subscribe
                     <line x1={0} y1={0} x2={end.x - p.x} y2={end.y - p.y} stroke={card.color} strokeWidth="1" />
                     <circle cx={0} cy={0} r="4" fill="white" stroke={card.color} strokeWidth="2" />
                 </svg>
-                <button type="button" title={`${card.eyebrow} · ${card.title}`} onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
+                <button type="button" title={`${card.eyebrow} · ${card.title}`} onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else if (card.legMarkerIds) onFitMarkers(card.legMarkerIds); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
                     className="absolute flex items-center gap-2 overflow-hidden whitespace-nowrap rounded-md border border-gray-200 border-l-[3px] bg-white px-3 text-left shadow-[0_3px_18px_rgba(0,0,0,0.08)] transition-shadow hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
                     style={{ left: p.left - p.x, top: p.top - p.y, width: itineraryCardSize.width, height: itineraryCardSize.height, borderLeftColor: card.color }}>
                     <span className="min-w-0 truncate text-sm font-medium text-gray-900">{card.title}</span>

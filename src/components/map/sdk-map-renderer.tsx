@@ -72,6 +72,7 @@ export interface MapCamera { longitude: number; latitude: number; zoom: number; 
 export interface MapAnchor { node: HTMLElement; dispose(): void }
 export interface MapRendererHandle {
     createAnchor(coordinates: MarkerCoordinates, zIndex?: number): MapAnchor | undefined
+    routeMidpoints(): Map<string, MarkerCoordinates>
     flyTo(options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }): void
     project(coordinates: MarkerCoordinates): { x: number; y: number } | undefined
     routeScreenPaths(): Array<Array<{ x: number; y: number }>>
@@ -119,6 +120,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
     const markerOverlaysRef = useRef(new Map<string, { overlay: any; node: HTMLElement }>())
     const pickableRoutesRef = useRef<Array<{ dayId: string; path: number[][] }>>([])
     const routeOverlaysRef = useRef(new Map<string, { casing: any; line: any; hitArea: any; dot?: any; node?: HTMLElement; plane?: any; planeNode?: HTMLElement }>())
+    const routeMidpointsRef = useRef(new Map<string, MarkerCoordinates>())
     const separationRef = useRef<{ signature: string; paths: Map<string, number[][]> } | null>(null)
     const popupOverlayRef = useRef<any>(null)
     const popupNodeRef = useRef<HTMLElement | null>(null)
@@ -135,6 +137,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
             map.add([overlay])
             return { node, dispose: () => { map.remove([overlay]); node.remove() } }
         },
+        routeMidpoints() { return routeMidpointsRef.current },
         project(coordinates) {
             const display = toMapCoordinates(coordinates, latest.current.renderer)
             const point = mapRef.current?.lngLatToContainer([display.longitude, display.latitude])
@@ -358,6 +361,11 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
             separationRef.current = { signature, paths: new Map(keys.map((key, i) => [key, separated[i]])) }
         }
         const lanePaths = separationRef.current.paths
+        routeMidpointsRef.current = new Map(Array.from(lanePaths, ([key, path]) => {
+            const mid = pathMidpointHeading(path)
+            return [key, mid ? fromMapCoordinates({ longitude: mid.position[0], latitude: mid.position[1] }, props.renderer) : null] as const
+        }).filter((entry): entry is [string, MarkerCoordinates] => !!entry[1]))
+        window.dispatchEvent(new Event('itineraryRoutesChanged'))
         for (const day of relevant) for (const [chainIndex, chain] of Array.from((day.chains || []).entries())) {
             for (let index = 0; index < chain.length - 1; index++) {
                 const fromMarker = byId.get(chain[index]), toMarker = byId.get(chain[index + 1])
