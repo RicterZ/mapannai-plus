@@ -303,12 +303,12 @@ export function registerTripTools(server: McpServer) {
     }
     server.tool(
         'update_day_chain',
-        '修改已有路线顺序、地点游览安排与路段交通安排。优先传稳定 chainId；省略字段保留，时间/时长/车次号/note传null清除。车次号独立放serviceNumber。计划时长不影响寻路缓存，不自动排程。',
+        '修改已有路线顺序、地点游览安排与路段交通安排，以及stops.isHighlight重点地点、legs.isHighlight重点行程。优先传稳定 chainId；省略字段保留，时间/时长/车次号/note传null清除。车次号独立放serviceNumber。计划时长不影响寻路缓存，不自动排程。',
         {
             ...chainTarget,
             markerIds: z.array(z.string()).min(2).optional().describe('可选：修改后的完整地点顺序，至少两个不重复的已有地点ID'),
-            stops: z.array(stopPatchSchema).optional().describe('可选：按访问stopId局部修改游览时间、停留分钟数、note'),
-            legs: z.array(legPatchSchema).optional().describe('可选：按相邻访问ID修改交通、独立线路/车次号serviceNumber、出发时间、计划分钟数、note；remove=true清除交通安排'),
+            stops: z.array(stopPatchSchema).optional().describe('可选：按访问stopId局部修改游览时间、停留分钟数、note、isHighlight重点地点（true标记，false/null取消，省略保留）'),
+            legs: z.array(legPatchSchema).optional().describe('可选：按相邻访问ID修改交通、独立线路/车次号serviceNumber、出发时间、计划分钟数、note、isHighlight重点行程（true标记，false/null取消，省略保留）；remove=true清除交通安排'),
         },
         async ({ tripId, dayId, chainId, chainIndex, markerIds, stops, legs }) => {
             const day = getDayById(dayId)

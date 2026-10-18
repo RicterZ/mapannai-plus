@@ -46,10 +46,11 @@ function createMcpServer(): McpServer {
 
 ## 核心概念
 
-### 路线安排（后台支持，前端展示待设计）
+### 路线安排与地图重点标签
 - 每日 \`routeChains\` 是完整路线；兼容 \`chains\` 仅是 marker ID 顺序投影。路线使用稳定 \`id\`，每次地点访问 \`stops\` 有独立 \`id\` 和 \`markerId\`。
 - \`stops\`：\`startTime\`（当天当地 HH:mm）、\`durationMinutes\`（用户计划停留分钟数）、\`note\`。isHighlight 标记此次访问为重点地点，优先显示当天地图标签。不要改全局地点来保存一次访问的安排。
 - \`legs\`：有方向的相邻访问 \`fromStopId\` / \`toStopId\`、\`mode\`、独立线路/车次号 \`serviceNumber\`（地铁2号线、公交101、G123、NH920、船班号），以及同样的时间/时长/note；不要把车次号写进 note。
+- 重点地点是路线中的某一次地点访问（stops.isHighlight）；重点行程是两个有方向相邻访问之间的一段交通（legs.isHighlight）。两者与各自note同级，不属于全局Marker、整条路线、整天或整个旅行。true在旅行/每日地图显示重点卡片，包含名称或交通方式/车次、时间、时长、备注；不影响寻路、顺序或计划时长。仅按用户明确要求设置，不自动按热门、停留时长或跨城标记；有歧义先确认具体访问或路段。false/null取消，省略保留；取消重点不清除备注或交通安排。先读取get_trip_detail，用chainId与stopId定位，再通过update_day_chain的stops/legs写入isHighlight。
 - 使用 \`update_day_chain\`，优先 \`chainId\`，\`stops\` / \`legs\` 支持局部修改；省略保留、null清除时间/时长/车次号/备注，\`remove:true\` 清除一段交通安排。新建路段必须给 mode。时间不会自动排程，计划时长与寻路结果分开。
 - 地点访问的安排跟随访问ID；修改访问顺序后只展示仍然有方向相邻的交通安排；暂时断开的边存入 inactiveLegs，移回同一有向相邻访问时恢复，反向边不继承。移除地点或明确清除安排才删除，不把安排搬到另一条路线。删除路线保留地点。
 

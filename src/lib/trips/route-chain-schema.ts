@@ -8,13 +8,13 @@ export const schedulePatchFields = {
     note: text(4000).optional().describe('补充备注，例如入口、站台或预约事项；null 或空字符串清除'),
 }
 export const stopPatchSchema = z.object({
-    isHighlight: z.boolean().nullable().optional().describe('此次访问是否为重点地点；true优先显示当天地图标签，false/null取消，省略保留'),
+    isHighlight: z.boolean().nullable().optional().describe('此次地点访问是否为重点地点，与note同级，不修改全局Marker；true显示旅行/每日地图标签，false/null取消，省略保留'),
     stopId: id.describe('routeChains.stops 中的访问 ID，不是 marker ID'),
     ...schedulePatchFields,
 }).strict()
 export const transportModeSchema = z.enum(['walking', 'cycling', 'driving', 'taxi', 'bus', 'subway', 'train', 'flight', 'ferry', 'other'])
 export const legPatchSchema = z.object({
-    isHighlight: z.boolean().nullable().optional().describe('此次交通是否重点，与备注同级；省略保留false/null取消'),
+    isHighlight: z.boolean().nullable().optional().describe('此次有向相邻交通是否为重点行程，与note同级；true显示交通地图标签，不是整条路线重点；false/null取消，省略保留'),
     fromStopId: id.describe('相邻路段的起点访问 ID'),
     toStopId: id.describe('相邻路段的终点访问 ID；必须按路线方向相邻'),
     mode: transportModeSchema.optional().describe('交通方式；新建交通安排时必填'),
