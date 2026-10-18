@@ -20,6 +20,7 @@ import { usePlannedRoutes, RouteViewport } from '@/lib/map/use-planned-routes'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { MapMarker } from './map-marker'
 import { routeColor, routeLineStyle, planeIconSvg } from '@/lib/map/route-presentation'
+import { separateOverlappingPaths } from '@/lib/map/route-separation'
 import { pickRouteDay } from '@/lib/map/route-picking'
 import { layoutRoutePaths } from '@/lib/map/route-geometry'
 import { SearchResultMarker, searchResultKey } from './search-result-marker'
@@ -118,6 +119,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
     const markerOverlaysRef = useRef(new Map<string, { overlay: any; node: HTMLElement }>())
     const pickableRoutesRef = useRef<Array<{ dayId: string; path: number[][] }>>([])
     const routeOverlaysRef = useRef(new Map<string, { casing: any; line: any; hitArea: any; dot?: any; node?: HTMLElement; plane?: any; planeNode?: HTMLElement }>())
+    const separationRef = useRef<{ signature: string; paths: Map<string, number[][]> } | null>(null)
     const popupOverlayRef = useRef<any>(null)
     const popupNodeRef = useRef<HTMLElement | null>(null)
     const locationOverlayRef = useRef<any>(null)
@@ -336,6 +338,26 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
         const overlays: any[] = []
         const liveKeys = new Set<string>()
         const animated: Array<{ dot: any; from: { lat: number; lng: number }; to: { lat: number; lng: number }; path: Array<{ lat: number; lng: number }> | null }> = []
+        // Display paths for every link first, so overlapping corridors can be split into lanes together.
+        const rawPaths = new Map<string, number[][]>()
+        for (const day of relevant) for (const [chainIndex, chain] of Array.from((day.chains || []).entries())) {
+            for (let index = 0; index < chain.length - 1; index++) {
+                const fromMarker = byId.get(chain[index]), toMarker = byId.get(chain[index + 1])
+                if (!fromMarker || !toMarker) continue
+                const [fromLng, fromLat] = toDisplayPoint(fromMarker.coordinates), [toLng, toLat] = toDisplayPoint(toMarker.coordinates)
+                const segment = { transportMode: routeTransportMode(day.routeChains?.[chainIndex], fromMarker.id, toMarker.id), fromId: fromMarker.id, toId: toMarker.id, origin: { lat: fromMarker.coordinates.latitude, lng: fromMarker.coordinates.longitude }, destination: { lat: toMarker.coordinates.latitude, lng: toMarker.coordinates.longitude } }
+                const cachedPath = planned.enabled ? planned.routes[routeCacheKey(routeProvider, segment)] : null
+                rawPaths.set(`${day.id}:${chainIndex}:${index}`, cachedPath && !isRangeFallback(cachedPath) ? displayPaths.get(`${day.id}:${chainIndex}:${index}`)!.map(point => toDisplayPoint({ longitude: point.lng, latitude: point.lat })) : getBezierPath({ lng: fromLng, lat: fromLat }, { lng: toLng, lat: toLat }))
+            }
+        }
+        const zoomBucket = Math.round(props.viewState.zoom * 2) / 2
+        const signature = `${zoomBucket}|${Array.from(rawPaths, ([key, path]) => `${key}:${path.length}:${path[0]}:${path[path.length - 1]}:${path[path.length >> 1]}`).join('|')}`
+        if (separationRef.current?.signature !== signature) {
+            const keys = Array.from(rawPaths.keys())
+            const separated = separateOverlappingPaths(keys.map(key => rawPaths.get(key)!), zoomBucket, 256, { spacing: 5.5 })
+            separationRef.current = { signature, paths: new Map(keys.map((key, i) => [key, separated[i]])) }
+        }
+        const lanePaths = separationRef.current.paths
         for (const day of relevant) for (const [chainIndex, chain] of Array.from((day.chains || []).entries())) {
             for (let index = 0; index < chain.length - 1; index++) {
                 const fromMarker = byId.get(chain[index]), toMarker = byId.get(chain[index + 1])
@@ -345,15 +367,15 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
                 const highlighted = day.id === effectiveDayId
                 const segment = { transportMode: routeTransportMode(day.routeChains?.[chainIndex], fromMarker.id, toMarker.id), fromId: fromMarker.id, toId: toMarker.id, origin: { lat: fromMarker.coordinates.latitude, lng: fromMarker.coordinates.longitude }, destination: { lat: toMarker.coordinates.latitude, lng: toMarker.coordinates.longitude } }
                 const cachedPath = planned.enabled ? planned.routes[routeCacheKey(routeProvider, segment)] : null
-                const path = cachedPath && !isRangeFallback(cachedPath) ? displayPaths.get(`${day.id}:${chainIndex}:${index}`)!.map(point => toDisplayPoint({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
+                const path = lanePaths.get(`${day.id}:${chainIndex}:${index}`)!
                 pickableRoutesRef.current.push({ dayId: day.id, path })
                 const style = routeLineStyle(segment.transportMode)
-                const width = Math.max(2, 3 + (props.viewState.zoom - 10) * 0.2 + style.widthOffset) + (highlighted ? 2 : 0)
+                const width = Math.min(4, Math.max(1.5, 2.2 + (props.viewState.zoom - 10) * 0.15 + style.widthOffset * 0.6)) + (highlighted ? 1 : 0)
                 const color = routeColor(chainIndex, day.id, day.colorIndex)
                 const key = `${day.id}:${chainIndex}:${index}`
                 liveKeys.add(key)
                 let entry = routeOverlaysRef.current.get(key)
-                const casingOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: '#ffffff', strokeWeight: width + 2, strokeOpacity: highlighted ? 1 : effectiveDayId && activeView.mode === 'overview' ? 0.4 : 0.95, zIndex: highlighted ? 52 : 48 }
+                const casingOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: '#ffffff', strokeWeight: width + 1.5, strokeOpacity: highlighted ? 1 : effectiveDayId && activeView.mode === 'overview' ? 0.4 : 0.95, zIndex: highlighted ? 52 : 48 }
                 const lineOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: color, strokeStyle: (style.dashed ?? (planned.enabled && (!cachedPath || isRangeFallback(cachedPath)))) ? 'dashed' : 'solid', strokeDasharray: [8, 6], strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId && activeView.mode === 'overview' ? 0.25 : 0.9, zIndex: highlighted ? 53 : 49 }
                 const hitOptions = { path, strokeColor: color, strokeWeight: 28, strokeOpacity: 0, zIndex: highlighted ? 56 : 55, bubble: false }
                 if (!entry) {
@@ -405,7 +427,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
                         overlays.push(entry.dot)
                     }
                     entry.node!.style.cssText = `width:10px;height:10px;border:2px solid white;border-radius:50%;background:${color};box-sizing:border-box;pointer-events:none`
-                    animated.push({ dot: entry.dot, from, to, path: cachedPath && !isRangeFallback(cachedPath) ? path.map(([lng, lat]) => ({ lng, lat })) : null })
+                    animated.push({ dot: entry.dot, from, to, path: path.map(([lng, lat]) => ({ lng, lat })) })
                 } else if (entry.dot) {
                     map.remove([entry.dot]); entry.node?.remove(); entry.dot = undefined; entry.node = undefined
                 }

@@ -21,6 +21,7 @@ import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { routeColor, routeLineStyle, planeIconSvg } from '@/lib/map/route-presentation'
 import { pickRouteDay } from '@/lib/map/route-picking'
 import { layoutRoutePaths } from '@/lib/map/route-geometry'
+import { separateOverlappingPaths } from '@/lib/map/route-separation'
 
 const emptyFeatureCollection: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
@@ -203,6 +204,12 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
         })
     }, [connectionLines, planned.enabled, planned.routes, routeProvider, segments])
 
+    // Display-only lanes for links sharing a corridor; line, casing, hit area and dots all use these paths.
+    const zoomBucket = Math.round(zoom * 2) / 2
+    const lanePaths = useMemo(() => separateOverlappingPaths(lineControlPoints.map(line => line.route
+        ? line.route.map(point => [point.lng, point.lat])
+        : getBezierPath(line.from, line.to)), zoomBucket, 512, { spacing: 5.5 }), [lineControlPoints, zoomBucket])
+
     // 小圆球动画
     useEffect(() => {
         const mapInstance = map?.getMap()
@@ -217,16 +224,13 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
 
         const highlighted = new Set(highlightedLineIds)
         const colors = new Map(connectionLines.map(line => [line.id, line.color]))
-        const lines = lineControlPoints.filter(line => highlighted.has(line.id))
+        const lines = lineControlPoints.flatMap((line, index) => highlighted.has(line.id) ? [{ id: line.id, path: lanePaths[index].map(([lng, lat]) => ({ lng, lat })) }] : [])
 
         const animate = (now: number) => {
             const progress = (now / 2100) % 1
 
             const features: GeoJSON.Feature[] = lines.flatMap(lc => {
-                const { lng, lat } = lc.route ? pointAlongPath(lc.route, progress) : (() => {
-                    const [lng, lat] = bezierPoint(lc.from, lc.ctrl, lc.to, progress)
-                    return { lng, lat }
-                })()
+                const { lng, lat } = pointAlongPath(lc.path, progress)
                 return [{
                     type: 'Feature' as const,
                     geometry: { type: 'Point' as const, coordinates: [lng, lat] },
@@ -242,7 +246,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
             const src = mapInstance.getSource('connection-dots') as GeoJSONSource | undefined
             src?.setData(emptyFeatureCollection)
         })
-    }, [highlightedLineIds, lineControlPoints, connectionLines, map, zoom, zoomThreshold])
+    }, [highlightedLineIds, lineControlPoints, lanePaths, connectionLines, map, zoom, zoomThreshold])
 
     // 生成贝塞尔曲线连接线的 GeoJSON
     const connectionGeoJSON = useMemo(() => {
@@ -255,12 +259,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
 
         const features = connectionLines.map((line, index) => {
             const plannedPath = lineControlPoints[index].route
-            const coordinates = plannedPath
-                ? plannedPath.map(point => [point.lng, point.lat] as [number, number])
-                : getBezierPath(
-                    { lat: line.from.coordinates.latitude, lng: line.from.coordinates.longitude },
-                    { lat: line.to.coordinates.latitude, lng: line.to.coordinates.longitude }
-                )
+            const coordinates = lanePaths[index]
 
             const style = routeLineStyle(line.transportMode)
             return {
@@ -288,7 +287,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
             type: 'FeatureCollection' as const,
             features
         }
-    }, [connectionLines, lineControlPoints, planned.enabled, planned.routes, routeProvider, segments])
+    }, [connectionLines, lineControlPoints, lanePaths, planned.enabled, planned.routes, routeProvider, segments])
 
     // 如果没有连接线，不渲染任何内容
     if (connectionLines.length === 0) {
@@ -312,9 +311,9 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         'line-color': 'rgba(255, 255, 255, 0.95)',
                         'line-width': [
                             'interpolate', ['linear'], ['zoom'],
-                            10, 5,
-                            15, 6,
-                            20, 7
+                            10, 3.5,
+                            15, 4.5,
+                            20, 5.5
                         ],
                         'line-opacity': [
                             'case',
@@ -334,9 +333,9 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         'line-color': ['get', 'color'],
                         'line-width': [
                             'interpolate', ['linear'], ['zoom'],
-                            10, ['+', 3, ['get', 'widthOffset']],
-                            15, ['+', 4, ['get', 'widthOffset']],
-                            20, ['+', 5, ['get', 'widthOffset']]
+                            10, ['+', 2, ['*', 0.6, ['get', 'widthOffset']]],
+                            15, ['+', 2.8, ['*', 0.6, ['get', 'widthOffset']]],
+                            20, ['+', 3.6, ['*', 0.6, ['get', 'widthOffset']]]
                         ],
                         'line-opacity': [
                             'case',
@@ -358,9 +357,9 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         'line-color': 'rgba(255, 255, 255, 0.95)',
                         'line-width': [
                             'interpolate', ['linear'], ['zoom'],
-                            10, 6,
-                            15, 8,
-                            20, 10
+                            10, 4.5,
+                            15, 5.5,
+                            20, 6.5
                         ],
                         'line-opacity': 1,
                     }}
@@ -378,9 +377,9 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         'line-color': ['get', 'color'],
                         'line-width': [
                             'interpolate', ['linear'], ['zoom'],
-                            10, ['+', ['get', 'widthOffset'], ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 4, 3]],
-                            15, ['+', ['get', 'widthOffset'], ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 6, 4]],
-                            20, ['+', ['get', 'widthOffset'], ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 8, 5]],
+                            10, ['+', ['*', 0.6, ['get', 'widthOffset']], ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 3, 2]],
+                            15, ['+', ['*', 0.6, ['get', 'widthOffset']], ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 3.8, 2.8]],
+                            20, ['+', ['*', 0.6, ['get', 'widthOffset']], ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 4.6, 3.6]],
                         ],
                         'line-dasharray': [2, 2],
                         'line-opacity': [
@@ -402,9 +401,9 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         'line-color': ['get', 'color'],
                         'line-width': [
                             'interpolate', ['linear'], ['zoom'],
-                            10, ['+', 4, ['get', 'widthOffset']],
-                            15, ['+', 6, ['get', 'widthOffset']],
-                            20, ['+', 8, ['get', 'widthOffset']]
+                            10, ['+', 3, ['*', 0.6, ['get', 'widthOffset']]],
+                            15, ['+', 3.8, ['*', 0.6, ['get', 'widthOffset']]],
+                            20, ['+', 4.6, ['*', 0.6, ['get', 'widthOffset']]]
                         ],
                         'line-opacity': 1,
                     }}
