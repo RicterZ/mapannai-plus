@@ -48,10 +48,11 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
         const byId = new Map(markers.map(marker => [marker.id, marker]))
         const days = tripDays.filter(day => day.tripId === activeView.tripId).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
         const anchors = itineraryAnchors(days, markers, false)
-        return days.filter(day => activeView.mode === 'trip' || day.id === activeView.dayId).flatMap(day => {
+        return days.flatMap((day, dayIndex) => activeView.mode !== 'trip' && day.id !== activeView.dayId ? [] : (() => {
             const ids = Array.from(new Set([...day.chains.flat(), ...day.markerIds])).filter(id => byId.has(id))
             const color = routeColor(0, day.id, day.colorIndex)
             const date = `${Number(day.date.slice(5, 7))}月${Number(day.date.slice(8, 10))}日`
+            const dayLabel = `第${dayIndex + 1}天`
             const places = ids.filter(id => anchors.get(day.id)?.includes(id)).map(id => {
                 const marker = byId.get(id)!
                 const stop = day.routeChains?.flatMap((route, i) => route.stops.every((item, j) => item.markerId === day.chains[i]?.[j]) ? route.stops : []).find(item => item.markerId === id && item.isHighlight)
@@ -84,8 +85,8 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                     routeKey: `${day.id}:${chainIndex}:${index}`, legMarkerIds: [fromId, toId] }]
             }))
             // Automatic selection remains paused.
-            return [...places, ...legs]
-        })
+            return [...places, ...legs].map(card => ({ ...card, dayLabel }))
+        })())
     }, [activeView.mode, activeView.tripId, activeView.dayId, tripDays, markers])
 
     useEffect(() => {
@@ -174,7 +175,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                 <button type="button"
                     onMouseEnter={() => { hoveredCard.current = card.id; window.dispatchEvent(new CustomEvent('markerDayHover', { detail: { dayId: card.dayId } })) }}
                     onMouseLeave={() => { hoveredCard.current = null; window.dispatchEvent(new CustomEvent('markerDayHover', { detail: { dayId: null } })) }}
-                    title={[card.title, card.eyebrow, card.timing, card.note].filter(Boolean).join('\n')} onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else if (card.legMarkerIds) onFitMarkers(card.legMarkerIds); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
+                    title={[card.title, `${card.dayLabel} ${card.eyebrow}`, card.timing, card.note].filter(Boolean).join('\n')} onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else if (card.legMarkerIds) onFitMarkers(card.legMarkerIds); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
                     className="absolute flex flex-col items-stretch overflow-hidden whitespace-normal rounded-xl border border-gray-200/80 bg-white px-3 py-2.5 text-left shadow-[0_4px_20px_rgba(15,23,42,0.08)] transition-shadow hover:shadow-[0_6px_24px_rgba(15,23,42,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
                     style={{ left: p.left - p.x, top: p.top - p.y, width: itineraryCardSize.width }}>
                     <span className="flex items-start gap-2.5">
@@ -189,7 +190,10 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                     <span className="mt-2 flex items-center gap-1.5 pl-[38px] text-[11px] leading-4">
                         {card.time && <span className="rounded px-1.5 py-px font-semibold tabular-nums text-gray-800" style={{ backgroundColor: `color-mix(in srgb, ${card.color} 10%, #f3f4f6)` }}>{card.time}</span>}
                         {card.duration && <span className="tabular-nums text-gray-600">{card.duration}</span>}
-                        <span className="ml-auto shrink-0 text-gray-400">{card.eyebrow}</span>
+                        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                            <span className="rounded px-1.5 py-px font-semibold text-white" style={{ backgroundColor: card.color }}>{card.dayLabel}</span>
+                            <span className="text-gray-400">{card.eyebrow}</span>
+                        </span>
                     </span>
                     {card.note && <span className="mt-2 whitespace-pre-wrap break-words border-t border-gray-100 pl-[38px] pt-2 text-xs leading-[18px] text-gray-600" style={clamp(3)}>{card.note}</span>}
                 </button>
