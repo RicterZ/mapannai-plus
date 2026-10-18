@@ -1,0 +1,11 @@
+{
+  "source": "OpenStreetMap contributors",
+  "license": "ODbL-1.0",
+  "licenseUrl": "https://www.openstreetmap.org/copyright",
+  "timestamp": "2026-10-18T06:34:06Z",
+  "sha256": "891b4b5492ea11b54682bfb46841dd3ff9fcc42d04393d73e0ab7e58702f9057",
+  "region": "china",
+  "query": "Country admin area, railway=rail, no service tag; out geom",
+  "nodes": 1293065,
+  "ways": 240281
+}

@@ -380,6 +380,6 @@ ssh -p 2222 -o BatchMode=yes root@server \
 
 ## OSM 铁路绘图
 
-- 显式交通方式 train 使用服务端 Overpass 铁路主线几何，按邻近轨道节点（1.5km内、最近点距离+100m候选范围）匹配并计算无向最短物理路径；不表示实际班次、不含换乘和时刻表，不按车次限制线路。公交/地铁仍使用原 provider。所有 renderer 复用现有 path，并显示 OSM/ODbL 署名。
-- OSM 路程为原始轨道几何及端点接线累计米数，不是营业公里；duration=null，不修改用户安排。缓存隔离 osm-rail-v1，Web/MCP 共享服务。跨境仍按现有规则回退；无连通路径 NO_ROUTE，临时失败 PLANNING_FAILED 且不缓存。
-- 默认公共 Overpass，OSM_OVERPASS_URL 可指向独立实例；直线超过800km不查询，查询限制25秒/128MiB，局部范围可能遗漏大绕行，多条平行铁路可能选到非预期线路。高流量应部署独立服务，不把公共端点视为有SLA服务。验证：npx tsx scripts/test-railway-route.ts（隔离SQLite、HTTP mock）。
+- 显式 train 使用内置中国/日本 OSM 铁路快照（src/lib/map/railway-data/*-railway.json.gz），运行时不访问 Overpass，无额外环境变量。邻近轨道节点1.5km内、最近点+100m候选匹配，无向最短物理路径，不推断班次/换乘，不按车次限制线路；公交/地铁保持原 provider。覆盖中国/日本 railway=rail 非service轨道，不保证指定运营商或特定线路；范围外/不连通返回 NO_ROUTE。
+- 原始轨道及端点接线累计距离，不是营业公里；duration=null，不修改用户安排。图结构进程内复用，Web/MCP共用服务，缓存隔离 osm-rail-offline-v2。更新快照需同步变更缓存版本。火车优先本地OSM；无覆盖/不连通/快照故障时回退原区域服务（境内高德→Google，境外Google），再回退贝塞尔示意线。任一临时故障且后续均无有效路径时保留PLANNING_FAILED与重试，不缓存最终失败；跨境沿用原不寻路规则。MCP显式provider仅限定OSM后的服务。
+- 快照来源、时间、规模与ODbL许可见同目录source JSON及README；刷新时将完整对应国家Overpass out geom导出交给 node scripts/import-railway-snapshot.mjs <export.json> [japan|china]，不是部署/启动步骤。Docker和standalone必须包含快照文件；OSM署名所有renderer保留。验证：npx tsx scripts/test-railway-route.ts，禁用网络、隔离SQLite验证真实站点/缓存/API。

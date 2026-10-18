@@ -33,39 +33,68 @@ async function main() {
     const segment = { fromId: 'a', toId: 'b', origin: a, destination: b }
     assert.notEqual(routeCacheKey('regional-v1', { ...segment, transportMode: 'train' }), routeCacheKey('regional-v1', { ...segment, transportMode: 'bus' }))
     const original = globalThis.fetch
-    let calls = 0, fail = false
-    globalThis.fetch = async () => {
-        calls++
-        if (fail) return new Response('', { status: 429 })
-        return Response.json({ elements })
-    }
+    globalThis.fetch = async () => { throw new Error('Offline routing must not access the network') }
     const { getSavedDirection } = await import('../src/lib/map/direction-service')
     const { getDb } = await import('../src/lib/db')
     const { POST } = await import('../src/app/api/directions/route')
+    const { mapProviderFactory } = await import('../src/lib/map/providers/map-provider-factory')
+    const createProvider = mapProviderFactory.createProvider
+    const providerCalls: string[] = []
+    let providerState: 'ok' | 'empty' | 'error' = 'empty'
+    mapProviderFactory.createProvider = provider => ({
+        ...createProvider.call(mapProviderFactory, provider),
+        async getDirections(origin, destination) {
+            providerCalls.push(provider)
+            if (providerState === 'error') throw new Error('mock temporary failure')
+            if (providerState === 'empty') throw new Error('NO_ROUTE')
+            return { path: [origin, destination], distance: 12345, duration: 600 }
+        },
+    }) as ReturnType<typeof createProvider>
+    const cases = [
+        ['Beijing-Tianjin', { lat: 39.8652, lng: 116.3785 }, { lat: 39.1342, lng: 117.2093 }],
+        ['Tokyo-Shinagawa', { lat: 35.6812, lng: 139.7671 }, { lat: 35.6285, lng: 139.7388 }],
+        ['Kyoto-ShinOsaka', { lat: 34.9858, lng: 135.7588 }, { lat: 34.7335, lng: 135.5001 }],
+        ['KaihinMakuhari-Akihabara', { lat: 35.6484, lng: 140.0419 }, { lat: 35.6984, lng: 139.7731 }],
+    ] as const
     try {
-        const results = await Promise.all([getSavedDirection(a, b, undefined, undefined, 'train'), getSavedDirection(a, b, undefined, undefined, 'train')])
-        assert.equal(results[0].fallback, undefined)
-        assert.equal(calls, 1)
-        await getSavedDirection(a, b, undefined, undefined, 'train')
-        assert.equal(calls, 1)
-        fail = true
-        assert.equal((await getSavedDirection(b, a, undefined, undefined, 'train')).fallback, 'PLANNING_FAILED')
-        fail = false
-        assert.equal((await getSavedDirection(b, a, undefined, undefined, 'train')).fallback, undefined)
-        assert.equal(calls, 3)
-        const response = await POST(new NextRequest('http://localhost/api/directions', { method: 'POST', body: JSON.stringify({ origin: a, destination: b, transportMode: 'train' }) }))
+        for (const [name, origin, destination] of cases) {
+            const [route, shared] = await Promise.all([getSavedDirection(origin, destination, undefined, undefined, 'train'), getSavedDirection(origin, destination, undefined, undefined, 'train')])
+            assert.equal(route.fallback, undefined, name)
+            assert.ok(route.path.length > 10, name)
+            assert.ok(route.distance! > 0, name)
+            assert.deepEqual(route.path[0], origin)
+            assert.deepEqual(route.path[route.path.length - 1], destination)
+            assert.ok(route.path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng)))
+            assert.equal(route.duration, null)
+            assert.deepEqual(shared, route)
+            assert.deepEqual(await getSavedDirection(origin, destination, undefined, undefined, 'train'), route)
+            console.log(name, route.path.length, Math.round(route.distance!))
+        }
+        assert.equal(providerCalls.length, 0, 'offline paths never call map providers')
+        const response = await POST(new NextRequest('http://localhost/api/directions', { method: 'POST', body: JSON.stringify({ origin: cases[0][1], destination: cases[0][2], transportMode: 'train' }) }))
         assert.equal(response.status, 200)
         assert.equal((await response.json()).duration, null)
-        assert.equal(calls, 3, 'Web API shares railway cache')
+        const missing = await getSavedDirection(a, b, undefined, undefined, 'train')
+        assert.equal(missing.fallback, 'NO_ROUTE')
+        assert.deepEqual(providerCalls, ['google'])
+        const europe = { lat: 48.8566, lng: 2.3522 }, europe2 = { lat: 48.88, lng: 2.36 }
+        providerState = 'ok'
+        const online = await getSavedDirection(europe, europe2, undefined, undefined, 'train')
+        assert.equal(online.distance, 12345)
+        assert.equal(online.fallback, undefined)
+        providerState = 'error'
+        const failed = { lat: 48.85, lng: 2.35 }
+        assert.equal((await getSavedDirection(failed, europe2, undefined, undefined, 'train')).fallback, 'PLANNING_FAILED')
+        providerState = 'ok'
+        assert.equal((await getSavedDirection(failed, europe2, undefined, undefined, 'train')).fallback, undefined, 'temporary errors remain retryable')
+        providerState = 'empty'
+        providerCalls.length = 0
+        const china = await getSavedDirection({ lat: 28, lng: 101 }, { lat: 28.01, lng: 101.01 }, undefined, undefined, 'train')
+        assert.equal(china.fallback, 'NO_ROUTE')
+        assert.deepEqual(providerCalls, ['amap', 'google'], 'China falls back through AMap then Google')
         const crossBorder = await getSavedDirection({ lat: 39.9, lng: 116.4 }, b, undefined, undefined, 'train')
         assert.equal(crossBorder.fallback, 'UNSUPPORTED_REGION')
-        assert.equal(calls, 3, 'cross-border route never queries OSM')
-        globalThis.fetch = async () => { calls++; return Response.json({ elements: [] }) }
-        const missing = { lat: 35.1, lng: 139 }
-        assert.equal((await getSavedDirection(missing, b, undefined, undefined, 'train')).fallback, 'NO_ROUTE')
-        assert.equal((await getSavedDirection(missing, b, undefined, undefined, 'train')).fallback, 'NO_ROUTE')
-        assert.equal(calls, 4, 'coverage failure is cached')
-        console.log('Railway geometry, cache isolation, shared requests and retry checks passed')
-    } finally { globalThis.fetch = original; getDb().close() }
+        console.log('Offline railway geometry, parallel tracks, cache, API and no-network checks passed')
+    } finally { globalThis.fetch = original; mapProviderFactory.createProvider = createProvider; getDb().close() }
 }
 main().finally(() => rmSync(temp, { recursive: true, force: true })).catch(error => { console.error(error); process.exitCode = 1 })

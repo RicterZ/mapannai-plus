@@ -1,0 +1,10 @@
+{
+  "source": "OpenStreetMap contributors",
+  "license": "ODbL-1.0",
+  "licenseUrl": "https://www.openstreetmap.org/copyright",
+  "timestamp": "2026-10-18T06:27:01Z",
+  "sha256": "02037f4068c7de38b62b2c88e923c9c05b46acc0e7146b4eec4298d0a21ebb6a",
+  "query": "Japan admin area, railway=rail, no service tag; out geom",
+  "nodes": 599074,
+  "ways": 92661
+}

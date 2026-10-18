@@ -42,6 +42,7 @@ RUN mkdir -p ./public
 COPY --chown=nextjs:nodejs --from=builder /app/public/ ./public/
 
 RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
+COPY --chown=nextjs:nodejs src/lib/map/railway-data/ ./src/lib/map/railway-data/
 USER nextjs
 
 EXPOSE 3000

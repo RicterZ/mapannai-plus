@@ -21,8 +21,9 @@ export async function getSavedDirection(origin: RoutePoint, destination: RoutePo
     const mode = resolveRouteMode(origin, destination, transportMode, requestedMode)
     if (mode === null) return { path: [origin, destination], distance: routeDistance(origin, destination), duration: null, fallback: 'UNSUPPORTED_MODE' } as MapRoute
     const fromChina = isInChina(origin.lng, origin.lat), toChina = isInChina(destination.lng, destination.lat)
-    const provider = transportMode === 'train' ? 'osm-rail-v1' : fromChina ? 'amap' : 'google'
-    const key = directionCacheKey(`regional-v1:${fromChina !== toChina ? 'cross-border' : provider}`, mode, origin, destination)
+    const railway = transportMode === 'train'
+    const provider = railway && override ? override : fromChina ? 'amap' : 'google'
+    const key = directionCacheKey(`regional-v1:${fromChina !== toChina ? 'cross-border' : railway ? `osm-rail-offline-v2:${provider}` : provider}`, mode, origin, destination)
     if (fromChina !== toChina) {
         const cached = getCachedDirection(key)
         if (cached) return withRouteDistance(cached, origin, destination)
@@ -36,13 +37,16 @@ export async function getSavedDirection(origin: RoutePoint, destination: RoutePo
     const existing = inFlight.get(key)
     if (existing) return existing
     const pending = (async () => {
+        const rail = railway ? await getProviderDirection(origin, destination, mode, 'osm-rail-offline-v2') : undefined
+        if (rail && !rail.fallback) { cacheDirection(key, rail); return rail }
         let route = await getProviderDirection(origin, destination, mode, provider)
-        if (provider === 'amap' && route.fallback) {
+        if (provider === 'amap' && route.fallback && !override) {
             const primary = route
             route = await getProviderDirection(origin, destination, mode, 'google')
             // A temporary primary failure still needs a retry if neither service supplied a route.
             if (route.fallback && primary.fallback === 'PLANNING_FAILED') route = primary
         }
+        if (route.fallback && rail?.fallback === 'PLANNING_FAILED') route = rail
         if (route.fallback !== 'PLANNING_FAILED') cacheDirection(key, route)
         return route
     })().finally(() => inFlight.delete(key))
@@ -59,7 +63,7 @@ async function getProviderDirection(origin: RoutePoint, destination: RoutePoint,
     const pending = (async () => {
         let route: MapRoute
         try {
-            route = provider === 'osm-rail-v1' ? await getRailwayRoute(origin, destination) : await mapProviderFactory.createServiceProvider('directions', provider).getDirections(origin, destination, mode)
+            route = provider === 'osm-rail-offline-v2' ? await getRailwayRoute(origin, destination) : await mapProviderFactory.createServiceProvider('directions', provider).getDirections(origin, destination, mode)
         } catch (error) {
             if (!(error instanceof Error)) throw error
             const fallback = /\bNO_ROUTE\b/.test(error.message) ? 'NO_ROUTE'
