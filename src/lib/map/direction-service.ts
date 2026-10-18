@@ -1,3 +1,4 @@
+import { getRailwayRoute } from './railway-route'
 import { resolveRouteMode, routeDistance } from './route-mode'
 import type { TransportMode } from '@/types/trip'
 import { cacheDirection, directionCacheKey, getCachedDirection } from '@/lib/db/direction-cache'
@@ -20,7 +21,7 @@ export async function getSavedDirection(origin: RoutePoint, destination: RoutePo
     const mode = resolveRouteMode(origin, destination, transportMode, requestedMode)
     if (mode === null) return { path: [origin, destination], distance: routeDistance(origin, destination), duration: null, fallback: 'UNSUPPORTED_MODE' } as MapRoute
     const fromChina = isInChina(origin.lng, origin.lat), toChina = isInChina(destination.lng, destination.lat)
-    const provider = fromChina ? 'amap' : 'google'
+    const provider = transportMode === 'train' ? 'osm-rail-v1' : fromChina ? 'amap' : 'google'
     const key = directionCacheKey(`regional-v1:${fromChina !== toChina ? 'cross-border' : provider}`, mode, origin, destination)
     if (fromChina !== toChina) {
         const cached = getCachedDirection(key)
@@ -29,7 +30,7 @@ export async function getSavedDirection(origin: RoutePoint, destination: RoutePo
         cacheDirection(key, route)
         return route
     }
-    if (override) return getProviderDirection(origin, destination, mode, override)
+    if (override && transportMode !== 'train') return getProviderDirection(origin, destination, mode, override)
     const cached = getCachedDirection(key)
     if (cached) return withRouteDistance(cached, origin, destination)
     const existing = inFlight.get(key)
@@ -58,7 +59,7 @@ async function getProviderDirection(origin: RoutePoint, destination: RoutePoint,
     const pending = (async () => {
         let route: MapRoute
         try {
-            route = await mapProviderFactory.createServiceProvider('directions', provider).getDirections(origin, destination, mode)
+            route = provider === 'osm-rail-v1' ? await getRailwayRoute(origin, destination) : await mapProviderFactory.createServiceProvider('directions', provider).getDirections(origin, destination, mode)
         } catch (error) {
             if (!(error instanceof Error)) throw error
             const fallback = /\bNO_ROUTE\b/.test(error.message) ? 'NO_ROUTE'

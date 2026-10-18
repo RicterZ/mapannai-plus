@@ -84,7 +84,7 @@ async function main() {
         let r = await api({ origin, destination, transportMode: 'cycling' })
         assert.equal(r.status, 200); assert.equal(r.data.distance, 200)
         assert(requests.at(-1)!.pathname === '/v4/direction/bicycling')
-        r = await api({ origin, destination, transportMode: 'train' })
+        r = await api({ origin, destination, transportMode: 'bus' })
         assert.equal(r.status, 200); assert.equal(r.data.distance, 2200)
         assert.equal(r.data.path.length, 7, 'walking + bus + official railway polyline')
         assert(requests.at(-1)!.pathname.endsWith('/transit/integrated'))
@@ -107,7 +107,7 @@ async function main() {
         assert(isRangeFallback(schematic)); assert.equal(requests.length, count)
         responseMode = 'station-only'
         const noTrackOrigin = { ...origin, lng: 116.45 }
-        const noTrack = await api({ origin: noTrackOrigin, destination, transportMode: 'train' })
+        const noTrack = await api({ origin: noTrackOrigin, destination, transportMode: 'subway' })
         assert.equal(noTrack.data.fallback, 'NO_ROUTE', 'station-only railway must not be reported as successful geometry')
         assert.equal(noTrack.data.distance, routeDistance(noTrackOrigin, destination))
         assert.equal(noTrack.data.duration, null)

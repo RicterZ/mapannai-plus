@@ -42,6 +42,8 @@ Send her screenshots and photos — long travel guides, menus, tickets (with a v
 
 Works in desktop and mobile browsers and can be added to your home screen. The native [iPhone / iPad client](https://github.com/RicterZ/mapannai-ios) reads the same data, and MCP-capable assistants such as Claude or Cursor can read and edit your trips too.
 
+Train connections can follow OpenStreetMap railway geometry; this does not provide timetable or transfer planning.
+
 ## Up and running in three steps
 
 **1. Configure.** Create a `.env` on your server:

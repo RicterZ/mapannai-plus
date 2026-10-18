@@ -871,6 +871,7 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
 
     return (
         <div className="fixed inset-0 map-container">
+            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="absolute bottom-8 right-1 z-10 bg-white/90 px-1 text-[10px] text-gray-600">铁路数据 © OpenStreetMap contributors · ODbL</a>
             {/* 数据加载指示器（非阻塞） */}
             {isLoading && (
                 <div className="absolute top-4 right-4 z-50 bg-accent-600 text-white px-3 py-2 rounded-md shadow-lg">

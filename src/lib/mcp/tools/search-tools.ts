@@ -71,7 +71,7 @@ export function registerSearchTools(server: McpServer) {
   }
   server.tool(
     'get_directions',
-    '计算两点间的行程关联路线、距离和耗时。transportMode 按已安排的交通方式映射，优先于 mode；均省略时，小于2km步行，否则驾车。飞机/轮船/其他及无可用路线返回示意连接、按坐标计算距离并返回fallback，耗时为null；不是逐路口导航。',
+    '计算两点间的行程关联路线、距离和耗时。transportMode 按已安排的交通方式映射，优先于 mode；train 固定使用 OSM 物理铁路绘图（忽略 provider，不代表班次，耗时为 null）；均省略时，小于2km步行，否则驾车。飞机/轮船/其他及无可用路线返回示意连接、按坐标计算距离并返回fallback，耗时为null；不是逐路口导航。',
     {
       ...directionInputs,
       mode: z.enum(['walking', 'driving', 'bicycling', 'transit']).optional().describe('显式寻路模式；未设置交通安排时可用，省略自动按距离选择'),
