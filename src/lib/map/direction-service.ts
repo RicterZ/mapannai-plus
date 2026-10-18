@@ -21,9 +21,10 @@ export async function getSavedDirection(origin: RoutePoint, destination: RoutePo
     const mode = resolveRouteMode(origin, destination, transportMode, requestedMode)
     if (mode === null) return { path: [origin, destination], distance: routeDistance(origin, destination), duration: null, fallback: 'UNSUPPORTED_MODE' } as MapRoute
     const fromChina = isInChina(origin.lng, origin.lat), toChina = isInChina(destination.lng, destination.lat)
-    const railway = transportMode === 'train'
+    const railway = transportMode === 'train' || transportMode === 'subway'
+    const railProvider = `osm-rail-offline-v4:${transportMode}`
     const provider = railway && override ? override : fromChina ? 'amap' : 'google'
-    const key = directionCacheKey(`regional-v1:${fromChina !== toChina ? 'cross-border' : railway ? `osm-rail-offline-v3:${provider}` : provider}`, mode, origin, destination)
+    const key = directionCacheKey(`regional-v1:${fromChina !== toChina ? 'cross-border' : railway ? `${railProvider}:${provider}` : provider}`, mode, origin, destination)
     if (fromChina !== toChina) {
         const cached = getCachedDirection(key)
         if (cached) return withRouteDistance(cached, origin, destination)
@@ -31,13 +32,13 @@ export async function getSavedDirection(origin: RoutePoint, destination: RoutePo
         cacheDirection(key, route)
         return route
     }
-    if (override && transportMode !== 'train') return getProviderDirection(origin, destination, mode, override)
+    if (override && !railway) return getProviderDirection(origin, destination, mode, override)
     const cached = getCachedDirection(key)
     if (cached) return withRouteDistance(cached, origin, destination)
     const existing = inFlight.get(key)
     if (existing) return existing
     const pending = (async () => {
-        const rail = railway ? await getProviderDirection(origin, destination, mode, 'osm-rail-offline-v3') : undefined
+        const rail = railway ? await getProviderDirection(origin, destination, mode, railProvider) : undefined
         if (rail && !rail.fallback) { cacheDirection(key, rail); return rail }
         let route = await getProviderDirection(origin, destination, mode, provider)
         if (provider === 'amap' && route.fallback && !override) {
@@ -63,7 +64,7 @@ async function getProviderDirection(origin: RoutePoint, destination: RoutePoint,
     const pending = (async () => {
         let route: MapRoute
         try {
-            route = provider === 'osm-rail-offline-v3' ? await getRailwayRoute(origin, destination) : await mapProviderFactory.createServiceProvider('directions', provider).getDirections(origin, destination, mode)
+            route = provider.startsWith('osm-rail-offline-v4:') ? await getRailwayRoute(origin, destination, provider.endsWith(':subway') ? 'subway' : 'train') : await mapProviderFactory.createServiceProvider('directions', provider).getDirections(origin, destination, mode)
         } catch (error) {
             if (!(error instanceof Error)) throw error
             const fallback = /\bNO_ROUTE\b/.test(error.message) ? 'NO_ROUTE'

@@ -1,0 +1,11 @@
+{
+  "source": "OpenStreetMap contributors",
+  "license": "ODbL-1.0",
+  "licenseUrl": "https://www.openstreetmap.org/copyright",
+  "timestamp": "2026-10-18T07:30:06Z",
+  "sha256": "8547689dc888a3fcf93cd027f18bbeaea7dd800e7b4957249fdab8b649c58a4f",
+  "region": "japan",
+  "query": "Country admin area, railway=subway, no service tag; out geom",
+  "nodes": 26475,
+  "ways": 2016
+}

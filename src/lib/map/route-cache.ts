@@ -18,7 +18,6 @@ const metricsCache = new Map<string, RouteMetrics>()
 const cachePrefix = 'mapannai_route_v1:'
 const inFlight = new Map<string, Promise<RoutePath>>()
 const memoryCache = new Map<string, RoutePath>()
-const transitExpires = new Map<string, number>()
 const requestSpacingMs = 1200
 let requestQueue: Promise<void> = Promise.resolve()
 let nextRequestAt = 0
@@ -42,19 +41,20 @@ function enqueueRequest<T>(request: () => Promise<T>): Promise<T> {
 export function routeCacheKey(provider: string, segment: RouteSegment): string {
     const mode = resolveRouteMode(segment.origin, segment.destination, segment.transportMode) ?? 'schematic'
     const point = (p: RouteCoordinate) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`
-    return `${mode === 'transit' ? 'mapannai_route_v2:' : cachePrefix}${provider}${segment.transportMode === 'train' ? ':osm-rail-offline-v3' : ''}:${mode}:${segment.fromId}:${segment.toId}:${point(segment.origin)}:${point(segment.destination)}`
+    return `${mode === 'transit' ? 'mapannai_route_v2:' : cachePrefix}${provider}${segment.transportMode === 'train' || segment.transportMode === 'subway' ? `:osm-rail-offline-v4:${segment.transportMode}` : ''}:${mode}:${segment.fromId}:${segment.toId}:${point(segment.origin)}:${point(segment.destination)}`
 }
 export function readCachedRoute(key: string): RoutePath | null {
     const memory = memoryCache.get(key)
-    if (memory && (!key.includes(':transit:') || Date.now() < (transitExpires.get(key) ?? 0))) return memory
+    if (memory) return memory
     try {
         const raw = localStorage.getItem(key)
         if (!raw) return null
         const stored = JSON.parse(raw)
-        if (key.includes(':transit:') && (!stored.fallback || stored.fallback === 'NO_ROUTE') && (!Number.isFinite(stored.createdAt) || Date.now() - stored.createdAt >= 3600000)) return null
         const path = Array.isArray(stored) ? stored : stored.path
         if (stored.fallback && Array.isArray(path)) fallbackPaths.add(path)
-        return Array.isArray(path) && path.length >= 2 && path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng)) ? path : null
+        if (!Array.isArray(path) || path.length < 2 || !path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))) return null
+        memoryCache.set(key, path)
+        return path
     } catch { return null }
 }
 export function readRouteMetrics(key: string): RouteMetrics | null {
@@ -100,13 +100,12 @@ export async function getPlannedRoute(provider: string, segment: RouteSegment): 
             if (!Array.isArray(path) || path.length < 2 || !path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))) throw new Error('路线数据无效')
             if (data.fallback) fallbackPaths.add(path)
             memoryCache.set(key, path)
-            if (mode === 'transit') transitExpires.set(key, data.fallback && data.fallback !== 'NO_ROUTE' ? Infinity : Date.now() + 3600000)
             if (Number.isFinite(data.distance) && (data.duration === null || Number.isFinite(data.duration)) && data.distance >= 0 && (data.duration === null || data.duration >= 0)) {
                 const metrics = { distance: data.distance, duration: data.duration }
                 metricsCache.set(key, metrics)
                 try { localStorage.setItem(`${key}:metrics`, JSON.stringify(metrics)) } catch { /* storage unavailable */ }
             }
-            try { localStorage.setItem(key, JSON.stringify(data.fallback || mode === 'transit' ? { path, fallback: data.fallback, createdAt: Date.now() } : path)) } catch { /* storage full/private mode */ }
+            try { localStorage.setItem(key, JSON.stringify(data.fallback || mode === 'transit' ? { path, source: data.source, fallback: data.fallback, createdAt: Date.now() } : path)) } catch { /* storage full/private mode */ }
             return path
         }
         throw new Error('路线规划请求超过频率限制')

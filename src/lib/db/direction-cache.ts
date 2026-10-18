@@ -11,7 +11,6 @@ export function getCachedDirection(key: string): MapRoute | null {
     if (!row) return null
     try {
         const route = JSON.parse(row.route_json) as MapRoute
-        if (key.includes(':transit:') && (!route.fallback || route.fallback === 'NO_ROUTE') && Date.now() - Date.parse(row.created_at) >= 3600000) return null
         return Array.isArray(route.path) && route.path.length >= 2 &&
             route.path.every(point => Number.isFinite(point.lat) && Number.isFinite(point.lng)) ? route : null
     } catch {

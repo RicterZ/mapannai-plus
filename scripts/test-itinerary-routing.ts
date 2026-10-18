@@ -159,7 +159,7 @@ async function main() {
         assert.equal((await getSavedDirection(far, destination, 'driving', 'amap')).distance, routeDistance(far, destination))
         const transitKey = directionCacheKey('amap', 'transit', origin, destination)
         getDb().prepare("UPDATE direction_cache SET created_at = '2000-01-01T00:00:00.000Z' WHERE cache_key = ?").run(transitKey)
-        assert.equal(getCachedDirection(transitKey), null, 'public transit cache expires')
+        assert.ok(getCachedDirection(transitKey), 'public transit geometry never expires')
         const bridge = await connectPlanningTools()
         try {
             assert(bridge.tools.some(tool => tool.function.name === 'get_directions'))

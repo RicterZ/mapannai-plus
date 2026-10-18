@@ -36,10 +36,20 @@ node scripts/import-railway-snapshot.mjs /tmp/china-railway-export.json china
 npx tsx scripts/test-railway-route.ts
 ```
 
-Commit the gzip and source metadata together. Change the `osm-rail-offline-v3`
+Commit the gzip and source metadata together. Change the `osm-rail-offline-v4`
 cache version in both `direction-service.ts` and `route-cache.ts` when replacing
 the snapshot. Docker explicitly copies the data; Next standalone tracing also
 includes this directory. Neither deployment nor startup downloads the data.
 
 Europe is not bundled. Routes outside the snapshots fall back to the existing
 regional providers. Each country graph is loaded only when first needed.
+
+## Separate subway network
+
+Japan subway geometry is bundled separately as `japan-subway.json.gz`; its
+source metadata is beside it. Use `railway=subway` in the export query and run
+`node scripts/import-railway-snapshot.mjs export.json japan subway` to refresh.
+Train routing never loads this graph; subway routing never loads the railway
+graph. There are no invented transfer links. China subway routing falls back
+to the existing providers. Successful offline paths carry `source=osm-offline`
+and never expire in browser or server caches; online transit geometry also never expires.

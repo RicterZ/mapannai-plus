@@ -87,6 +87,7 @@ export interface PlaceDetails extends MapSearchResult {
 export interface RoutePoint { lat: number; lng: number }
 export type TravelMode = 'walking' | 'driving' | 'bicycling' | 'transit'
 export interface MapRoute {
+    source?: 'osm-offline'
     path: RoutePoint[]
     distance: number | null
     duration: number | null

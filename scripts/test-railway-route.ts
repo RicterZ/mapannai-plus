@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { railwayPath } from '../src/lib/map/railway-route'
+import { railwayPath, getRailwayRoute } from '../src/lib/map/railway-route'
 import { NextRequest } from 'next/server'
 import { routeCacheKey } from '../src/lib/map/route-cache'
 
@@ -36,6 +36,8 @@ async function main() {
     const original = globalThis.fetch
     globalThis.fetch = async () => { throw new Error('Offline routing must not access the network') }
     const { getSavedDirection } = await import('../src/lib/map/direction-service')
+    const { getCachedDirection } = await import('../src/lib/db/direction-cache')
+    const { readCachedRoute } = await import('../src/lib/map/route-cache')
     const { getDb } = await import('../src/lib/db')
     const { POST } = await import('../src/app/api/directions/route')
     const { mapProviderFactory } = await import('../src/lib/map/providers/map-provider-factory')
@@ -74,6 +76,30 @@ async function main() {
             console.log(name, route.path.length, Math.round(route.distance!))
         }
         assert.equal(providerCalls.length, 0, 'offline paths never call map providers')
+        const hatchobori = { lat: 35.6746, lng: 139.7777 }
+        const makuhari = { lat: 35.648476, lng: 140.041987 }
+        const akihabara = { lat: 35.698371, lng: 139.773898 }
+        const train = await getSavedDirection(makuhari, hatchobori, undefined, undefined, 'train')
+        const subway = await getSavedDirection(hatchobori, akihabara, undefined, undefined, 'subway')
+        assert.equal(train.source, 'osm-offline'); assert.equal(subway.source, 'osm-offline')
+        assert.ok(train.distance! < 35000, 'Keiyo path must not detour through Soga')
+        assert.ok(subway.distance! < 5000, 'Hibiya subway takes a direct corridor')
+        assert.equal((await getRailwayRoute({ lat: 39.9, lng: 116.4 }, { lat: 39.91, lng: 116.41 }, 'subway')).fallback, 'NO_ROUTE', 'subway never uses China railway graph')
+        assert.notEqual(routeCacheKey('regional-v1', { ...segment, transportMode: 'train' }), routeCacheKey('regional-v1', { ...segment, transportMode: 'subway' }))
+        const cachedRows = getDb().prepare('SELECT cache_key FROM direction_cache WHERE route_json LIKE ?').all('%osm-offline%') as { cache_key: string }[]
+        getDb().prepare("UPDATE direction_cache SET created_at = '2000-01-01T00:00:00.000Z'").run()
+        for (const { cache_key } of cachedRows) assert.ok(getCachedDirection(cache_key), 'OSM server cache does not expire')
+        const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+        try {
+            Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ path: subway.path, source: 'osm-offline', createdAt: 0 }) } })
+            assert.deepEqual(readCachedRoute('test:transit:offline'), subway.path, 'browser accepts old offline snapshot paths after reload')
+            Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: () => JSON.stringify({ path: subway.path, createdAt: 0 }) } })
+            assert.deepEqual(readCachedRoute('test:transit:online'), subway.path, 'online geometry never expires')
+        } finally {
+            if (descriptor) Object.defineProperty(globalThis, 'localStorage', descriptor)
+            else Reflect.deleteProperty(globalThis, 'localStorage')
+        }
+
         const response = await POST(new NextRequest('http://localhost/api/directions', { method: 'POST', body: JSON.stringify({ origin: cases[0][1], destination: cases[0][2], transportMode: 'train' }) }))
         assert.equal(response.status, 200)
         assert.equal((await response.json()).duration, null)

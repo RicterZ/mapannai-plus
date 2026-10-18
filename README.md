@@ -42,7 +42,7 @@ Send her screenshots and photos — long travel guides, menus, tickets (with a v
 
 Works in desktop and mobile browsers and can be added to your home screen. The native [iPhone / iPad client](https://github.com/RicterZ/mapannai-ios) reads the same data, and MCP-capable assistants such as Claude or Cursor can read and edit your trips too.
 
-Train connections in China and Japan use bundled offline OpenStreetMap railway geometry, with the existing map services as a fallback; this does not provide timetable or transfer planning.
+Train connections in China and Japan use bundled offline OpenStreetMap railway geometry, with a separate offline subway network for Japan and the existing map services as a fallback; this does not provide timetable or transfer planning.
 
 ## Up and running in three steps
 

@@ -264,11 +264,11 @@ ssh -p 2222 -o BatchMode=yes root@server \
 
 部署脚本位于服务器，不在本仓库。脚本使用 set -euo pipefail，拉取后仅构建 mapannai 镜像并通过生产 docker-compose.yml 更新 mapannai 一个服务，再检查并重载 nginx。Web 与 Agent 在同一容器中作为两个独立进程运行，由 scripts/start-services.cjs 管理；任一退出会终止另一进程并退出容器，由 Docker 重启。Agent 仅监听回环，内部地址由入口生成，不暴露额外端口。配置统一在 /root/docker-services/build/mapannai-public/.env，禁止增加额外 Agent env 或 Compose override；.env 不进入构建上下文。原地图数据挂载不变，agent.db 同目录独立保存。等待构建、容器更新完成，再检查 Web 与 Agent 健康及公网 HTTP 状态，不得提前宣称部署成功。
 
-路径及明确的不可规划结果保存在 SQLite `direction_cache`，Web / MCP 共用。高德超范围或无有效结果时默认先尝试 Google；两家均明确无路线以及跨境路段才显示虚线贝塞尔曲线、WGS-84 两点距离及 null 耗时，不自动或手动重试。公共交通正常结果和 NO_ROUTE 仍按1小时过期；临时失败不缓存最终结果。坐标、模式或服务策略变化后使用新缓存键。
+路径及明确的不可规划结果保存在 SQLite `direction_cache`，Web / MCP 共用。高德超范围或无有效结果时默认先尝试 Google；两家均明确无路线以及跨境路段才显示虚线贝塞尔曲线、WGS-84 两点距离及 null 耗时，不自动或手动重试。公共交通正常结果和 NO_ROUTE 不按时间过期；临时失败不缓存最终结果。坐标、模式或服务策略变化后使用新缓存键。
 
 路线计算完成后移除进度显示；跨境以及双服务明确不可规划的路段保存为不可规划结果，显示虚线贝塞尔关联曲线，不反复请求或显示重试。仅临时失败保留重试入口。
 
-每段路线按 `routeChains` 中当前有向相邻 stops 的 active leg 选择方式：步行→walking，自行车→bicycling，自驾/出租车→driving，公交/地铁/火车→transit；飞机/轮船/其他不调用寻路，使用虚线贝塞尔曲线。线型由 `routeLineStyle` 统一：飞机始终虚线、略细，并在显示路径中点放置按 Mercator 屏幕方向旋转的飞机图标指示方向；火车始终实线、略粗，路线规划开启时使用 OSM 铁路轨道几何（含 JR），无轨道结果时仍以实线贝塞尔显示；其他方式沿用规划状态规则。三种 renderer 共用该函数与 `pathMidpointHeading`。没有交通安排时按 WGS-84 起终点直线距离，小于2km步行，否则驾车。公共映射在 `route-mode.ts`，地图两种 renderer 与侧栏距离使用同一映射；不改变剪枝、平滑、显示路径与点击动画约定。旧本地设置仅保留 enabled，忽略原 auto/mode。缓存按实际模式复用；公共交通正常结果和 NO_ROUTE 缓存1小时。接口与MCP见 [行程路线合约](docs/itinerary-routing.md)。
+每段路线按 `routeChains` 中当前有向相邻 stops 的 active leg 选择方式：步行→walking，自行车→bicycling，自驾/出租车→driving，公交/地铁/火车→transit；飞机/轮船/其他不调用寻路，使用虚线贝塞尔曲线。线型由 `routeLineStyle` 统一：飞机始终虚线、略细，并在显示路径中点放置按 Mercator 屏幕方向旋转的飞机图标指示方向；火车始终实线、略粗，路线规划开启时使用 OSM 铁路轨道几何（含 JR），无轨道结果时仍以实线贝塞尔显示；其他方式沿用规划状态规则。三种 renderer 共用该函数与 `pathMidpointHeading`。没有交通安排时按 WGS-84 起终点直线距离，小于2km步行，否则驾车。公共映射在 `route-mode.ts`，地图两种 renderer 与侧栏距离使用同一映射；不改变剪枝、平滑、显示路径与点击动画约定。旧本地设置仅保留 enabled，忽略原 auto/mode。缓存按实际模式复用；公共交通正常结果和 NO_ROUTE 永久缓存。接口与MCP见 [行程路线合约](docs/itinerary-routing.md)。
 
 每次页面启动按本地日期定位到最近尚未开始的旅行（含今天），镜头居中在第一天第一条路线的第一个有效地点（没有路线则按当天地点顺序），使用默认概览缩放 zoom=11，不使用旅行范围中心或 popup 偏移，保持总览且不选中旅行 / 日期 / 地点。不再从 URL hash 或 sessionStorage 自动恢复选中；第一天无有效地点的旅行跳过，无可定位的未来旅行时保留上次 / 默认镜头。等待地点、旅行和地图全部加载后仅执行一次，普通数据刷新不重置镜头。
 
@@ -382,5 +382,7 @@ ssh -p 2222 -o BatchMode=yes root@server \
 ## OSM 铁路绘图
 
 - 显式 train 使用内置中国/日本 OSM 铁路快照（src/lib/map/railway-data/*-railway.json.gz），运行时不访问 Overpass，无额外环境变量。邻近轨道节点5km内、最近点+100m候选匹配，无向最短物理路径，不推断班次/换乘，不按车次限制线路；公交/地铁保持原 provider。覆盖中国/日本 railway=rail 非service轨道，不保证指定运营商或特定线路；范围外/不连通返回 NO_ROUTE。
-- 原始轨道及端点接线累计距离，不是营业公里；duration=null，不修改用户安排。图结构进程内复用，Web/MCP共用服务，缓存隔离 osm-rail-offline-v3。更新快照需同步变更缓存版本。火车优先本地OSM；无覆盖/不连通/快照故障时回退原区域服务（境内高德→Google，境外Google），再回退贝塞尔示意线。任一临时故障且后续均无有效路径时保留PLANNING_FAILED与重试，不缓存最终失败；跨境沿用原不寻路规则。MCP显式provider仅限定OSM后的服务。
+- 原始轨道及端点接线累计距离，不是营业公里；duration=null，不修改用户安排。图结构进程内复用，Web/MCP共用服务，缓存隔离 osm-rail-offline-v4。更新快照需同步变更缓存版本。火车优先本地OSM；无覆盖/不连通/快照故障时回退原区域服务（境内高德→Google，境外Google），再回退贝塞尔示意线。任一临时故障且后续均无有效路径时保留PLANNING_FAILED与重试，不缓存最终失败；跨境沿用原不寻路规则。MCP显式provider仅限定OSM后的服务。
 - 快照来源、时间、规模与ODbL许可见同目录source JSON及README；刷新时将完整对应国家Overpass out geom导出交给 node scripts/import-railway-snapshot.mjs <export.json> [japan|china]，不是部署/启动步骤。Docker和standalone必须包含快照文件；OSM署名所有renderer保留。验证：npx tsx scripts/test-railway-route.ts，禁用网络、隔离SQLite验证真实站点/缓存/API。
+
+- 铁路与地铁绘图分离：train仅加载rail，中国/日本；subway仅加载subway，目前内置日本地铁快照，中国及其他地区回退原provider。不自动跨轨道类型换乘；混合行程需显式中间地点分段。成功OSM路径source=osm-offline，浏览器与SQLite永久缓存，按坐标/模式/算法及快照版本失效；在线公共交通几何也永久缓存。NO_ROUTE永久缓存，临时失败不缓存。

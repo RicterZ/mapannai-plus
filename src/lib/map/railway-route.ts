@@ -96,22 +96,24 @@ function routeNetwork({ nodes, graph }: RailNetwork, origin: RoutePoint, destina
     while (previous.has(ids[ids.length - 1])) ids.push(previous.get(ids[ids.length - 1])!)
     const track = ids.reverse().map(id => { const { lat, lng } = nodes.get(id)!; return { lat, lng } })
     // shortcut: shortest physical mainline, not a specific train; add line selection only if needed.
-    return { path: [origin, ...track, destination], distance: total, duration: null }
+    return { path: [origin, ...track, destination], distance: total, duration: null, source: 'osm-offline' }
 }
 
 const offlineNetworks = new Map<string, RailNetwork>()
 
-export async function getRailwayRoute(origin: RoutePoint, destination: RoutePoint): Promise<MapRoute> {
+export async function getRailwayRoute(origin: RoutePoint, destination: RoutePoint, kind: 'train' | 'subway' = 'train'): Promise<MapRoute> {
     const inJapan = (p: RoutePoint) => p.lat >= 20 && p.lat <= 46 && p.lng >= 122 && p.lng <= 154
     const region = isInChina(origin.lng, origin.lat) && isInChina(destination.lng, destination.lat) ? 'china' : inJapan(origin) && inJapan(destination) ? 'japan' : null
     if (!region) return { path: [origin, destination], distance: null, duration: null, fallback: 'NO_ROUTE' }
-    let network = offlineNetworks.get(region)
+    if (kind === 'subway' && region !== 'japan') return { path: [origin, destination], distance: null, duration: null, fallback: 'NO_ROUTE' }
+    const name = `${region}-${kind === 'subway' ? 'subway' : 'railway'}`
+    let network = offlineNetworks.get(name)
     if (!network) {
-        const data = JSON.parse(gunzipSync(readFileSync(path.join(process.cwd(), `src/lib/map/railway-data/${region}-railway.json.gz`))).toString('utf8')) as { nodes: number[][]; ways: number[][] }
+        const data = JSON.parse(gunzipSync(readFileSync(path.join(process.cwd(), `src/lib/map/railway-data/${name}.json.gz`))).toString('utf8')) as { nodes: number[][]; ways: number[][] }
         const nodes = new Map<number, RailNode>()
         for (const [id, lat, lng] of data.nodes) nodes.set(id, { id, lat, lng })
         network = buildNetwork(nodes, data.ways)
-        offlineNetworks.set(region, network)
+        offlineNetworks.set(name, network)
     }
     return routeNetwork(network, origin, destination)
 }
