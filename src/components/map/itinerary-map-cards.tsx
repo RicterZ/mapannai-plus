@@ -40,10 +40,10 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
             const ids = Array.from(new Set([...day.chains.flat(), ...day.markerIds])).filter(id => byId.has(id))
             const color = routeColor(0, day.id, day.colorIndex)
             const date = `${Number(day.date.slice(5, 7))}月${Number(day.date.slice(8, 10))}日`
-            const places = ids.filter(id => anchors.get(day.id)?.includes(id)).map((id, index) => {
+            const places = ids.filter(id => anchors.get(day.id)?.includes(id)).map(id => {
                 const marker = byId.get(id)!
                 return { id: `${day.id}:${id}`, dayId: day.id, markerId: id as string | null, coordinates: marker.coordinates, color,
-                    eyebrow: `${date} · 地点 ${index + 1}`, title: marker.content.title || '未命名地点',
+                    eyebrow: date, title: marker.content.title || '未命名地点',
                     routeKey: null as string | null, legMarkerIds: null as string[] | null,
                 }
             })
@@ -60,7 +60,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                 const [lng, lat] = curve[curve.length >> 1]
                 const timing = [leg?.startTime, leg?.durationMinutes !== undefined ? formatPlannedDuration(leg.durationMinutes) : null].filter(Boolean).join(' · ')
                 return [{ id: `${day.id}:leg:${chainIndex}:${index}`, dayId: day.id, markerId: null as string | null, coordinates: { latitude: lat, longitude: lng }, color,
-                    eyebrow: timing || `${date} · 交通`, title: [transportLabels[mode], leg?.serviceNumber].filter(Boolean).join(' '),
+                    eyebrow: timing || date, title: [transportLabels[mode], leg?.serviceNumber].filter(Boolean).join(' '),
                     routeKey: `${day.id}:${chainIndex}:${index}`, legMarkerIds: [fromId, toId] }]
             }))
             // Automatic selection remains paused.
