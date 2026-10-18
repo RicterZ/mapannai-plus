@@ -1,6 +1,6 @@
 export interface MapCardAnchor { id: string; x: number; y: number }
 export interface MapCardPlacement extends MapCardAnchor { left: number; top: number }
-export const itineraryCardSize = { width: 208, height: 40 }
+export const itineraryCardSize = { width: 280, height: 132 }
 
 type Point = { x: number; y: number }
 type Bounds = { left: number; top: number; right: number; bottom: number }

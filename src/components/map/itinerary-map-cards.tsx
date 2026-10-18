@@ -42,8 +42,10 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
             const date = `${Number(day.date.slice(5, 7))}月${Number(day.date.slice(8, 10))}日`
             const places = ids.filter(id => anchors.get(day.id)?.includes(id)).map(id => {
                 const marker = byId.get(id)!
+                const stop = day.routeChains?.flatMap((route, i) => route.stops.every((item, j) => item.markerId === day.chains[i]?.[j]) ? route.stops : []).find(item => item.markerId === id && item.isHighlight)
+                const timing = [stop?.startTime, stop?.durationMinutes !== undefined ? `停留 ${formatPlannedDuration(stop.durationMinutes)}` : null].filter(Boolean).join(' · ')
                 return { id: `${day.id}:${id}`, dayId: day.id, markerId: id as string | null, coordinates: marker.coordinates, color,
-                    eyebrow: date, title: marker.content.title || '未命名地点',
+                    eyebrow: date, timing, note: stop?.note || '', title: marker.content.title || '未命名地点',
                     routeKey: null as string | null, legMarkerIds: null as string[] | null,
                 }
             })
@@ -60,7 +62,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                 const [lng, lat] = curve[curve.length >> 1]
                 const timing = [leg?.startTime, leg?.durationMinutes !== undefined ? formatPlannedDuration(leg.durationMinutes) : null].filter(Boolean).join(' · ')
                 return [{ id: `${day.id}:leg:${chainIndex}:${index}`, dayId: day.id, markerId: null as string | null, coordinates: { latitude: lat, longitude: lng }, color,
-                    eyebrow: timing || date, title: [transportLabels[mode], leg?.serviceNumber].filter(Boolean).join(' '),
+                    eyebrow: date, timing, note: leg?.note || '', title: [transportLabels[mode], leg?.serviceNumber].filter(Boolean).join(' '),
                     routeKey: `${day.id}:${chainIndex}:${index}`, legMarkerIds: [fromId, toId] }]
             }))
             // Automatic selection remains paused.
@@ -143,11 +145,12 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                     <line x1={0} y1={0} x2={end.x - p.x} y2={end.y - p.y} stroke={card.color} strokeWidth="1" />
                     <circle cx={0} cy={0} r="4" fill="white" stroke={card.color} strokeWidth="2" />
                 </svg>
-                <button type="button" title={`${card.eyebrow} · ${card.title}`} onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else if (card.legMarkerIds) onFitMarkers(card.legMarkerIds); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
-                    className="absolute flex items-center gap-2 overflow-hidden whitespace-nowrap rounded-md border border-gray-200 border-l-[3px] bg-white px-3 text-left shadow-[0_3px_18px_rgba(0,0,0,0.08)] transition-shadow hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+                <button type="button" title={[card.title, card.eyebrow, card.timing, card.note].filter(Boolean).join('\n')} onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else if (card.legMarkerIds) onFitMarkers(card.legMarkerIds); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
+                    className="absolute flex flex-col items-stretch gap-1 overflow-hidden whitespace-normal py-2 rounded-md border border-gray-200 border-l-[3px] bg-white px-3 text-left shadow-[0_3px_18px_rgba(0,0,0,0.08)] transition-shadow hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
                     style={{ left: p.left - p.x, top: p.top - p.y, width: itineraryCardSize.width, height: itineraryCardSize.height, borderLeftColor: card.color }}>
-                    <span className="min-w-0 truncate text-sm font-medium text-gray-900">{card.title}</span>
-                    <span className="shrink-0 text-[11px] text-gray-400">{card.eyebrow}</span>
+                    <span className="flex items-baseline gap-2"><span className="min-w-0 flex-1 line-clamp-2 break-words text-sm font-medium text-gray-900">{card.title}</span><span className="shrink-0 text-[11px] text-gray-400">{card.eyebrow}</span></span>
+                    {card.timing && <span className="text-xs text-gray-600">{card.timing}</span>}
+                    {card.note && <span className="min-h-0 overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-gray-500">{card.note}</span>}
                 </button>
             </>, node, p.id)
         })}
