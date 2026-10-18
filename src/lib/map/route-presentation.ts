@@ -1,4 +1,17 @@
 import type { Marker } from '@/types/marker'
+import type { TransportMode } from '@/types/trip'
+
+/**
+ * Line style by arranged transport: flights are dashed with a heading plane, trains are always solid and
+ * slightly heavier (track geometry is used when cached). `dashed: null` keeps the planning-state rule.
+ */
+export function routeLineStyle(mode?: TransportMode): { dashed: boolean | null; widthOffset: number; plane: boolean } {
+    if (mode === 'flight') return { dashed: true, widthOffset: -1, plane: true }
+    if (mode === 'train') return { dashed: false, widthOffset: 1, plane: false }
+    return { dashed: null, widthOffset: 0, plane: false }
+}
+
+export const planeIconSvg = (color: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path d="M21.5 12c0-.7-.6-1.2-1.3-1.2h-5.6L9.9 3.5H7.8l2.4 7.3H5.4L3.6 8.6H2l1.2 3.4L2 15.4h1.6l1.8-2.2h4.8l-2.4 7.3h2.1l4.7-7.3h5.6c.7 0 1.3-.5 1.3-1.2z" fill="${color}" stroke="#fff" stroke-width="1.4" stroke-linejoin="round" paint-order="stroke"/></svg>`
 
 const colors = ['#526f5d', '#a86660', '#807398', '#517f85', '#9e7949', '#956f87', '#717c4b', '#627c96']
 // Persisted palette slots keep adjacent days distinct and survive date edits.

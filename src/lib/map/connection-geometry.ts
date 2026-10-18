@@ -50,3 +50,24 @@ export function getBezierPath(
     return points
 }
 
+/**
+ * Midpoint by screen length and its heading in degrees (clockwise from east, CSS rotate convention).
+ * Web Mercator is conformal and these maps never rotate, so the heading is camera-independent.
+ */
+export function pathMidpointHeading(path: ReadonlyArray<ReadonlyArray<number>>): { position: [number, number]; heading: number } | null {
+    const projected = path.filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat)).map(([lng, lat]) => {
+        const clamped = Math.max(-85, Math.min(85, lat)) * Math.PI / 180
+        return { lng, lat, x: lng, y: -Math.log(Math.tan(Math.PI / 4 + clamped / 2)) * 180 / Math.PI }
+    })
+    if (projected.length < 2) return null
+    const lengths = projected.slice(1).map((p, i) => Math.hypot(p.x - projected[i].x, p.y - projected[i].y))
+    const total = lengths.reduce((sum, length) => sum + length, 0)
+    if (!total) return null
+    let remaining = total / 2
+    for (let i = 0; i < lengths.length; i++) {
+        if (remaining > lengths[i] && i < lengths.length - 1) { remaining -= lengths[i]; continue }
+        const a = projected[i], b = projected[i + 1], t = lengths[i] ? remaining / lengths[i] : 0
+        return { position: [a.lng + (b.lng - a.lng) * t, a.lat + (b.lat - a.lat) * t], heading: Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI }
+    }
+    return null
+}

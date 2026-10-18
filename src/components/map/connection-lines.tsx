@@ -8,17 +8,17 @@ import { isRangeFallback } from '@/lib/map/route-cache'
 import { startAnimationLoop } from '@/lib/ui/animation-loop'
 
 import { useMemo, useEffect, useState, useSyncExternalStore } from 'react'
-import { Source, Layer, useMap } from 'react-map-gl/maplibre'
+import { Source, Layer, useMap, Marker as MapGlMarker } from 'react-map-gl/maplibre'
 import type { GeoJSONSource } from 'maplibre-gl'
 import { toMapCoordinates } from '@/lib/map/basemap'
 import type { BasemapProviderType } from '@/types/map-provider'
 import { Marker } from '@/types/marker'
 import { useMapStore } from '@/store/map-store'
-import { getControlPoint, bezierPoint, getBezierPath } from '@/lib/map/connection-geometry'
+import { getControlPoint, bezierPoint, getBezierPath, pathMidpointHeading } from '@/lib/map/connection-geometry'
 import { routeCacheKey, pointAlongPath, RouteSegment } from '@/lib/map/route-cache'
 import { usePlannedRoutes, RouteViewport } from '@/lib/map/use-planned-routes'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
-import { routeColor } from '@/lib/map/route-presentation'
+import { routeColor, routeLineStyle, planeIconSvg } from '@/lib/map/route-presentation'
 import { pickRouteDay } from '@/lib/map/route-picking'
 import { layoutRoutePaths } from '@/lib/map/route-geometry'
 
@@ -262,6 +262,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                     { lat: line.to.coordinates.latitude, lng: line.to.coordinates.longitude }
                 )
 
+            const style = routeLineStyle(line.transportMode)
             return {
                 type: 'Feature' as const,
                 geometry: {
@@ -276,7 +277,9 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                     isDragPreview: false,
                     isWalkingRoute: false,
                     color: line.color,
-                    schematic: planned.enabled && (!plannedPath || isRangeFallback(planned.routes[routeCacheKey(routeProvider, segments[index])])),
+                    schematic: style.dashed ?? (planned.enabled && (!plannedPath || isRangeFallback(planned.routes[routeCacheKey(routeProvider, segments[index])]))),
+                    widthOffset: style.widthOffset,
+                    plane: style.plane,
                 }
             }
         })
@@ -331,9 +334,9 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         'line-color': ['get', 'color'],
                         'line-width': [
                             'interpolate', ['linear'], ['zoom'],
-                            10, 3,
-                            15, 4,
-                            20, 5
+                            10, ['+', 3, ['get', 'widthOffset']],
+                            15, ['+', 4, ['get', 'widthOffset']],
+                            20, ['+', 5, ['get', 'widthOffset']]
                         ],
                         'line-opacity': [
                             'case',
@@ -375,9 +378,9 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         'line-color': ['get', 'color'],
                         'line-width': [
                             'interpolate', ['linear'], ['zoom'],
-                            10, ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 4, 3],
-                            15, ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 6, 4],
-                            20, ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 8, 5],
+                            10, ['+', ['get', 'widthOffset'], ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 4, 3]],
+                            15, ['+', ['get', 'widthOffset'], ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 6, 4]],
+                            20, ['+', ['get', 'widthOffset'], ['case', ['in', ['get', 'id'], ['literal', highlightedLineIds]], 8, 5]],
                         ],
                         'line-dasharray': [2, 2],
                         'line-opacity': [
@@ -399,9 +402,9 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                         'line-color': ['get', 'color'],
                         'line-width': [
                             'interpolate', ['linear'], ['zoom'],
-                            10, 4,
-                            15, 6,
-                            20, 8
+                            10, ['+', 4, ['get', 'widthOffset']],
+                            15, ['+', 6, ['get', 'widthOffset']],
+                            20, ['+', 8, ['get', 'widthOffset']]
                         ],
                         'line-opacity': 1,
                     }}
@@ -411,6 +414,16 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                     ]] : ['literal', false]}
                 />
             </Source>
+
+            {connectionGeoJSON.features.flatMap(feature => {
+                if (!feature.properties.plane) return []
+                const heading = pathMidpointHeading(feature.geometry.coordinates as Array<[number, number]>)
+                if (!heading) return []
+                const dimmed = activeView.mode === 'overview' && highlightedLineIds.length > 0 && !highlightedLineIds.includes(feature.properties.id)
+                return [<MapGlMarker key={`plane:${feature.properties.id}`} longitude={heading.position[0]} latitude={heading.position[1]} rotation={heading.heading} rotationAlignment="map" style={{ pointerEvents: 'none', opacity: dimmed ? 0.3 : 1 }}>
+                    <div style={{ width: 20, height: 20 }} dangerouslySetInnerHTML={{ __html: planeIconSvg(feature.properties.color) }} />
+                </MapGlMarker>]
+            })}
 
             {/* 小圆球动画层（always mounted so source is available for rAF writes） */}
             <Source id="connection-dots" type="geojson" data={emptyFeatureCollection}>

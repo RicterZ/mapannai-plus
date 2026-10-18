@@ -167,9 +167,18 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
             unary += clearance === 0 ? 1600 : (CLEARANCE - clearance) * 18
             const box = { left: Math.min(anchor.x, end.x), top: Math.min(anchor.y, end.y), right: Math.max(anchor.x, end.x), bottom: Math.max(anchor.y, end.y) }
             for (const [a, b] of index.query(box)) if (pointSegmentDistance(anchor, a, b) > ANCHOR_PAD && segmentsCross(anchor, end, a, b)) unary += 140
-            if (before && degDiff(angle, before.angle) < 8 && Math.abs(length - before.length) < 12) unary -= 260
             list.push({ left, top, end, angle, length, key: `${deg}:${length}`, unary })
         }))
+        // Keep the previous offset as an explicit candidate; it only moves when it becomes clearly worse.
+        if (before) {
+            const { left, top, end } = cardAt(anchor, before.angle, before.length)
+            const rect = rectOf(left, top), padded = rectOf(left, top, ANCHOR_PAD)
+            if (inside(rect) && rectPointDistance(rect, anchor) >= LENGTHS[0] - 1 && !visible.some(p => p.x > padded.left && p.x < padded.right && p.y > padded.top && p.y < padded.bottom)) {
+                let clearance = CLEARANCE
+                for (const [a, b] of index.query(rectOf(left, top, CLEARANCE))) clearance = Math.min(clearance, rectSegmentDistance(rect, a, b))
+                list.push({ left, top, end, angle: before.angle, length: before.length, key: 'previous', unary: (clearance === 0 ? 1600 : 0) - 1500 })
+            }
+        }
         return list.sort((a, b) => a.unary - b.unary)
     })
 

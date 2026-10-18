@@ -14,12 +14,12 @@ import { createPortal } from 'react-dom'
 import { useMapStore } from '@/store/map-store'
 import type { Marker } from '@/types/marker'
 import type { MarkerCoordinates } from '@/types/marker'
-import { getControlPoint, bezierPoint, getBezierPath } from '@/lib/map/connection-geometry'
+import { getControlPoint, bezierPoint, getBezierPath, pathMidpointHeading } from '@/lib/map/connection-geometry'
 import { routeCacheKey, pointAlongPath } from '@/lib/map/route-cache'
 import { usePlannedRoutes, RouteViewport } from '@/lib/map/use-planned-routes'
 import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { MapMarker } from './map-marker'
-import { routeColor } from '@/lib/map/route-presentation'
+import { routeColor, routeLineStyle, planeIconSvg } from '@/lib/map/route-presentation'
 import { pickRouteDay } from '@/lib/map/route-picking'
 import { layoutRoutePaths } from '@/lib/map/route-geometry'
 import { SearchResultMarker, searchResultKey } from './search-result-marker'
@@ -114,7 +114,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
     const nodesRef = useRef<HTMLElement[]>([])
     const markerOverlaysRef = useRef(new Map<string, { overlay: any; node: HTMLElement }>())
     const pickableRoutesRef = useRef<Array<{ dayId: string; path: number[][] }>>([])
-    const routeOverlaysRef = useRef(new Map<string, { casing: any; line: any; hitArea: any; dot?: any; node?: HTMLElement }>())
+    const routeOverlaysRef = useRef(new Map<string, { casing: any; line: any; hitArea: any; dot?: any; node?: HTMLElement; plane?: any; planeNode?: HTMLElement }>())
     const popupOverlayRef = useRef<any>(null)
     const popupNodeRef = useRef<HTMLElement | null>(null)
     const locationOverlayRef = useRef<any>(null)
@@ -313,7 +313,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
         const map = mapRef.current, SDK = namespaceRef.current
         if (!ready || !map || !SDK) return
         if (props.viewState.zoom < zoomThreshold && activeView.mode === 'overview') {
-            map.remove(Array.from(routeOverlaysRef.current.values()).flatMap(entry => [entry.casing, entry.line, entry.hitArea, ...(entry.dot ? [entry.dot] : [])]))
+            map.remove(Array.from(routeOverlaysRef.current.values()).flatMap(entry => [entry.casing, entry.line, entry.hitArea, ...(entry.dot ? [entry.dot] : []), ...(entry.plane ? [entry.plane] : [])]))
             routeOverlaysRef.current.clear()
             pickableRoutesRef.current = []
             return
@@ -335,13 +335,14 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
                 const cachedPath = planned.enabled ? planned.routes[routeCacheKey(routeProvider, segment)] : null
                 const path = cachedPath && !isRangeFallback(cachedPath) ? displayPaths.get(`${day.id}:${chainIndex}:${index}`)!.map(point => toDisplayPoint({ longitude: point.lng, latitude: point.lat })) : getBezierPath(from, to)
                 pickableRoutesRef.current.push({ dayId: day.id, path })
-                const width = Math.max(3, 3 + (props.viewState.zoom - 10) * 0.2) + (highlighted ? 2 : 0)
+                const style = routeLineStyle(segment.transportMode)
+                const width = Math.max(2, 3 + (props.viewState.zoom - 10) * 0.2 + style.widthOffset) + (highlighted ? 2 : 0)
                 const color = routeColor(chainIndex, day.id, day.colorIndex)
                 const key = `${day.id}:${chainIndex}:${index}`
                 liveKeys.add(key)
                 let entry = routeOverlaysRef.current.get(key)
                 const casingOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: '#ffffff', strokeWeight: width + 2, strokeOpacity: highlighted ? 1 : effectiveDayId && activeView.mode === 'overview' ? 0.4 : 0.95, zIndex: highlighted ? 52 : 48 }
-                const lineOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: color, strokeStyle: planned.enabled && (!cachedPath || isRangeFallback(cachedPath)) ? 'dashed' : 'solid', strokeDasharray: [8, 6], strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId && activeView.mode === 'overview' ? 0.25 : 0.9, zIndex: highlighted ? 53 : 49 }
+                const lineOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: color, strokeStyle: (style.dashed ?? (planned.enabled && (!cachedPath || isRangeFallback(cachedPath)))) ? 'dashed' : 'solid', strokeDasharray: [8, 6], strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId && activeView.mode === 'overview' ? 0.25 : 0.9, zIndex: highlighted ? 53 : 49 }
                 const hitOptions = { path, strokeColor: color, strokeWeight: 28, strokeOpacity: 0, zIndex: highlighted ? 56 : 55, bubble: false }
                 if (!entry) {
                     entry = { casing: new SDK.Polyline(casingOptions), line: new SDK.Polyline(lineOptions), hitArea: new SDK.Polyline(hitOptions) }
@@ -370,6 +371,21 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
                     entry.line.setOptions(lineOptions)
                     entry.hitArea.setOptions(hitOptions)
                 }
+                const heading = style.plane ? pathMidpointHeading(path) : null
+                if (heading) {
+                    const lineOpacity = String(lineOptions.strokeOpacity)
+                    if (!entry.plane) {
+                        entry.planeNode = document.createElement('div')
+                        entry.plane = new SDK.Marker({ position: heading.position, content: entry.planeNode, offset: new SDK.Pixel(-10, -10), zIndex: highlighted ? 54 : 50, clickable: false })
+                        overlays.push(entry.plane)
+                    } else {
+                        entry.plane.setPosition(heading.position)
+                    }
+                    entry.planeNode!.style.cssText = `width:20px;height:20px;pointer-events:none;transform:rotate(${heading.heading}deg);opacity:${lineOpacity}`
+                    entry.planeNode!.innerHTML = planeIconSvg(color)
+                } else if (entry.plane) {
+                    map.remove([entry.plane]); entry.planeNode?.remove(); entry.plane = undefined; entry.planeNode = undefined
+                }
                 if (highlighted && props.viewState.zoom >= zoomThreshold) {
                     if (!entry.dot) {
                         entry.node = document.createElement('div')
@@ -385,8 +401,8 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
         }
         for (const [key, entry] of Array.from(routeOverlaysRef.current)) {
             if (!liveKeys.has(key)) {
-                map.remove([entry.casing, entry.line, entry.hitArea, ...(entry.dot ? [entry.dot] : [])])
-                entry.node?.remove()
+                map.remove([entry.casing, entry.line, entry.hitArea, ...(entry.dot ? [entry.dot] : []), ...(entry.plane ? [entry.plane] : [])])
+                entry.node?.remove(); entry.planeNode?.remove()
                 routeOverlaysRef.current.delete(key)
             }
         }
