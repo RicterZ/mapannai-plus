@@ -48,7 +48,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
         const byId = new Map(markers.map(marker => [marker.id, marker]))
         const days = tripDays.filter(day => day.tripId === activeView.tripId).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
         const anchors = itineraryAnchors(days, markers, false)
-        return days.flatMap((day, dayIndex) => activeView.mode !== 'trip' && day.id !== activeView.dayId ? [] : (() => {
+        const list = days.flatMap((day, dayIndex) => activeView.mode !== 'trip' && day.id !== activeView.dayId ? [] : (() => {
             const ids = Array.from(new Set([...day.chains.flat(), ...day.markerIds])).filter(id => byId.has(id))
             const color = routeColor(0, day.id, day.colorIndex)
             const date = `${Number(day.date.slice(5, 7))}月${Number(day.date.slice(8, 10))}日`
@@ -85,8 +85,19 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                     routeKey: `${day.id}:${chainIndex}:${index}`, legMarkerIds: [fromId, toId] }]
             }))
             // Automatic selection remains paused.
-            return [...places, ...legs].map(card => ({ ...card, dayLabel }))
+            return [...places, ...legs].map(card => ({ ...card, visits: [{ dayId: day.id, dayLabel, color: card.color, eyebrow: card.eyebrow, time: card.time, duration: card.duration, note: card.note }] }))
         })())
+        // One card per place: repeat visits on other days stack inside it instead of competing for space nearby.
+        const merged: typeof list = []
+        const byMarker = new Map<string, typeof list[number]>()
+        for (const card of list) {
+            const existing = card.markerId ? byMarker.get(card.markerId) : undefined
+            if (existing) { existing.visits.push(...card.visits); continue }
+            const copy = { ...card, id: card.markerId ? `place:${card.markerId}` : card.id, visits: [...card.visits] }
+            if (card.markerId) byMarker.set(card.markerId, copy)
+            merged.push(copy)
+        }
+        return merged
     }, [activeView.mode, activeView.tripId, activeView.dayId, tripDays, markers])
 
     useEffect(() => {
@@ -114,7 +125,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                 ensureAnchors()
                 if (element.clientWidth < 1024) return
                 const rect = element.getBoundingClientRect()
-                const anchors = cards.flatMap(card => { const p = project(position(card)); const button = anchorsRef.current.get(card.id)?.node.querySelector('button'); return p ? [{ id: card.id, ...p, height: button?.getBoundingClientRect().height || itineraryCardSize.height }] : [] })
+                const anchors = cards.flatMap(card => { const p = project(position(card)); const button = anchorsRef.current.get(card.id)?.node.querySelector('button')?.getBoundingClientRect(); return p ? [{ id: card.id, ...p, height: button?.height || itineraryCardSize.height, width: button?.width || itineraryCardSize.width }] : [] })
                 const rightPanel = interactionState.isSidebarOpen ? document.querySelector('.right-sidebar')?.getBoundingClientRect().width || 400 : 0
                 setPlacements(previous => {
                     const next = layoutItineraryCards(anchors, { left: leftSidebar.isOpen ? 420 : 20, top: 100, right: rect.width - rightPanel - 76, bottom: rect.height - 90 }, routePaths(), previous)
@@ -169,15 +180,16 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
             const end = itineraryLeaderEnd(p)
             return createPortal(<>
                 <svg aria-hidden="true" width="1" height="1" className="pointer-events-none absolute left-0 top-0 overflow-visible">
-                    <line x1={0} y1={0} x2={end.x - p.x} y2={end.y - p.y} stroke={card.color} strokeWidth="1" />
-                    <circle cx={0} cy={0} r="4" fill="white" stroke={card.color} strokeWidth="2" />
+                    <line x1={0} y1={0} x2={end.x - p.x} y2={end.y - p.y} stroke="white" strokeWidth="3.5" strokeLinecap="round" opacity="0.85" />
+                    <line x1={0} y1={0} x2={end.x - p.x} y2={end.y - p.y} stroke={card.color} strokeWidth="1.5" strokeLinecap="round" />
+                    <circle cx={0} cy={0} r="4.5" fill={card.color} stroke="white" strokeWidth="2" />
                 </svg>
                 <button type="button"
                     onMouseEnter={() => { hoveredCard.current = card.id; window.dispatchEvent(new CustomEvent('markerDayHover', { detail: { dayId: card.dayId } })) }}
                     onMouseLeave={() => { hoveredCard.current = null; window.dispatchEvent(new CustomEvent('markerDayHover', { detail: { dayId: null } })) }}
-                    title={[card.title, `${card.dayLabel} ${card.eyebrow}`, card.timing, card.note].filter(Boolean).join('\n')} onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else if (card.legMarkerIds) onFitMarkers(card.legMarkerIds); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
+                    title={[card.title, ...card.visits.flatMap(visit => [[visit.dayLabel, visit.eyebrow, visit.time, visit.duration].filter(Boolean).join(' '), visit.note])].filter(Boolean).join('\n')} onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else if (card.legMarkerIds) onFitMarkers(card.legMarkerIds); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
                     className="absolute flex flex-col items-stretch overflow-hidden whitespace-normal rounded-xl border border-gray-200/80 bg-white px-3 py-2.5 text-left shadow-[0_4px_20px_rgba(15,23,42,0.08)] transition-shadow hover:shadow-[0_6px_24px_rgba(15,23,42,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
-                    style={{ left: p.left - p.x, top: p.top - p.y, width: itineraryCardSize.width }}>
+                    style={{ left: p.left - p.x, top: p.top - p.y, width: 'max-content', minWidth: itineraryCardSize.minWidth, maxWidth: itineraryCardSize.width }}>
                     <span className="flex items-start gap-2.5">
                         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `color-mix(in srgb, ${card.color} 14%, white)`, color: card.color }}>
                             {card.mode ? React.createElement(modeIcons[card.mode] || Route, { size: 15, strokeWidth: 2.2 }) : <PlaceIcon emoji={card.emoji} size={18} />}
@@ -187,15 +199,15 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                             {card.subtitle && <span className="mt-0.5 block text-[11px] leading-4 text-gray-500" style={clamp(1)}>{card.subtitle}</span>}
                         </span>
                     </span>
-                    <span className="mt-2 flex items-center gap-1.5 pl-[38px] text-[11px] leading-4">
-                        {card.time && <span className="rounded px-1.5 py-px font-semibold tabular-nums text-gray-800" style={{ backgroundColor: `color-mix(in srgb, ${card.color} 10%, #f3f4f6)` }}>{card.time}</span>}
-                        {card.duration && <span className="tabular-nums text-gray-600">{card.duration}</span>}
-                        <span className="ml-auto flex shrink-0 items-center gap-1.5">
-                            <span className="rounded px-1.5 py-px font-semibold text-white" style={{ backgroundColor: card.color }}>{card.dayLabel}</span>
-                            <span className="text-gray-400">{card.eyebrow}</span>
+                    {card.visits.map((visit, index) => <span key={visit.dayId} className={index ? 'mt-2 border-t border-gray-100 pt-2' : 'mt-2'}>
+                        <span className="flex items-center gap-1.5 whitespace-nowrap pl-[38px] text-[11px] leading-4">
+                            <span className="rounded px-1.5 py-px font-semibold text-white" style={{ backgroundColor: visit.color }}>{visit.dayLabel}</span>
+                            <span className="text-gray-400">{visit.eyebrow}</span>
+                            {visit.time && <span className="ml-auto rounded px-1.5 py-px font-semibold tabular-nums text-gray-800" style={{ backgroundColor: `color-mix(in srgb, ${visit.color} 10%, #f3f4f6)` }}>{visit.time}</span>}
+                            {visit.duration && <span className={`${visit.time ? '' : 'ml-auto '}tabular-nums text-gray-600`}>{visit.duration}</span>}
                         </span>
-                    </span>
-                    {card.note && <span className="mt-2 whitespace-pre-wrap break-words border-t border-gray-100 pl-[38px] pt-2 text-xs leading-[18px] text-gray-600" style={clamp(3)}>{card.note}</span>}
+                        {visit.note && <span className="mt-1.5 block whitespace-pre-wrap break-words pl-[38px] text-xs leading-[18px] text-gray-600" style={clamp(3)}>{visit.note}</span>}
+                    </span>)}
                 </button>
             </>, node, p.id)
         })}
