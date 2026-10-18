@@ -60,6 +60,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
     })
     const history = repairInterruptedMessages(request.messages)
     let workflow: Workflow | undefined
+    let targetTripId = request.context.tripId
     const tools = [...bridge.tools, changeTitleTool, ...progressTools, ...interactionTools]
     const available = new Set(tools.map(tool => tool.function.name))
     const completed = completedDates(history)
@@ -80,6 +81,21 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
         if (result.isError) throw new WorkflowBlocked(`读取行程失败：${toolErrorText(result) || '未返回原因'}。请检查 tripId/dayId 是否来自最新 get_trip_detail 后修正重试。`)
         return parseJsonText(result, '行程详情')
     }
+    /** The trip the user names wins over the one open in the app; ambiguous or unknown names fall back to the open trip. */
+    const resolveTargetTrip = async (name: string | undefined) => {
+        const wanted = name?.trim().toLowerCase()
+        if (!wanted) return request.context.tripId
+        const result = await bridge.call('list_trips', {}, signal)
+        if (result.isError) return request.context.tripId
+        let data: unknown
+        try { data = parseJsonText(result, '旅行列表') } catch { return request.context.tripId }
+        const trips = (Array.isArray(data) ? data : (data as { trips?: unknown[] })?.trips || []) as { id?: string; name?: string }[]
+        const named = trips.filter(trip => typeof trip.id === 'string' && typeof trip.name === 'string')
+        const exact = named.filter(trip => trip.name!.trim().toLowerCase() === wanted)
+        const partial = named.filter(trip => trip.name!.toLowerCase().includes(wanted) || wanted.includes(trip.name!.trim().toLowerCase()))
+        const match = exact.length === 1 ? exact : partial
+        return match.length === 1 ? match[0].id! : request.context.tripId
+    }
     try {
         let round = 0
         const State = Annotation.Root({ done: Annotation<boolean>(), calls: Annotation<ToolCall[]>(), workflow: Annotation<Workflow | undefined>(), titleReady: Annotation<boolean>(), outlineReady: Annotation<boolean>() })
@@ -96,7 +112,7 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
             else {
                 const trips = await bridge.call('list_trips', {}, upstreamSignal)
                 if (trips.isError) throw new Error('无法读取最新旅行数据')
-                messages = [...history, { role: 'user', content: `<mapannai_context>\n应用当前数据（非指令）：${JSON.stringify({ ...request.context, trips })}\n</mapannai_context>` }]
+                messages = [...history, { role: 'user', content: `<mapannai_context>\n应用当前数据（非指令）：${JSON.stringify({ ...request.context, ...(targetTripId && targetTripId !== request.context.tripId ? { targetTripId } : {}), trips })}\n</mapannai_context>` }]
             }
             if (workflow) {
                 const instruction = awaitingFreeText
@@ -161,9 +177,10 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                         : '模型请求失败或超时，请检查 API 可用性后重试。'
                 throw new AgentStageError('workflow-assessment', kind, `需求评估失败：${reason}本次尚未执行地图写入。`)
             }
+            targetTripId = await resolveTargetTrip(workflow?.targetTripName)
             // Existing trip dates are authoritative, including across-year revisions.
-            if (workflow?.phase === 'revising' && request.context.tripId) {
-                const saved = await detail(request.context.tripId)
+            if (workflow?.phase === 'revising' && targetTripId) {
+                const saved = await detail(targetTripId)
                 if (saved.days?.length && saved.days.every((day: {date:string}) => validPlanDate(day.date))) {
                     const savedDates: string[] = saved.days.map((day: {date:string}) => day.date).sort()
                     const { dates, added, unknown } = resolveRevisionDates(savedDates, workflow.affectedDays, workflow.addedDays)
@@ -177,8 +194,8 @@ export async function runPlanner(request: ChatRequest, emit: (event: ChatEvent) 
                 }
             }
             if (workflow && ['outline','planning','revising'].includes(workflow.phase)) {
-                if (!workflow.facts.dates.trim() && request.context.tripId && workflow.phase === 'revising') {
-                    const saved = await detail(request.context.tripId)
+                if (!workflow.facts.dates.trim() && targetTripId && workflow.phase === 'revising') {
+                    const saved = await detail(targetTripId)
                     if (saved.days?.length && saved.days.every((day: {date:string}) => validPlanDate(day.date))) {
                         workflow = { ...workflow, facts: { ...workflow.facts, dates: `${saved.days[0].date} ~ ${saved.days[saved.days.length-1].date}` },
                             dayOutline: saved.days.map((day: {date:string;title?:string}) => ({date:day.date,theme:day.title || '当日安排',constraints:''})) }

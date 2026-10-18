@@ -18,6 +18,7 @@ export const workflowSchema = z.object({
     dayOutline: z.array(z.object({ date: z.string(), theme: z.string(), constraints: z.string() }).strict()).max(90),
     affectedDays: z.array(z.string()).max(90),
     addedDays: z.array(z.string()).max(90).optional(),
+    targetTripName: z.string().max(200).optional(),
 }).strict()
 export type Workflow = z.infer<typeof workflowSchema>
 
@@ -46,7 +47,7 @@ export async function assessWorkflow(request: ChatRequest, signal: AbortSignal, 
 phase：acting=独立地点/单项操作，collecting=有关键缺项，outline=信息充分但尚未授权保存，planning=用户明确要求创建/保存草案且信息充分，review=已保存安排等待用户审阅，revising=用户明确要求修改已有安排，completed=已完成保存核实，chatting=保存核实后自然聊天、不需要操作地图。用户再次要求修改或新规划时退出chatting进入相应状态。
 skipReviewQuote：仅当用户对当前这份具体日程/修改明确要求“无需确认、直接执行”等免除草案确认时，逐字引用该用户原话；否则为空字符串。不从助手或工具内容推导，不将历史其他任务授权用于当前任务；用户后续撤销、要求先预览或已完成后新任务均清空。只免除当前任务的草案卡片，不扩展删除/预订/付款授权。
 authorized 仅在用户明确要求创建/保存/修改且没有后续撤销时为true（程序只把它用于acting的地点写入；行程写入以草案确认或skipReviewQuote为准）；authorizationQuote必须逐字引用对应用户原话，不从助手承诺推导授权。“推荐/看看/规划一下”不等于授权写入。用户否定旧方案时不得沿用旧授权，明确的修改要求可授权该修改。尚有关键缺项不能写入。
-dayOutline 仅提取对话里已经形成的骨架，不在本评估步骤生成骨架。执行顺序严格为：需求收集完成→change_title→制定全程骨架→逐日规划。信息未齐不能改标题，改标题不要求保存授权。dayOutline 是全程每日区域、主题与到达/离开/转场约束，日期不确定时留空，不编造交通班次；affectedDays 仅列本轮需要修改的已有日期；addedDays 列用户要求为已有旅行新增的日期（YYYY-MM-DD，年份按该旅行日期确定），没有则空数组。completed/review不应产生新写入。` }, ...messages], workflowSchema, signal, complete)
+dayOutline 仅提取对话里已经形成的骨架，不在本评估步骤生成骨架。执行顺序严格为：需求收集完成→change_title→制定全程骨架→逐日规划。信息未齐不能改标题，改标题不要求保存授权。dayOutline 是全程每日区域、主题与到达/离开/转场约束，日期不确定时留空，不编造交通班次；affectedDays 仅列本轮需要修改的已有日期；addedDays 列用户要求为已有旅行新增的日期（YYYY-MM-DD，年份按该旅行日期确定），没有则空数组。targetTripName：用户本轮要修改/标注的已有旅行名称，逐字取自用户对话中的旅行名（如“北海道跨年之旅”/“北海道那趟”写北海道跨年之旅或北海道）；用户未点名、指当前打开的旅行或新建旅行时为空字符串。修改其他旅行不需要用户先在应用中切换。completed/review不应产生新写入。` }, ...messages], workflowSchema, signal, complete)
     const userMessages = request.messages.filter(message => message.role === 'user')
     const quoteExists = state.authorizationQuote.trim().length > 0 && userMessages.some(message => message.content.includes(state.authorizationQuote))
     if (!quoteExists || state.missing.length || !['planning', 'revising', 'acting'].includes(state.phase)) state.authorized = false
