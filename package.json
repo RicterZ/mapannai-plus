@@ -1,6 +1,6 @@
 {
     "name": "mapannai-interactive-map",
-    "version": "1.0.1",
+    "version": "1.1.1",
     "description": "マップ案内 - 交互式地图标记编辑平台",
     "private": true,
     "scripts": {
