@@ -31,6 +31,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
     // Each label lives inside a native map overlay at its anchor, so the map itself moves it during pan/zoom.
     const anchorsRef = useRef(new Map<string, MapAnchor & { coordinates: MarkerCoordinates }>())
     const [anchorNodes, setAnchorNodes] = useState<Map<string, HTMLElement>>(new Map())
+    const hoveredCard = useRef<string | null>(null)
     const [hidden, setHidden] = useState(false)
     const cards = useMemo(() => {
         const byId = new Map(markers.map(marker => [marker.id, marker]))
@@ -95,7 +96,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                 ensureAnchors()
                 if (element.clientWidth < 1024) return
                 const rect = element.getBoundingClientRect()
-                const anchors = cards.flatMap(card => { const p = project(position(card)); return p ? [{ id: card.id, ...p }] : [] })
+                const anchors = cards.flatMap(card => { const p = project(position(card)); const button = anchorsRef.current.get(card.id)?.node.querySelector('button'); return p ? [{ id: card.id, ...p, height: button?.getBoundingClientRect().height || itineraryCardSize.height }] : [] })
                 const rightPanel = interactionState.isSidebarOpen ? document.querySelector('.right-sidebar')?.getBoundingClientRect().width || 400 : 0
                 setPlacements(previous => {
                     const next = layoutItineraryCards(anchors, { left: leftSidebar.isOpen ? 420 : 20, top: 100, right: rect.width - rightPanel - 76, bottom: rect.height - 90 }, routePaths(), previous)
@@ -106,6 +107,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
         }
         const observer = new ResizeObserver(update)
         observer.observe(element)
+        anchorsRef.current.forEach(anchor => { const button = anchor.node.querySelector('button'); if (button) observer.observe(button) })
         window.addEventListener('itineraryRoutesChanged', update)
         const unsubscribe = subscribe(() => {
             clearTimeout(settled)
@@ -118,13 +120,20 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
         })
         update()
         return () => { observer.disconnect(); window.removeEventListener('itineraryRoutesChanged', update); unsubscribe(); clearTimeout(settled); cancelAnimationFrame(frame) }
-    }, [cards, createAnchor, routeMidpoint, project, routePaths, subscribe, leftSidebar.isOpen, interactionState.isSidebarOpen, hidden])
+    }, [anchorNodes, cards, createAnchor, routeMidpoint, project, routePaths, subscribe, leftSidebar.isOpen, interactionState.isSidebarOpen, hidden])
 
     useEffect(() => () => {
         anchorsRef.current.forEach(anchor => anchor.dispose())
         anchorsRef.current.clear()
         setAnchorNodes(new Map())
     }, [cards, createAnchor])
+
+    useEffect(() => () => {
+        if (hoveredCard.current) {
+            hoveredCard.current = null
+            window.dispatchEvent(new CustomEvent('markerDayHover', { detail: { dayId: null } }))
+        }
+    }, [cards, hidden])
 
     if (!cards.length) return null
     return <div ref={root} className="pointer-events-none absolute inset-0 z-20 hidden lg:block" aria-label="地图行程说明">
@@ -145,12 +154,15 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                     <line x1={0} y1={0} x2={end.x - p.x} y2={end.y - p.y} stroke={card.color} strokeWidth="1" />
                     <circle cx={0} cy={0} r="4" fill="white" stroke={card.color} strokeWidth="2" />
                 </svg>
-                <button type="button" title={[card.title, card.eyebrow, card.timing, card.note].filter(Boolean).join('\n')} onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else if (card.legMarkerIds) onFitMarkers(card.legMarkerIds); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
+                <button type="button"
+                    onMouseEnter={() => { hoveredCard.current = card.id; window.dispatchEvent(new CustomEvent('markerDayHover', { detail: { dayId: card.dayId } })) }}
+                    onMouseLeave={() => { hoveredCard.current = null; window.dispatchEvent(new CustomEvent('markerDayHover', { detail: { dayId: null } })) }}
+                    title={[card.title, card.eyebrow, card.timing, card.note].filter(Boolean).join('\n')} onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else if (card.legMarkerIds) onFitMarkers(card.legMarkerIds); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
                     className="absolute flex flex-col items-stretch gap-1 overflow-hidden whitespace-normal py-2 rounded-md border border-gray-200 border-l-[3px] bg-white px-3 text-left shadow-[0_3px_18px_rgba(0,0,0,0.08)] transition-shadow hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
-                    style={{ left: p.left - p.x, top: p.top - p.y, width: itineraryCardSize.width, height: itineraryCardSize.height, borderLeftColor: card.color }}>
-                    <span className="flex items-baseline gap-2"><span className="min-w-0 flex-1 line-clamp-2 break-words text-sm font-medium text-gray-900">{card.title}</span><span className="shrink-0 text-[11px] text-gray-400">{card.eyebrow}</span></span>
+                    style={{ left: p.left - p.x, top: p.top - p.y, width: itineraryCardSize.width, borderLeftColor: card.color }}>
+                    <span className="flex items-baseline gap-2"><span className="min-w-0 flex-1 break-words text-sm font-medium text-gray-900">{card.title}</span><span className="shrink-0 text-[11px] text-gray-400">{card.eyebrow}</span></span>
                     {card.timing && <span className="text-xs text-gray-600">{card.timing}</span>}
-                    {card.note && <span className="min-h-0 overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-gray-500">{card.note}</span>}
+                    {card.note && <span className="whitespace-pre-wrap break-words text-xs leading-5 text-gray-500">{card.note}</span>}
                 </button>
             </>, node, p.id)
         })}

@@ -1,4 +1,4 @@
-export interface MapCardAnchor { id: string; x: number; y: number }
+export interface MapCardAnchor { id: string; x: number; y: number; height?: number }
 export interface MapCardPlacement extends MapCardAnchor { left: number; top: number }
 export const itineraryCardSize = { width: 280, height: 132 }
 
@@ -17,7 +17,8 @@ const HARD = 100000
 
 // Intersect the center-to-anchor ray with the card edge, preserving its angle.
 export function itineraryLeaderEnd(p: MapCardPlacement): Point {
-    const { width, height } = itineraryCardSize
+    const { width } = itineraryCardSize
+    const height = p.height ?? itineraryCardSize.height
     const cx = p.left + width / 2, cy = p.top + height / 2
     const dx = p.x - cx, dy = p.y - cy
     const scale = 1 / Math.max(Math.abs(dx) / (width / 2), Math.abs(dy) / (height / 2), 1)
@@ -28,7 +29,7 @@ const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a))
 const degDiff = (a: number, b: number) => Math.abs(wrap(a - b)) * 180 / Math.PI
 const cross = (a: Point, b: Point, c: Point) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
 const segmentsCross = (a: Point, b: Point, c: Point, d: Point) => cross(a, b, c) * cross(a, b, d) < 0 && cross(c, d, a) * cross(c, d, b) < 0
-const rectOf = (left: number, top: number, pad = 0): Bounds => ({ left: left - pad, top: top - pad, right: left + itineraryCardSize.width + pad, bottom: top + itineraryCardSize.height + pad })
+const rectOf = (left: number, top: number, pad = 0, height = itineraryCardSize.height): Bounds => ({ left: left - pad, top: top - pad, right: left + itineraryCardSize.width + pad, bottom: top + height + pad })
 const overlaps = (a: Bounds, b: Bounds) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
 const rectPointDistance = (r: Bounds, p: Point) => Math.hypot(Math.max(r.left - p.x, 0, p.x - r.right), Math.max(r.top - p.y, 0, p.y - r.bottom))
 
@@ -111,8 +112,9 @@ function freeDirection(anchor: Point, index: SegmentIndex, anchors: Point[], cen
     return Math.hypot(dx, dy) > 24 ? { angle: Math.atan2(dy, dx), strength: 0.4 } : { angle: -Math.PI / 6, strength: 0.2 }
 }
 
-function cardAt(anchor: Point, angle: number, length: number) {
-    const { width, height } = itineraryCardSize
+function cardAt(anchor: MapCardAnchor, angle: number, length: number) {
+    const { width } = itineraryCardSize
+    const height = anchor.height ?? itineraryCardSize.height
     const c = Math.cos(angle), s = Math.sin(angle)
     const edge = 1 / Math.max(Math.abs(c) / (width / 2), Math.abs(s) / (height / 2))
     const cx = anchor.x + c * (length + edge), cy = anchor.y + s * (length + edge)
@@ -149,21 +151,22 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
     const inside = (r: Bounds) => r.left >= bounds.left && r.top >= bounds.top && r.right <= bounds.right && r.bottom <= bounds.bottom
 
     const options: Candidate[][] = visible.map(anchor => {
+        const height = anchor.height ?? itineraryCardSize.height
         const free = freeDirection(anchor, index, visible, center)
         const before = prior.get(anchor.id)
         const list: Candidate[] = []
         LENGTHS.forEach((length, li) => DIRECTIONS.forEach(deg => {
             const angle = deg * Math.PI / 180
             const { left, top, end } = cardAt(anchor, angle, length)
-            const rect = rectOf(left, top)
+            const rect = rectOf(left, top, 0, height)
             if (!inside(rect)) return
-            const padded = rectOf(left, top, ANCHOR_PAD)
+            const padded = rectOf(left, top, ANCHOR_PAD, height)
             if (visible.some(p => p.x > padded.left && p.x < padded.right && p.y > padded.top && p.y < padded.bottom)) return
             let unary = (length - LENGTHS[0]) * 1.4 + (li >= 4 ? 400 : 0)
             unary += degDiff(angle, free.angle) * 2.4 * free.strength
             if (deg === 0 || deg === 180) unary += 50
             let clearance = CLEARANCE
-            for (const [a, b] of index.query(rectOf(left, top, CLEARANCE))) clearance = Math.min(clearance, rectSegmentDistance(rect, a, b))
+            for (const [a, b] of index.query(rectOf(left, top, CLEARANCE, height))) clearance = Math.min(clearance, rectSegmentDistance(rect, a, b))
             unary += clearance === 0 ? 1600 : (CLEARANCE - clearance) * 18
             const box = { left: Math.min(anchor.x, end.x), top: Math.min(anchor.y, end.y), right: Math.max(anchor.x, end.x), bottom: Math.max(anchor.y, end.y) }
             for (const [a, b] of index.query(box)) if (pointSegmentDistance(anchor, a, b) > ANCHOR_PAD && segmentsCross(anchor, end, a, b)) unary += 140
@@ -172,10 +175,10 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
         // Keep the previous offset as an explicit candidate; it only moves when it becomes clearly worse.
         if (before) {
             const { left, top, end } = cardAt(anchor, before.angle, before.length)
-            const rect = rectOf(left, top), padded = rectOf(left, top, ANCHOR_PAD)
+            const rect = rectOf(left, top, 0, height), padded = rectOf(left, top, ANCHOR_PAD, height)
             if (inside(rect) && rectPointDistance(rect, anchor) >= LENGTHS[0] - 1 && !visible.some(p => p.x > padded.left && p.x < padded.right && p.y > padded.top && p.y < padded.bottom)) {
                 let clearance = CLEARANCE
-                for (const [a, b] of index.query(rectOf(left, top, CLEARANCE))) clearance = Math.min(clearance, rectSegmentDistance(rect, a, b))
+                for (const [a, b] of index.query(rectOf(left, top, CLEARANCE, height))) clearance = Math.min(clearance, rectSegmentDistance(rect, a, b))
                 list.push({ left, top, end, angle: before.angle, length: before.length, key: 'previous', unary: (clearance === 0 ? 1600 : 0) - 1500 })
             }
         }
@@ -186,11 +189,11 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
     const neighbors = visible.map((a, i) => visible.flatMap((b, j) => j !== i && Math.hypot(a.x - b.x, a.y - b.y) < reach * 2 ? [j] : []))
     const pair = (i: number, p: Candidate, j: number, q: Candidate) => {
         const a = visible[i], b = visible[j]
-        const pr = rectOf(p.left, p.top), qr = rectOf(q.left, q.top)
-        if (overlaps(rectOf(p.left, p.top, CARD_GAP), qr)) return HARD
+        const pr = rectOf(p.left, p.top, 0, a.height), qr = rectOf(q.left, q.top, 0, b.height)
+        if (overlaps(rectOf(p.left, p.top, CARD_GAP, a.height), qr)) return HARD
         let cost = segmentsCross(a, p.end, b, q.end) ? 900 : 0
-        if (segmentHitsRect(a, p.end, rectOf(q.left, q.top, 4))) cost += 3000
-        if (segmentHitsRect(b, q.end, rectOf(p.left, p.top, 4))) cost += 3000
+        if (segmentHitsRect(a, p.end, rectOf(q.left, q.top, 4, b.height))) cost += 3000
+        if (segmentHitsRect(b, q.end, rectOf(p.left, p.top, 4, a.height))) cost += 3000
         const near = Math.hypot(a.x - b.x, a.y - b.y)
         if (near < 220) cost += Math.min(60, degDiff(p.angle, q.angle) * 0.5) * (1 - near / 220)
         const sameSide = Math.sign(Math.cos(p.angle)) === Math.sign(Math.cos(q.angle))
@@ -240,9 +243,10 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
     for (const i of order) {
         if (choice[i] >= 0 && local(i, choice[i]) < HARD) continue
         const anchor = visible[i], start = options[i].length
+        const height = anchor.height ?? itineraryCardSize.height
         for (let top = bounds.top; top + height <= bounds.bottom; top += height + CARD_GAP) {
             for (let left = bounds.left; left + width <= bounds.right; left += (width + 16) / 2) {
-                const rect = rectOf(left, top), padded = rectOf(left, top, ANCHOR_PAD)
+                const rect = rectOf(left, top, 0, height), padded = rectOf(left, top, ANCHOR_PAD, height)
                 if (rectPointDistance(rect, anchor) < LENGTHS[0] || visible.some(p => p.x > padded.left && p.x < padded.right && p.y > padded.top && p.y < padded.bottom)) continue
                 const end = itineraryLeaderEnd({ ...anchor, left, top })
                 const length = Math.hypot(end.x - anchor.x, end.y - anchor.y)
@@ -264,6 +268,6 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
 export function sameItineraryPlacements(previous: MapCardPlacement[], next: MapCardPlacement[]): boolean {
     return previous.length === next.length && previous.every((item, i) => {
         const other = next[i]
-        return item.id === other.id && item.x === other.x && item.y === other.y && item.left === other.left && item.top === other.top
+        return item.id === other.id && item.x === other.x && item.y === other.y && item.left === other.left && item.top === other.top && item.height === other.height
     })
 }

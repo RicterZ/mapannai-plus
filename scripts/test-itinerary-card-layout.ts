@@ -30,3 +30,12 @@ const end = itineraryLeaderEnd(diagonal)
 assert.ok(Math.abs(end.x-diagonal.x)>30 && Math.abs(end.y-diagonal.y)>30, 'Free-space layout must choose a visibly diagonal leader')
 assert.ok(end.x>=diagonal.left && end.x<=diagonal.left+width && end.y>=diagonal.top && end.y<=diagonal.top+height)
 assert.equal(height,132,'Multi-line cards reserve space for schedule and notes')
+
+// Measured card heights drive both viewport placement and leader attachment.
+const tall = layoutItineraryCards([{ id: 'tall', x: 700, y: 500, height: 260 }], { left: 0, top: 0, right: 1600, bottom: 1100 })
+assert.equal(tall.length, 1)
+assert.equal(tall[0].height, 260)
+assert.ok(tall[0].top + 260 <= 1100)
+const edge = itineraryLeaderEnd(tall[0])
+assert.ok(edge.y >= tall[0].top && edge.y <= tall[0].top + 260)
+assert.equal(sameItineraryPlacements(tall, [{ ...tall[0], height: 100 }]), false)
