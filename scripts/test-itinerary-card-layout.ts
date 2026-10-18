@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { layoutItineraryCards, itineraryCardSize, itineraryLeaderEnd, sameItineraryPlacements } from '../src/lib/map/itinerary-card-layout'
-const bounds = { left: 420, top: 100, right: 1400, bottom: 850 }
+const bounds = { left: 420, top: 100, right: 2000, bottom: 1300 }
 const cards = layoutItineraryCards(Array.from({ length: 20 }, (_, i) => ({ id: String(i), x: 800 + i * 5, y: 400 + i * 4 })), bounds)
 assert.ok(cards.length > 0)
 const { width, height } = itineraryCardSize
@@ -29,4 +29,4 @@ const diagonal = layoutItineraryCards([{id:'diagonal',x:900,y:450}],bounds)[0]
 const end = itineraryLeaderEnd(diagonal)
 assert.ok(Math.abs(end.x-diagonal.x)>30 && Math.abs(end.y-diagonal.y)>30, 'Free-space layout must choose a visibly diagonal leader')
 assert.ok(end.x>=diagonal.left && end.x<=diagonal.left+width && end.y>=diagonal.top && end.y<=diagonal.top+height)
-assert.equal(height,40,'Single-row day/date cards should remain compact')
+assert.equal(height,132,'Multi-line cards reserve space for schedule and notes')
