@@ -44,7 +44,7 @@ import { CreateTripModal } from '@/components/modal/create-trip-modal'
 import { routeColor, shortAddress } from '@/lib/map/route-presentation'
 import { useRouteProgress } from '@/lib/map/route-progress'
 import { isRangeFallback, readCachedRoute, readRouteMetrics, routeCacheKey } from '@/lib/map/route-cache'
-import { StopSchedule, RouteLeg, formatPlannedDuration } from '@/components/trips/route-schedule'
+import { RouteHighlight, StopSchedule, RouteLeg, formatPlannedDuration } from '@/components/trips/route-schedule'
 import type { TripDay, RouteChain } from '@/types/trip'
 import { Modal } from '@/components/ui/modal'
 import { DayRoutePreview } from '@/components/trips/day-route-preview'
@@ -1240,6 +1240,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                 路线 {slotIdx + 1}<span className="font-normal text-gray-500">· {chainGroup.length} 地点</span><span>{collapsedRoutes.has(slotIdx) ? '▸' : '▾'}</span>
                                             </button>
                                             <div className="flex gap-1">
+                                                {!isPending && currentDay?.routeChains?.[chainIdx] && <RouteHighlight day={currentDay} route={currentDay.routeChains[chainIdx]} />}
                                                 {chainGroup.length > 0 && <button type="button" onClick={() => onFitMarkers(chainGroup.map(marker => marker.id))} className="min-h-[44px] px-3 text-xs text-gray-600 hover:text-accent-600" aria-label={`查看路线 ${slotIdx + 1}`}>查看</button>}
                                                 <button type="button" onClick={() => setRoutePicker({ chainIndex: chainIdx })} className="min-h-[36px] px-2 text-xs font-medium text-accent-600">＋ 地点</button>
                                                 {isPending && <button type="button" aria-label="取消空路线" onClick={() => setPendingEmptyChains(value => Math.max(0, value - 1))} className="min-h-[36px] px-2 text-gray-500">×</button>}

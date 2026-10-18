@@ -22,7 +22,10 @@ export function itineraryAnchors(days: TripDay[], markers: Marker[]): Map<string
     const threshold = distances.length >= 3 ? Math.max(20000, median * 3) : Infinity
     return new Map(days.map(day => {
         const ids = Array.from(new Set([...day.chains.flat(), ...day.markerIds])).filter(id => byId.has(id))
-        const stops = (day.routeChains || []).filter((route, i) => route.stops.length === day.chains[i]?.length && route.stops.every((stop, j) => stop.markerId === day.chains[i][j])).flatMap(route => route.stops).filter(stop => byId.has(stop.markerId) && Number.isFinite(stop.durationMinutes) && stop.durationMinutes! > 0)
+        const visits = (day.routeChains || []).filter((route, i) => route.stops.length === day.chains[i]?.length && route.stops.every((stop, j) => stop.markerId === day.chains[i][j])).flatMap(route => route.stops).filter(stop => byId.has(stop.markerId))
+        const highlighted = visits.filter(stop => stop.isHighlight === true).map(stop => stop.markerId)
+        if (highlighted.length) return [day.id, Array.from(new Set(highlighted))]
+        const stops = visits.filter(stop => Number.isFinite(stop.durationMinutes) && stop.durationMinutes! > 0)
         const longest = Math.max(0, ...stops.map(stop => stop.durationMinutes!))
         const longSegments = segments.filter(segment => segment.dayId === day.id && segment.distance > threshold)
         let anchors = longest > 0 ? stops.filter(stop => stop.durationMinutes === longest).map(stop => stop.markerId) : longSegments.flatMap(segment => {

@@ -306,17 +306,18 @@ export function registerTripTools(server: McpServer) {
         '修改已有路线顺序、地点游览安排与路段交通安排。优先传稳定 chainId；省略字段保留，时间/时长/车次号/note传null清除。车次号独立放serviceNumber。计划时长不影响寻路缓存，不自动排程。',
         {
             ...chainTarget,
+            isHighlight: z.boolean().nullable().optional().describe('是否重点路线；null取消'),
             markerIds: z.array(z.string()).min(2).optional().describe('可选：修改后的完整地点顺序，至少两个不重复的已有地点ID'),
             stops: z.array(stopPatchSchema).optional().describe('可选：按访问stopId局部修改游览时间、停留分钟数、note'),
             legs: z.array(legPatchSchema).optional().describe('可选：按相邻访问ID修改交通、独立线路/车次号serviceNumber、出发时间、计划分钟数、note；remove=true清除交通安排'),
         },
-        async ({ tripId, dayId, chainId, chainIndex, markerIds, stops, legs }) => {
+        async ({ tripId, dayId, chainId, chainIndex, markerIds, stops, legs, isHighlight }) => {
             const day = getDayById(dayId)
             if (!day || day.tripId !== tripId) throw new Error('行程日不存在')
             if ((chainId === undefined) === (chainIndex === undefined)) throw new Error('chainId和chainIndex须二选一')
             const id = chainId ?? day.routeChains?.[chainIndex!]?.id
             if (!id) throw new Error('路线不存在，请查询最新行程')
-            const updated = updateRouteChain(tripId, dayId, id, { markerIds, stops, legs })
+            const updated = updateRouteChain(tripId, dayId, id, { markerIds, stops, legs, isHighlight })
             return { content: [{ type: 'text', text: JSON.stringify({ success: true, dayId, chainId: id, markerIds: updated.markerIds, chains: updated.chains, routeChains: updated.routeChains }) }] }
         }
     )

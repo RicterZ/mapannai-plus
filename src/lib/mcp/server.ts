@@ -48,7 +48,7 @@ function createMcpServer(): McpServer {
 
 ### 路线安排（后台支持，前端展示待设计）
 - 每日 \`routeChains\` 是完整路线；兼容 \`chains\` 仅是 marker ID 顺序投影。路线使用稳定 \`id\`，每次地点访问 \`stops\` 有独立 \`id\` 和 \`markerId\`。
-- \`stops\`：\`startTime\`（当天当地 HH:mm）、\`durationMinutes\`（用户计划停留分钟数）、\`note\`。不要改全局地点来保存一次访问的安排。
+- \`stops\`：\`startTime\`（当天当地 HH:mm）、\`durationMinutes\`（用户计划停留分钟数）、\`note\`。isHighlight 标记此次访问为重点地点，优先显示当天地图标签。不要改全局地点来保存一次访问的安排。
 - \`legs\`：有方向的相邻访问 \`fromStopId\` / \`toStopId\`、\`mode\`、独立线路/车次号 \`serviceNumber\`（地铁2号线、公交101、G123、NH920、船班号），以及同样的时间/时长/note；不要把车次号写进 note。
 - 使用 \`update_day_chain\`，优先 \`chainId\`，\`stops\` / \`legs\` 支持局部修改；省略保留、null清除时间/时长/车次号/备注，\`remove:true\` 清除一段交通安排。新建路段必须给 mode。时间不会自动排程，计划时长与寻路结果分开。
 - 地点访问的安排跟随访问ID；修改访问顺序后只展示仍然有方向相邻的交通安排；暂时断开的边存入 inactiveLegs，移回同一有向相邻访问时恢复，反向边不继承。移除地点或明确清除安排才删除，不把安排搬到另一条路线。删除路线保留地点。

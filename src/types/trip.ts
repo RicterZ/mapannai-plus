@@ -48,6 +48,7 @@ export interface Schedule {
 }
 export type TransportMode = 'walking' | 'cycling' | 'driving' | 'taxi' | 'bus' | 'subway' | 'train' | 'flight' | 'ferry' | 'other'
 export interface ChainStop extends Schedule {
+  isHighlight?: boolean
   id: string
   markerId: string
   note?: string
@@ -60,6 +61,7 @@ export interface ChainLeg extends Schedule {
   note?: string
 }
 export interface RouteChain {
+  isHighlight?: boolean
   id: string
   stops: ChainStop[]
   legs: ChainLeg[] // Active manually defined directed adjacent legs

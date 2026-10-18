@@ -41,13 +41,21 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
             const dayIndex = days.findIndex(item => item.id === day.id) + 1
             const color = routeColor(0, day.id, day.colorIndex)
             const date = `${Number(day.date.slice(5, 7))}月${Number(day.date.slice(8, 10))}日`
+            const highlights = (day.routeChains || []).flatMap((route, index) => {
+                if (!route.isHighlight || route.stops.length !== day.chains[index]?.length || !route.stops.every((stop, i) => stop.markerId === day.chains[index][i])) return []
+                const members = route.stops.map(stop => byId.get(stop.markerId)).filter((m): m is NonNullable<typeof m> => !!m)
+                if (!members.length) return []
+                return [{ id: `${day.id}:route:${route.id}`, dayId: day.id, markerId: null as string | null, coordinates: members[Math.floor((members.length - 1) / 2)].coordinates,
+                    color, routeKey: null as string | null, legMarkerIds: members.map(m => m.id) as string[] | null,
+                    eyebrow: `${date} · 重点路线`, title: `第${dayIndex}天 · 路线 ${index + 1}` }]
+            })
             if (activeView.mode === 'trip') {
-                return (anchors.get(day.id) || []).map(id => ({
+                return [...highlights, ...(anchors.get(day.id) || []).map(id => ({
                     id: `${day.id}:${id}`, dayId: day.id, markerId: null as string | null,
                     coordinates: byId.get(id)!.coordinates, color, routeKey: null as string | null, legMarkerIds: null as string[] | null,
                     eyebrow: `${date} · ${["周日","周一","周二","周三","周四","周五","周六"][new Date(day.date + "T12:00:00").getDay()]}`,
                     title: `第${dayIndex}天`,
-                }))
+                }))]
             }
             const places = ids.map((id, index) => {
                 const marker = byId.get(id)!
@@ -71,7 +79,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                     eyebrow: timing || `${date} · 交通`, title: [transportLabels[mode], leg?.serviceNumber].filter(Boolean).join(' '),
                     routeKey: `${day.id}:${chainIndex}:${index}`, legMarkerIds: [fromId, toId] }]
             }))
-            return [...places, ...legs]
+            return [...highlights, ...places, ...legs]
         })
     }, [activeView.mode, activeView.tripId, activeView.dayId, tripDays, markers])
 

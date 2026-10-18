@@ -46,6 +46,7 @@ export function updateRouteChain(tripId: string, dayId: string, chainId: string,
             if (patch.markerIds.some(id => !getMarkerById(id))) throw new Error('路线包含不存在的地点')
         }
         let updated = patch.markerIds ? reorderRouteStops(route, patch.markerIds) : route
+        updated = patchFields(updated, patch, ['isHighlight'])
         const stops = updated.stops.map(stop => ({ ...stop }))
         const legs = updated.legs.map(leg => ({ ...leg }))
         let inactiveLegs = updated.inactiveLegs ?? []
@@ -55,7 +56,7 @@ export function updateRouteChain(tripId: string, dayId: string, chainId: string,
             seenStops.add(change.stopId)
             const index = stops.findIndex(stop => stop.id === change.stopId)
             if (index < 0) throw new Error('地点访问不属于这条路线')
-            stops[index] = patchFields<ChainStop>(stops[index], change, scheduleKeys)
+            stops[index] = patchFields<ChainStop>(stops[index], change, [...scheduleKeys, 'isHighlight'])
         }
         for (const change of patch.legs ?? []) {
             const pair = JSON.stringify([change.fromStopId, change.toStopId])

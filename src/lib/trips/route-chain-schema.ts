@@ -8,6 +8,7 @@ export const schedulePatchFields = {
     note: text(4000).optional().describe('补充备注，例如入口、站台或预约事项；null 或空字符串清除'),
 }
 export const stopPatchSchema = z.object({
+    isHighlight: z.boolean().nullable().optional().describe('此次访问是否为重点地点；true优先显示当天地图标签，false/null取消，省略保留'),
     stopId: id.describe('routeChains.stops 中的访问 ID，不是 marker ID'),
     ...schedulePatchFields,
 }).strict()
@@ -21,6 +22,7 @@ export const legPatchSchema = z.object({
     remove: z.boolean().optional().describe('true 清除整段交通安排，不删除地点；不能同时填写其他安排字段'),
 }).strict()
 export const routeChainPatchSchema = z.object({
+    isHighlight: z.boolean().nullable().optional().describe('路线是否重点；省略保留，false/null取消'),
     markerIds: z.array(id).min(2).optional().describe('可选的新完整地点顺序；同一路线不得重复 marker ID'),
     stops: z.array(stopPatchSchema).optional(),
     legs: z.array(legPatchSchema).optional(),

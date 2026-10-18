@@ -40,12 +40,28 @@ async function main() {
         assert.deepEqual(getDayById('day')!.routeChains, initial.routeChains, 'migration IDs must persist')
         assert.deepEqual(getDayById('day2')!.routeChains, [])
         const [a, b, c] = route.stops
+        updateRouteChain('trip', 'day', route.id, { stops: [{ stopId: a.id, isHighlight: true }] })
+        assert.equal(getDayById('day')!.routeChains![0].stops[0].isHighlight, true)
+        assert.equal(getDayById('day')!.routeChains![1].stops[0].isHighlight, undefined, 'another visit is independent')
+        updateRouteChain('trip', 'day', route.id, { stops: [{ stopId: a.id, note: 'keep highlight' }] })
+        assert.equal(getDayById('day')!.routeChains![0].stops[0].isHighlight, true)
+        updateRouteChain('trip', 'day', route.id, { stops: [{ stopId: a.id, isHighlight: null }] })
+        assert.equal(getDayById('day')!.routeChains![0].stops[0].isHighlight, undefined)
+        assert.throws(() => updateRouteChain('trip', 'day', route.id, { stops: [{ stopId: a.id, isHighlight: 'yes' as unknown as boolean }] }))
+        updateRouteChain('trip', 'day', route.id, { isHighlight: true })
+        assert.equal(getDayById('day')!.routeChains![0].isHighlight, true)
+        assert.equal(getDayById('day')!.routeChains![1].isHighlight, undefined)
+        updateRouteChain('trip', 'day', route.id, { stops: [{ stopId: a.id, note: null }] })
+        assert.equal(getDayById('day')!.routeChains![0].isHighlight, true)
+        updateRouteChain('trip', 'day', route.id, { isHighlight: null })
+        assert.equal(getDayById('day')!.routeChains![0].isHighlight, undefined)
         const target = { params: { id: 'trip', dayId: 'day', chainId: route.id } }
         let response: Response = await PATCH(req('PATCH', {
-            stops: [{ stopId: a.id, startTime: '09:30', durationMinutes: 60, note: '南门取票' }],
+            stops: [{ stopId: a.id, isHighlight: true, startTime: '09:30', durationMinutes: 60, note: '南门取票' }],
             legs: [{ fromStopId: a.id, toStopId: b.id, mode: 'subway', serviceNumber: '银座线', startTime: '10:40', durationMinutes: 15, note: '1号入口，往涩谷方向' }],
         }), target)
         assert.equal(response.status, 200)
+        assert.equal(getDayById('day')!.routeChains![0].stops[0].isHighlight, true)
         let saved = getDayById('day')!.routeChains![0]
         assert.equal(saved.stops[0].startTime, '09:30')
         assert.equal(saved.stops[0].durationMinutes, 60)
@@ -142,11 +158,13 @@ async function main() {
         try {
             const update = bridge.tools.find(tool => tool.function.name === 'update_day_chain')!
             assert(JSON.stringify(update.function.parameters).includes('serviceNumber'))
-            const result = await bridge.call('update_day_chain', { tripId: 'trip', dayId: 'day', chainId: route.id, stops: [{ stopId: a.id, durationMinutes: 45 }], legs: [{ fromStopId: a.id, toStopId: b.id, mode: 'train', serviceNumber: 'G123', note: '3号站台' }] }, new AbortController().signal)
+            const result = await bridge.call('update_day_chain', { tripId: 'trip', dayId: 'day', chainId: route.id, isHighlight: true, stops: [{ stopId: a.id, durationMinutes: 45, isHighlight: true }], legs: [{ fromStopId: a.id, toStopId: b.id, mode: 'train', serviceNumber: 'G123', note: '3号站台' }] }, new AbortController().signal)
             assert(!result.isError)
             saved = getDayById('day')!.routeChains!.find(item => item.id === route.id)!
             assert.equal(saved.legs[0].serviceNumber, 'G123')
             assert.equal(saved.stops[0].durationMinutes, 45)
+            assert.equal(saved.stops[0].isHighlight, true)
+            assert.equal(saved.isHighlight, true)
             const cleared = await bridge.call('update_day_chain', { tripId: 'trip', dayId: 'day', chainId: route.id, legs: [{ fromStopId: a.id, toStopId: b.id, serviceNumber: null }] }, new AbortController().signal)
             assert(!cleared.isError)
             assert.equal(getDayById('day')!.routeChains!.find(item => item.id === route.id)!.legs[0].serviceNumber, undefined)
