@@ -60,7 +60,8 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
             const legs = day.chains.flatMap((chain, chainIndex) => chain.slice(1).flatMap((toId, index) => {
                 const fromId = chain[index], route = day.routeChains?.[chainIndex]
                 const from = byId.get(fromId), to = byId.get(toId), mode = routeTransportMode(route, fromId, toId)
-                if (!from || !to || !mode || !route) return []
+                // Only long-haul legs get cards; local transit would crowd the day map.
+                if (!from || !to || (mode !== 'train' && mode !== 'flight') || !route) return []
                 const fromStop = route.stops[index], toStop = route.stops[index + 1]
                 const leg = route.legs.find(item => item.fromStopId === fromStop?.id && item.toStopId === toStop?.id)
                 const curve = getBezierPath({ lat: from.coordinates.latitude, lng: from.coordinates.longitude }, { lat: to.coordinates.latitude, lng: to.coordinates.longitude })
