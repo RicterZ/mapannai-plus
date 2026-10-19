@@ -8,13 +8,17 @@ type Segment = [Point, Point]
 interface Candidate { left: number; top: number; end: Point; angle: number; length: number; key: string; unary: number; u?: number; v?: number; side?: number; polar?: number }
 
 // A small fixed vocabulary of leader directions gives the map a consistent rhythm; shallow diagonals suit wide cards.
-const DIRECTIONS = [-150, -120, -60, -30, 30, 60, 120, 150, 0, 180]
-const LENGTHS = [80, 104, 136, 176, 232, 300]
+const DIRECTIONS = [-150, -120, -90, -60, -30, 30, 60, 90, 120, 150, 0, 180]
+const LENGTHS = [24, 40, 64, 96, 136, 184]
 const CARD_GAP = 10
 const ANCHOR_PAD = 14
 const CLEARANCE = 24
 const HARD = 100000
 const FREE_STEP = 12
+// Covering a pin is discouraged rather than forbidden, so clustered pins cannot force cards to stack.
+const PIN_COVER = 6000
+// Cards covering routes hide the pins and lines beneath them; cost grows with the covered route length.
+const ROUTE_COVER = 80
 
 // Intersect the center-to-anchor ray with the card edge, preserving its angle.
 export function itineraryLeaderEnd(p: MapCardPlacement): Point {
@@ -43,6 +47,17 @@ function segmentHitsRect(a: Point, b: Point, r: Bounds) {
         if (low > high) return false
     }
     return true
+}
+/** Length of a segment inside a rectangle (Liang–Barsky clipping). */
+function clippedLength(a: Point, b: Point, r: Bounds) {
+    let low = 0, high = 1
+    for (const [start, delta, min, max] of [[a.x, b.x - a.x, r.left, r.right], [a.y, b.y - a.y, r.top, r.bottom]]) {
+        if (!delta) { if (start < min || start > max) return 0; continue }
+        const enter = (min - start) / delta, exit = (max - start) / delta
+        low = Math.max(low, Math.min(enter, exit)); high = Math.min(high, Math.max(enter, exit))
+        if (low >= high) return 0
+    }
+    return (high - low) * Math.hypot(b.x - a.x, b.y - a.y)
 }
 function pointSegmentDistance(p: Point, a: Point, b: Point) {
     const dx = b.x - a.x, dy = b.y - a.y, len = dx * dx + dy * dy
@@ -187,6 +202,17 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
         return { u: dot(rel, shape.axis), v: dot(rel, shape.normal), side: Math.sign(dot({ x: card.x - anchor.x, y: card.y - anchor.y }, shape.normal)) || 1, polar: Math.atan2(rel.y, rel.x) }
     }
 
+    const coveredPins = (r: Bounds) => visible.filter(p => p.x > r.left && p.x < r.right && p.y > r.top && p.y < r.bottom).length * PIN_COVER
+    const routeCost = (left: number, top: number, height: number, cardWidth: number) => {
+        const rect = rectOf(left, top, 0, height, cardWidth), hit = rectOf(left, top, 4, height, cardWidth)
+        let clearance = CLEARANCE, covered = 0
+        for (const [a, b] of index.query(rectOf(left, top, CLEARANCE, height, cardWidth))) {
+            clearance = Math.min(clearance, rectSegmentDistance(rect, a, b))
+            covered += clippedLength(a, b, hit)
+        }
+        return covered > 0 ? 800 + covered * ROUTE_COVER : (CLEARANCE - clearance) * 18
+    }
+
     const options: Candidate[][] = visible.map((anchor, anchorIndex) => {
         const height = anchor.height ?? itineraryCardSize.height, cardWidth = anchor.width ?? itineraryCardSize.width
         const free = freeDirection(anchor, index, visible, center)
@@ -208,14 +234,10 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
             const { left, top, end } = cardAt(anchor, angle, length)
             const rect = rectOf(left, top, 0, height, cardWidth)
             if (!inside(rect)) return
-            const padded = rectOf(left, top, ANCHOR_PAD, height, cardWidth)
-            if (visible.some(p => p.x > padded.left && p.x < padded.right && p.y > padded.top && p.y < padded.bottom)) return
-            let unary = (length - LENGTHS[0]) * 2.4 + (li >= 3 ? 300 : 0) + (li >= 4 ? 500 : 0)
+            let unary = coveredPins(rectOf(left, top, ANCHOR_PAD, height, cardWidth)) + (length - LENGTHS[0]) * 2.4 + (li >= 3 ? 300 : 0) + (li >= 4 ? 500 : 0)
             unary += degDiff(angle, preferred) * 2 + degDiff(angle, free.angle) * free.strength
             if (shape.kind === 'radial' && (deg === 0 || Math.abs(deg) === 180)) unary += 50
-            let clearance = CLEARANCE
-            for (const [a, b] of index.query(rectOf(left, top, CLEARANCE, height, cardWidth))) clearance = Math.min(clearance, rectSegmentDistance(rect, a, b))
-            unary += clearance === 0 ? 1600 : (CLEARANCE - clearance) * 18
+            unary += routeCost(left, top, height, cardWidth)
             const box = { left: Math.min(anchor.x, end.x), top: Math.min(anchor.y, end.y), right: Math.max(anchor.x, end.x), bottom: Math.max(anchor.y, end.y) }
             for (const [a, b] of index.query(box)) if (pointSegmentDistance(anchor, a, b) > ANCHOR_PAD && segmentsCross(anchor, end, a, b)) unary += 140
             list.push({ left, top, end, angle, length, key: `${deg}:${length}`, unary, ...decorate(anchor, left, top, height) })
@@ -223,11 +245,10 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
         // Keep the previous offset as an explicit candidate; it only moves when it becomes clearly worse.
         if (before) {
             const { left, top, end } = cardAt(anchor, before.angle, before.length)
-            const rect = rectOf(left, top, 0, height, cardWidth), padded = rectOf(left, top, ANCHOR_PAD, height, cardWidth)
-            if (inside(rect) && rectPointDistance(rect, anchor) >= LENGTHS[0] - 1 && !visible.some(p => p.x > padded.left && p.x < padded.right && p.y > padded.top && p.y < padded.bottom)) {
-                let clearance = CLEARANCE
-                for (const [a, b] of index.query(rectOf(left, top, CLEARANCE, height, cardWidth))) clearance = Math.min(clearance, rectSegmentDistance(rect, a, b))
-                list.push({ left, top, end, angle: before.angle, length: before.length, key: 'previous', unary: (clearance === 0 ? 1600 : 0) - 1500, ...decorate(anchor, left, top, height) })
+            const rect = rectOf(left, top, 0, height, cardWidth)
+            if (inside(rect) && rectPointDistance(rect, anchor) >= LENGTHS[0] - 1) {
+                const unary = coveredPins(rectOf(left, top, ANCHOR_PAD, height, cardWidth)) + routeCost(left, top, height, cardWidth) - 1500
+                list.push({ left, top, end, angle: before.angle, length: before.length, key: 'previous', unary, ...decorate(anchor, left, top, height) })
             }
         }
         return list.sort((a, b) => a.unary - b.unary)
@@ -293,20 +314,25 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
             if (delta > 0 && random() >= Math.exp(-delta / temperature)) choice[i] = old
         }
     }
+    // Once free slots are added, searches only scan each label's cheapest candidates.
+    let pool: number[][] = options.map(list => list.map((_, c) => c))
+    const bestOf = (i: number, margin = 0) => {
+        let best = choice[i], bestCost = choice[i] >= 0 ? local(i, choice[i]) : Infinity
+        for (const c of pool[i]) { const cost = local(i, c); if (cost < bestCost - margin) { best = c; bestCost = cost } }
+        return best
+    }
     const descend = () => {
-        for (let round = 0; round < 3; round++) for (const i of order) {
-            let best = choice[i], bestCost = local(i, choice[i])
-            options[i].forEach((_, c) => { const cost = local(i, c); if (cost < bestCost - 0.01) { best = c; bestCost = cost } })
-            choice[i] = best
-        }
+        for (let round = 0; round < 3; round++) for (const i of order) choice[i] = bestOf(i, 0.01)
     }
     anneal(Math.min(24000, visible.length * 900), 400)
     descend()
-    // Labels are never hidden. Crowded bases may need any free slot in the viewport, and a blocked label can only be
-    // freed if its neighbours may move too, so once conflicts remain every label gets free slots and the search reruns.
+    // Labels are never hidden. A blocked label can only be freed if its neighbours may move too, and free slots let
+    // labels leave crowded route corridors, so every label gets viewport free slots and the search reruns. The grid
+    // step grows with the viewport to keep roughly 1500 slots per label.
+    const freeStep = Math.max(FREE_STEP, Math.sqrt((bounds.right - bounds.left) * (bounds.bottom - bounds.top) / 1500))
     const steps = (min: number, max: number) => {
         const values: number[] = []
-        for (let v = min; v < max; v += FREE_STEP) values.push(v)
+        for (let v = min; v < max; v += freeStep) values.push(v)
         if (max >= min) values.push(max)
         return values
     }
@@ -318,11 +344,11 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
         const height = anchor.height ?? itineraryCardSize.height, cardWidth = anchor.width ?? itineraryCardSize.width
         for (const top of steps(bounds.top, bounds.bottom - height)) {
             for (const left of steps(bounds.left, bounds.right - cardWidth)) {
-                const rect = rectOf(left, top, 0, height, cardWidth), padded = rectOf(left, top, ANCHOR_PAD, height, cardWidth)
-                if (rectPointDistance(rect, anchor) < LENGTHS[0] || visible.some(p => p.x > padded.left && p.x < padded.right && p.y > padded.top && p.y < padded.bottom)) continue
+                if (rectPointDistance(rectOf(left, top, 0, height, cardWidth), anchor) < LENGTHS[0]) continue
                 const end = itineraryLeaderEnd({ ...anchor, left, top })
                 const length = Math.hypot(end.x - anchor.x, end.y - anchor.y)
-                options[i].push({ left, top, end, angle: Math.atan2(end.y - anchor.y, end.x - anchor.x), length, key: 'free', unary: 2000 + length * 2, ...decorate(anchor, left, top, height) })
+                const unary = 2000 + length * 20 + routeCost(left, top, height, cardWidth) + coveredPins(rectOf(left, top, ANCHOR_PAD, height, cardWidth))
+                options[i].push({ left, top, end, angle: Math.atan2(end.y - anchor.y, end.x - anchor.x), length, key: 'free', unary, ...decorate(anchor, left, top, height) })
             }
         }
         // Distant free slots can reach labels outside the neighbour radius.
@@ -333,23 +359,72 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
         })
     }
     const conflicted = () => order.filter(i => choice[i] < 0 || local(i, choice[i]) >= HARD)
-    for (let round = 0; round < 3; round++) {
-        const blocked = conflicted()
-        if (!blocked.length) break
-        if (round === 0) blocked.forEach(addFree); else visible.forEach((_, i) => addFree(i))
-        for (const i of blocked) {
-            let best = choice[i], bestCost = local(i, choice[i])
-            options[i].forEach((_, c) => { const cost = local(i, c); if (cost < bestCost) { best = c; bestCost = cost } })
-            choice[i] = best
+    // Repair only when the main search left overlaps or cards covering pins or routes.
+    const covering = () => visible.some((_, i) => choice[i] < 0 || options[i][choice[i]].unary >= 800)
+    if (!conflicted().length && !covering()) return finish()
+    visible.forEach((_, i) => addFree(i))
+    pool = options.map(list => list.map((_, c) => c).sort((a, b) => list[a].unary - list[b].unary).slice(0, 300))
+    pool.forEach((list, i) => { if (choice[i] >= 0 && !list.includes(choice[i])) list.push(choice[i]) })
+    for (const i of conflicted()) choice[i] = bestOf(i)
+    descend()
+    // Random moves rarely free a slot that needs a third label to move first. Rebuild greedily in a few deterministic
+    // orders, each label taking the best slot among those already placed, and keep the cheapest.
+    const total = () => visible.reduce((sum, _, i) => sum + local(i, choice[i]), 0)
+    let bestChoice = choice.slice(), bestTotal = total()
+    const byArea = visible.map((_, i) => i).sort((i, j) => (visible[j].width ?? width) * (visible[j].height ?? height) - (visible[i].width ?? width) * (visible[i].height ?? height))
+    const byY = visible.map((_, i) => i).sort((i, j) => visible[i].y - visible[j].y)
+    for (const sequence of [order, byArea, byY]) {
+        choice.fill(-1)
+        for (const i of sequence) choice[i] = bestOf(i)
+        descend()
+        const cost = total()
+        if (cost < bestTotal) { bestTotal = cost; bestChoice = choice.slice() }
+    }
+    bestChoice.forEach((c, i) => { choice[i] = c })
+    // Ejection moves for labels that still overlap or cover pins/routes: try a better slot, relocating at most two
+    // labels it would hit.
+    const shortlist = pool.map(list => list.slice(0, 60))
+    // Only the moved labels' own costs change, so compare those instead of the whole layout.
+    for (let round = 0; round < 4; round++) {
+        let improved = false
+        for (const i of order) {
+            if (choice[i] >= 0 && options[i][choice[i]].unary < 800 && local(i, choice[i]) < HARD) continue
+            for (const c of shortlist[i]) {
+                const before = local(i, choice[i])
+                if (c === choice[i] || options[i][c].unary >= before) continue
+                const old = choice[i]
+                choice[i] = c
+                const hits = neighbors[i].filter(j => choice[j] >= 0 && pair(i, options[i][c], j, options[j][choice[j]]) >= HARD)
+                if (hits.length > 2) { choice[i] = old; continue }
+                const saved = hits.map(j => choice[j])
+                choice[i] = old
+                const previous = before + hits.reduce((sum, j) => sum + local(j, choice[j]), 0)
+                choice[i] = c
+                for (const j of hits) {
+                    let best = -1, bestCost = Infinity
+                    for (const k of shortlist[j]) { const cost = local(j, k); if (cost < bestCost) { best = k; bestCost = cost } }
+                    choice[j] = best
+                }
+                const next = local(i, c) + hits.reduce((sum, j) => sum + local(j, choice[j]), 0)
+                if (next < previous - 1) improved = true
+                else { choice[i] = old; hits.forEach((j, k) => { choice[j] = saved[k] }) }
+            }
         }
-        if (round > 0) anneal(Math.min(24000, visible.length * 900), 2000)
+        if (!improved) break
+    }
+    // Last resort for overlaps the deterministic passes could not resolve.
+    for (let round = 0; round < 2 && conflicted().length; round++) {
+        anneal(Math.min(24000, visible.length * 900), 2000)
         descend()
     }
+    return finish()
 
-    return visible.flatMap((anchor, i) => {
-        const c = options[i][choice[i]]
-        return c ? [{ ...anchor, left: Math.round(c.left), top: Math.round(c.top) }] : []
-    })
+    function finish() {
+        return visible.flatMap((anchor, i) => {
+            const c = options[i][choice[i]]
+            return c ? [{ ...anchor, left: Math.round(c.left), top: Math.round(c.top) }] : []
+        })
+    }
 }
 
 export function sameItineraryPlacements(previous: MapCardPlacement[], next: MapCardPlacement[]): boolean {

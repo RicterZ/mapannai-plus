@@ -27,7 +27,8 @@ assert.equal(routed.length, 1)
 assert.ok(routed[0].top + height < 438 || routed[0].top > 462, 'Card must avoid the actual route corridor')
 const diagonal = layoutItineraryCards([{id:'diagonal',x:900,y:450}],bounds)[0]
 const end = itineraryLeaderEnd(diagonal)
-assert.ok(Math.abs(end.x-diagonal.x)>30 && Math.abs(end.y-diagonal.y)>30, 'Free-space layout must choose a visibly diagonal leader')
+const leaderAngle = Math.abs(Math.atan2(end.y-diagonal.y, end.x-diagonal.x)) * 180 / Math.PI
+assert.ok(leaderAngle > 15 && leaderAngle < 165 && Math.abs(leaderAngle-90) > 15, 'Free-space layout must choose a visibly diagonal leader')
 assert.ok(end.x>=diagonal.left && end.x<=diagonal.left+width && end.y>=diagonal.top && end.y<=diagonal.top+height)
 assert.equal(height,132,'Multi-line cards reserve space for schedule and notes')
 
