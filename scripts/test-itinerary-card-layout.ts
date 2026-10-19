@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { layoutItineraryCards, itineraryCardSize, itineraryLeaderEnd, sameItineraryPlacements } from '../src/lib/map/itinerary-card-layout'
+import { keepItineraryPlacements, layoutItineraryCards, itineraryCardSize, itineraryLeaderEnd, sameItineraryPlacements } from '../src/lib/map/itinerary-card-layout'
 const bounds = { left: 420, top: 100, right: 2000, bottom: 1300 }
 const cards = layoutItineraryCards(Array.from({ length: 20 }, (_, i) => ({ id: String(i), x: 800 + i * 5, y: 400 + i * 4 })), bounds)
 assert.ok(cards.length > 0)
@@ -40,3 +40,15 @@ assert.ok(tall[0].top + 260 <= 1100)
 const edge = itineraryLeaderEnd(tall[0])
 assert.ok(edge.y >= tall[0].top && edge.y <= tall[0].top + 260)
 assert.equal(sameItineraryPlacements(tall, [{ ...tall[0], height: 100 }]), false)
+
+// Relayout is triggered by the set of on-screen anchors, not by zoom: a zoom that keeps every card clear reuses the layout.
+const keepBounds = { left: 0, top: 0, right: 1600, bottom: 1100 }
+const pair = layoutItineraryCards([{ id: 'a', x: 600, y: 500 }, { id: 'b', x: 900, y: 500 }], keepBounds)
+const zoomed = keepItineraryPlacements(pair, [{ id: 'a', x: 560, y: 500 }, { id: 'b', x: 940, y: 500 }], keepBounds)
+assert.ok(zoomed, 'Spreading anchors apart keeps the existing layout')
+assert.deepEqual(zoomed!.map(p => p.left - p.x), pair.map(p => p.left - p.x))
+assert.equal(keepItineraryPlacements(pair, [{ id: 'a', x: 600, y: 500 }], keepBounds), null, 'An anchor leaving the screen relayouts')
+assert.equal(keepItineraryPlacements(pair, [{ id: 'a', x: 600, y: 500 }, { id: 'b', x: 900, y: 500 }, { id: 'c', x: 700, y: 700 }], keepBounds), null, 'An anchor entering the screen relayouts')
+const side = [{ id: 'a', x: 600, y: 500, left: 640, top: 400, width: 280, height: 132 }, { id: 'b', x: 1000, y: 500, left: 1040, top: 400, width: 280, height: 132 }]
+assert.ok(keepItineraryPlacements(side, side, keepBounds))
+assert.equal(keepItineraryPlacements(side, [{ id: 'a', x: 600, y: 500, width: 280, height: 132 }, { id: 'b', x: 700, y: 500, width: 280, height: 132 }], keepBounds), null, 'Colliding cards relayout')

@@ -7,7 +7,7 @@ import { routeColor, transportLabels } from '@/lib/map/route-presentation'
 import { getBezierPath } from '@/lib/map/connection-geometry'
 import { routeTransportMode } from '@/lib/map/route-mode'
 import { formatPlannedDuration } from '@/components/trips/route-schedule'
-import { itineraryCardSize, itineraryLeaderEnd, layoutItineraryCards, sameItineraryPlacements, type MapCardPlacement } from '@/lib/map/itinerary-card-layout'
+import { itineraryCardSize, itineraryLeaderEnd, keepItineraryPlacements, layoutItineraryCards, sameItineraryPlacements, type MapCardPlacement } from '@/lib/map/itinerary-card-layout'
 import { MARKER_ICONS, type MarkerCoordinates } from '@/types/marker'
 import { PlaceIcon } from '@/components/ui/place-icon'
 import { Bus, Car, Bike, Footprints, Plane, Ship, TrainFront, TramFront, Route } from 'lucide-react'
@@ -127,8 +127,9 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                 const rect = element.getBoundingClientRect()
                 const anchors = cards.flatMap(card => { const p = project(position(card)); const button = anchorsRef.current.get(card.id)?.node.querySelector('button')?.getBoundingClientRect(); return p ? [{ id: card.id, ...p, height: button?.height || itineraryCardSize.height, width: button?.width || itineraryCardSize.width }] : [] })
                 const rightPanel = interactionState.isSidebarOpen ? document.querySelector('.right-sidebar')?.getBoundingClientRect().width || 400 : 0
+                const bounds = { left: leftSidebar.isOpen ? 420 : 20, top: 100, right: rect.width - rightPanel - 76, bottom: rect.height - 90 }
                 setPlacements(previous => {
-                    const next = layoutItineraryCards(anchors, { left: leftSidebar.isOpen ? 420 : 20, top: 100, right: rect.width - rightPanel - 76, bottom: rect.height - 90 }, routePaths(), previous)
+                    const next = keepItineraryPlacements(previous, anchors, bounds) ?? layoutItineraryCards(anchors, bounds, routePaths(), previous)
                     return sameItineraryPlacements(previous, next) ? previous : next
                 })
                 setMoving(false)

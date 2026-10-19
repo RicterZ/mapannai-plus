@@ -427,6 +427,27 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
     }
 }
 
+/**
+ * Cards hang off their anchors at fixed screen offsets. After the camera settles the current layout is kept while the
+ * set of laid-out anchors is unchanged and the moved cards stay inside the bounds without colliding; otherwise null
+ * asks for a relayout. Zooming or panning alone therefore does not relayout.
+ */
+export function keepItineraryPlacements(previous: MapCardPlacement[], anchors: MapCardAnchor[], bounds: Bounds): MapCardPlacement[] | null {
+    const visible = anchors.filter(a => Number.isFinite(a.x) && Number.isFinite(a.y) && a.x >= bounds.left - 100 && a.x <= bounds.right + 100 && a.y >= bounds.top - 100 && a.y <= bounds.bottom + 100)
+    if (!previous.length || visible.length !== previous.length) return null
+    const byId = new Map(visible.map(a => [a.id, a]))
+    const moved: MapCardPlacement[] = []
+    for (const p of previous) {
+        const a = byId.get(p.id)
+        if (!a || (a.width ?? itineraryCardSize.width) !== (p.width ?? itineraryCardSize.width) || (a.height ?? itineraryCardSize.height) !== (p.height ?? itineraryCardSize.height)) return null
+        moved.push({ ...p, x: a.x, y: a.y, left: p.left + a.x - p.x, top: p.top + a.y - p.y })
+    }
+    const rects = moved.map(p => rectOf(p.left, p.top, 0, p.height, p.width))
+    if (rects.some(r => r.left < bounds.left || r.top < bounds.top || r.right > bounds.right || r.bottom > bounds.bottom)) return null
+    if (rects.some((r, i) => rects.slice(i + 1).some(q => overlaps(r, q)))) return null
+    return moved
+}
+
 export function sameItineraryPlacements(previous: MapCardPlacement[], next: MapCardPlacement[]): boolean {
     return previous.length === next.length && previous.every((item, i) => {
         const other = next[i]
