@@ -30,7 +30,7 @@ import { PlaceSearchPanel } from './place-search-panel'
 import { LeftSidebar } from '@/components/sidebar/left-sidebar'
 import { Sidebar } from '@/components/sidebar/sidebar'
 import { cn } from '@/utils/cn'
-import { upcomingTripFirstMarker } from '@/lib/map/startup-camera'
+import { defaultStartupTrip } from '@/lib/map/startup-camera'
 import { routeCamera } from '@/lib/map/route-presentation'
 import { Modal } from '@/components/ui/modal'
 import { AiPlanner } from '@/components/ai/ai-planner'
@@ -343,13 +343,11 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
         if (startupCameraApplied.current || !mapInitialized || !dataLoaded || !tripsLoaded) return
         startupCameraApplied.current = true
         const state = useMapStore.getState()
-        // Opening always starts in overview, even if the URL retains yesterday's selection.
-        state.setActiveView('overview', null, null)
+        const trip = defaultStartupTrip(trips)
+        state.setActiveView(trip ? 'trip' : 'overview', trip?.id ?? null, null)
         state.selectMarker(null)
         state.closePopup()
         state.closeSidebar()
-        const marker = upcomingTripFirstMarker(trips, tripDays, markers)
-        if (marker) flyMap({ center: [marker.coordinates.longitude, marker.coordinates.latitude], zoom: config.app.defaultZoom, duration: 1000 })
     }, [mapInitialized, dataLoaded, tripsLoaded, trips, tripDays, markers, flyMap])
 
     const activeDestinations = activeView.mode !== 'overview'

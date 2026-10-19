@@ -23,3 +23,12 @@ export function upcomingTripFirstMarker(trips: Trip[], days: TripDay[], markers:
     }
     return null
 }
+
+/** Prefer the next departure; otherwise use the closest departure in the past. */
+export function defaultStartupTrip(trips: Trip[], today = localCalendarDate()): Trip | null {
+    const valid = trips.filter(trip => /^\d{4}-\d{2}-\d{2}$/.test(trip.startDate) && Number.isFinite(Date.parse(trip.startDate)))
+    const upcoming = valid.filter(trip => trip.startDate >= today)
+        .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.id.localeCompare(b.id))
+    if (upcoming.length) return upcoming[0]
+    return valid.sort((a, b) => b.startDate.localeCompare(a.startDate) || a.id.localeCompare(b.id))[0] ?? null
+}

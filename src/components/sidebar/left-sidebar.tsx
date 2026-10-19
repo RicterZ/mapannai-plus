@@ -39,7 +39,7 @@ import { useMapStore } from '@/store/map-store'
 import { MARKER_ICONS, Marker } from '@/types/marker'
 import { cn } from '@/utils/cn'
 import { routeTransportMode, routeDistance } from '@/lib/map/route-mode'
-import { useRouteSettings, setRouteSettings } from '@/lib/map/route-settings'
+import { useRouteSettings } from '@/lib/map/route-settings'
 import { CreateTripModal } from '@/components/modal/create-trip-modal'
 import { routeColor, shortAddress } from '@/lib/map/route-presentation'
 import { useRouteProgress } from '@/lib/map/route-progress'
@@ -1496,9 +1496,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                         {routeSettings.enabled && (progress.calculating || progress.failed > 0) && <span role="status" aria-live="polite" className="min-w-0 flex-1 truncate text-right text-xs text-gray-500" title={progress.calculating ? `正在计算 ${progress.completed + progress.failed}/${progress.total}，虚线为示意连接` : progress.failed ? `${progress.failed} 段暂时无法规划，虚线为示意连接` : ''}>
                             {progress.calculating ? `${progress.completed + progress.failed}/${progress.total}` : progress.failed ? <button type="button" onClick={progress.retry} className="route-retry-button text-accent-600 hover:underline" aria-label={`重试 ${progress.failed} 段失败路线`}>重试 {progress.failed} 段</button> : null}
                         </span>}
-                        <button type="button" role="switch" aria-checked={routeSettings.enabled} aria-label="路线规划" onClick={() => setRouteSettings({ ...routeSettings, enabled: !routeSettings.enabled })} className={cn('relative w-11 h-6 flex-shrink-0 rounded-full transition-colors', routeSettings.enabled ? 'bg-accent-500' : 'bg-gray-300')}>
-                            <span className={cn('absolute top-1 left-0 w-4 h-4 bg-white rounded-full shadow transition-transform', routeSettings.enabled ? 'translate-x-6' : 'translate-x-1')} />
-                        </button>
+
                     </div>
                 </div>
                 </>}

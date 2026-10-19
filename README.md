@@ -26,7 +26,7 @@ Add an arrival time and how long you'll stay at each stop. Between stops, note t
 
 ### See the day on the map
 
-Every day gets its own color. Tap a place or a route and the sidebar jumps to that part of the plan. Turn on route planning to see roughly how far each leg is.
+Every day gets its own color. Tap a place or a route and the sidebar jumps to that part of the plan. Route planning is always enabled, showing roughly how far each leg is.
 
 The lines show *this first, then that* — not turn-by-turn directions. They help you see the shape of a day; when you head out, use whichever navigation app you like.
 

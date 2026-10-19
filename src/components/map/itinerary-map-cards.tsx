@@ -44,6 +44,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
     const [anchorNodes, setAnchorNodes] = useState<Map<string, HTMLElement>>(new Map())
     const hoveredCard = useRef<string | null>(null)
     const [hidden, setHidden] = useState(false)
+    useEffect(() => { setHidden(false) }, [activeView.tripId])
     const cards = useMemo(() => {
         const byId = new Map(markers.map(marker => [marker.id, marker]))
         const days = tripDays.filter(day => day.tripId === activeView.tripId).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
@@ -173,7 +174,6 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                 onFitMarkers(Array.from(new Set(days.flatMap(day => [...day.chains.flat(), ...day.markerIds]))))
             }} className="border-r border-gray-200 pr-3 text-xs text-gray-600">{activeView.mode === 'trip' ? '查看全程' : '查看当天'}</button>
             <button type="button" aria-pressed={!hidden} onClick={() => setHidden(value => !value)} className="text-xs text-gray-600">{hidden ? '显示行程卡片' : '隐藏行程卡片'}</button>
-            {!hidden && <span className="text-[11px] text-gray-400">{placements.length} / {cards.length} · 放大地图查看沿途安排</span>}
         </div>
         {!hidden && placements.map(p => {
             const card = cards.find(card => card.id === p.id), node = anchorNodes.get(p.id)
