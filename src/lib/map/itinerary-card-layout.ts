@@ -14,6 +14,7 @@ const CARD_GAP = 10
 const ANCHOR_PAD = 14
 const CLEARANCE = 24
 const HARD = 100000
+const FREE_STEP = 12
 
 // Intersect the center-to-anchor ray with the card edge, preserving its angle.
 export function itineraryLeaderEnd(p: MapCardPlacement): Point {
@@ -278,32 +279,45 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
         choice[i] = best
     }
     const random = seeded(visible.map(a => a.id).join('|'))
-    const steps = Math.min(24000, visible.length * 900)
-    for (let step = 0; step < steps; step++) {
-        const temperature = 400 * Math.pow(0.002, step / steps)
-        const i = Math.floor(random() * visible.length)
-        if (!options[i].length) continue
-        const next = Math.floor(random() * options[i].length)
-        if (next === choice[i]) continue
-        const current = local(i, choice[i])
-        const old = choice[i]
-        choice[i] = next
-        const delta = local(i, next) - current
-        if (delta > 0 && random() >= Math.exp(-delta / temperature)) choice[i] = old
+    const anneal = (steps: number, heat: number) => {
+        for (let step = 0; step < steps; step++) {
+            const temperature = heat * Math.pow(0.002, step / steps)
+            const i = Math.floor(random() * visible.length)
+            if (!options[i].length) continue
+            const next = Math.floor(random() * options[i].length)
+            if (next === choice[i]) continue
+            const current = local(i, choice[i])
+            const old = choice[i]
+            choice[i] = next
+            const delta = local(i, next) - current
+            if (delta > 0 && random() >= Math.exp(-delta / temperature)) choice[i] = old
+        }
     }
-    // Final descent; labels are never hidden, so violations fall back to free slots below.
-    for (let round = 0; round < 3; round++) for (const i of order) {
-        let best = choice[i], bestCost = local(i, choice[i])
-        options[i].forEach((_, c) => { const cost = local(i, c); if (cost < bestCost - 0.01) { best = c; bestCost = cost } })
-        choice[i] = best
+    const descend = () => {
+        for (let round = 0; round < 3; round++) for (const i of order) {
+            let best = choice[i], bestCost = local(i, choice[i])
+            options[i].forEach((_, c) => { const cost = local(i, c); if (cost < bestCost - 0.01) { best = c; bestCost = cost } })
+            choice[i] = best
+        }
     }
-    // Crowded shared bases may need any free slot in the viewport rather than losing a day label.
-    for (const i of order) {
-        if (choice[i] >= 0 && local(i, choice[i]) < HARD) continue
-        const anchor = visible[i], start = options[i].length
+    anneal(Math.min(24000, visible.length * 900), 400)
+    descend()
+    // Labels are never hidden. Crowded bases may need any free slot in the viewport, and a blocked label can only be
+    // freed if its neighbours may move too, so once conflicts remain every label gets free slots and the search reruns.
+    const steps = (min: number, max: number) => {
+        const values: number[] = []
+        for (let v = min; v < max; v += FREE_STEP) values.push(v)
+        if (max >= min) values.push(max)
+        return values
+    }
+    const freed = new Set<number>()
+    const addFree = (i: number) => {
+        if (freed.has(i)) return
+        freed.add(i)
+        const anchor = visible[i]
         const height = anchor.height ?? itineraryCardSize.height, cardWidth = anchor.width ?? itineraryCardSize.width
-        for (let top = bounds.top; top + height <= bounds.bottom; top += height + CARD_GAP) {
-            for (let left = bounds.left; left + cardWidth <= bounds.right; left += (cardWidth + 16) / 2) {
+        for (const top of steps(bounds.top, bounds.bottom - height)) {
+            for (const left of steps(bounds.left, bounds.right - cardWidth)) {
                 const rect = rectOf(left, top, 0, height, cardWidth), padded = rectOf(left, top, ANCHOR_PAD, height, cardWidth)
                 if (rectPointDistance(rect, anchor) < LENGTHS[0] || visible.some(p => p.x > padded.left && p.x < padded.right && p.y > padded.top && p.y < padded.bottom)) continue
                 const end = itineraryLeaderEnd({ ...anchor, left, top })
@@ -311,10 +325,25 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
                 options[i].push({ left, top, end, angle: Math.atan2(end.y - anchor.y, end.x - anchor.x), length, key: 'free', unary: 2000 + length * 2, ...decorate(anchor, left, top, height) })
             }
         }
-        // If nothing is fully clear, keep the least conflicting position instead of hiding the label.
-        let best = choice[i], bestCost = local(i, choice[i])
-        for (let c = start; c < options[i].length; c++) { const cost = local(i, c); if (cost < bestCost) { best = c; bestCost = cost } }
-        choice[i] = best
+        // Distant free slots can reach labels outside the neighbour radius.
+        visible.forEach((_, j) => {
+            if (j === i) return
+            if (!neighbors[i].includes(j)) neighbors[i].push(j)
+            if (!neighbors[j].includes(i)) neighbors[j].push(i)
+        })
+    }
+    const conflicted = () => order.filter(i => choice[i] < 0 || local(i, choice[i]) >= HARD)
+    for (let round = 0; round < 3; round++) {
+        const blocked = conflicted()
+        if (!blocked.length) break
+        if (round === 0) blocked.forEach(addFree); else visible.forEach((_, i) => addFree(i))
+        for (const i of blocked) {
+            let best = choice[i], bestCost = local(i, choice[i])
+            options[i].forEach((_, c) => { const cost = local(i, c); if (cost < bestCost) { best = c; bestCost = cost } })
+            choice[i] = best
+        }
+        if (round > 0) anneal(Math.min(24000, visible.length * 900), 2000)
+        descend()
     }
 
     return visible.flatMap((anchor, i) => {
