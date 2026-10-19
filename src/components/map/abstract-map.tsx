@@ -29,7 +29,6 @@ import { EditMarkerModal } from '@/components/modal/edit-marker-modal'
 import { PlaceSearchPanel } from './place-search-panel'
 import { LeftSidebar } from '@/components/sidebar/left-sidebar'
 import { Sidebar } from '@/components/sidebar/sidebar'
-import { ViewModeBanner } from '@/components/map/view-mode-banner'
 import { cn } from '@/utils/cn'
 import { upcomingTripFirstMarker } from '@/lib/map/startup-camera'
 import { routeCamera } from '@/lib/map/route-presentation'
@@ -884,7 +883,6 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
 
     return (
         <div className="fixed inset-0 map-container">
-            <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="absolute bottom-8 right-1 z-10 bg-white/90 px-1 text-[10px] text-gray-600">铁路数据 © OpenStreetMap contributors · ODbL</a>
             {/* 数据加载指示器（非阻塞） */}
             {isLoading && (
                 <div className="absolute top-4 right-4 z-50 bg-accent-600 text-white px-3 py-2 rounded-md shadow-lg">
@@ -937,9 +935,6 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
             </div>
 
             <AiPlanner onMarkersCreated={handleAiMarkersCreated} />
-
-            {/* 视图模式面包屑 Banner */}
-            <ViewModeBanner />
 
             {/* 左侧边栏 */}
             <LeftSidebar onFlyTo={handleFlyTo} onFitMarkers={handleFitMarkers} routeProvider={routeProvider} addMarkerEnabled={addMarkerEnabled} onToggleAddMarker={toggleAddMarker} onSearchPlaces={openPlaceSearch} searchPanel={searchOpen ? <PlaceSearchPanel ref={searchPanelRef} open={searchOpen} query={fabQuery} results={fabResults} selectedKey={selectedSearchKey} busy={isSearching} addingKey={addingSearchKey} error={fabQueryError} targetLabel={searchTargetLabel} isAdded={isSearchResultAdded}

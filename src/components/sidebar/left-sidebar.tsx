@@ -1468,7 +1468,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     </div>
                 </div>
                 {displayMode === 'day' && <>
-                    <nav aria-label="旅行日期" className="journey-day-tabs hidden shrink-0 gap-1 overflow-x-auto border-y border-gray-100 bg-white px-4 py-2 lg:flex">
+                    <nav aria-label="旅行日期" className="journey-day-tabs flex shrink-0 gap-1 overflow-x-auto border-y border-gray-100 bg-white px-4 py-2">
                         {currentTripDays.map((day, index) => <button key={day.id} type="button" aria-current={day.id === displayDayId ? 'date' : undefined} onClick={() => setActiveView('day', day.tripId, day.id)} className={cn('shrink-0 rounded-lg px-3 py-2 text-left text-xs transition-colors', day.id === displayDayId ? 'journey-day-tab-current font-semibold text-gray-900' : 'text-gray-400 hover:text-gray-700')}>
                             <span className="block">第{index + 1}天</span><span className="mt-1 block text-[11px] opacity-70">{day.date.slice(5).replace('-', '/')}</span>
                         </button>)}
@@ -1502,6 +1502,9 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     </div>
                 </div>
                 </>}
+                <footer className="shrink-0 bg-white px-4 py-2 text-center text-[10px] text-gray-500" style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
+                    <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="hover:underline">铁路数据 © OpenStreetMap contributors · ODbL</a>
+                </footer>
             </div>
 
             {dayTitleEditor && <Modal title="修改日期标题" onClose={() => setDayTitleEditor(null)} busy={savingDayTitle}>
