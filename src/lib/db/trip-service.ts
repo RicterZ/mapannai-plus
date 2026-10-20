@@ -130,7 +130,7 @@ export function upsertTripDay(day: TripDay, explicitRoutes?: RouteChain[]): void
             title: day.title ?? null,
             emoji: day.emoji ?? null,
             colorIndex: day.colorIndex,
-            markerIds: JSON.stringify(day.markerIds),
+            markerIds: JSON.stringify(Array.from(new Set(day.markerIds))),
             chains: JSON.stringify(chains),
             routeChains: JSON.stringify(routes),
         })
@@ -146,7 +146,6 @@ export function editDayChain(tripId: string, dayId: string, chainIndex: number, 
         if (!Number.isInteger(chainIndex) || chainIndex < 0 || chainIndex >= day.chains.length) throw new Error('路线索引无效，请查询最新行程')
         if (markerIds !== null) {
             if (markerIds.length < 2) throw new Error('路线至少需要两个地点；删除路线请使用 delete_day_chain')
-            if (new Set(markerIds).size !== markerIds.length) throw new Error('行程链中不能重复使用同一个标记 ID')
             const missing = markerIds.filter(id => !getMarkerById(id))
             if (missing.length) throw new Error(`标记不存在: ${missing.join(', ')}`)
         }

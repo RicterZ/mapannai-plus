@@ -191,6 +191,47 @@ async function main() {
         updateRouteChain('trip','day',r1.id,{stops:[{stopId:r1.stops[0].id,note:'one'}]})
         updateRouteChain('trip','day',r2.id,{stops:[{stopId:r2.stops[0].id,note:'two'}]})
         assert.throws(()=>reconcileLegacyChains(getDayById('day')!.routeChains!.filter(r=>[r1.id,r2.id].includes(r.id)),[['a','b']]), /chainId/)
+        // Loops reuse places, never visits. All write paths reject AA atomically.
+        const loopResponse = await create(req('POST', { markerIds: ['a', 'c', 'e', 'a', 'c'] }), { params: { id: 'trip', dayId: 'day2' } })
+        assert.equal(loopResponse.status, 201)
+        const loop = await loopResponse.json()
+        assert.equal(new Set(loop.stops.map((stop: {id:string}) => stop.id)).size, 5)
+        const [a1, c1, e1, a2, c2] = loop.stops
+        updateRouteChain('trip', 'day2', loop.id, {
+            stops: [{ stopId: a1.id, note: 'first A', startTime: '08:00' }, { stopId: a2.id, note: 'second A', startTime: '17:00', isHighlight: true }],
+            legs: [{ fromStopId: a1.id, toStopId: c1.id, mode: 'walking' }, { fromStopId: a2.id, toStopId: c2.id, mode: 'train', serviceNumber: 'G2' }],
+        })
+        const { routeTransportMode } = await import('../src/lib/map/route-mode')
+        const readLoop = () => getDayById('day2')!.routeChains!.find(item => item.id === loop.id)!
+        assert.equal(routeTransportMode(readLoop(), 'a', 'c', 0), 'walking')
+        assert.equal(routeTransportMode(readLoop(), 'a', 'c', 3), 'train')
+        assert.deepEqual(getDayById('day2')!.markerIds, ['a', 'c', 'e'])
+        assert.throws(() => removeRouteMarker([{ ...loop, stops: [a1, c1, a2] }], 'c'), /相邻访问/)
+        const loopBeforeInvalid = getDayById('day2')!
+        for (const patch of [{ markerIds: ['a', 'a', 'c'] }, { stopIds: [a1.id, a2.id, c1.id] }, { stopIds: [a1.id, a1.id] }, { stopIds: ['foreign'] }, { stopIds: [a1.id], markerIds: ['a', 'c'] }]) {
+            assert.throws(() => updateRouteChain('trip', 'day2', loop.id, patch))
+            assert.deepEqual(getDayById('day2'), loopBeforeInvalid)
+        }
+        assert.equal((await create(req('POST', { markerIds: ['a', 'a'] }), { params: { id: 'trip', dayId: 'day2' } })).status, 400)
+        assert.equal((await legacyPut(req('PUT', { chains: [['a', 'c', 'c', 'a']] }), { params: { id: 'trip', dayId: 'day2' } })).status, 400)
+        assert.deepEqual(getDayById('day2'), loopBeforeInvalid)
+        const loopBridge = await connectPlanningTools()
+        try {
+            const createdLoop = await loopBridge.call('create_day_chain', { tripId: 'trip', dayId: 'day2', markerIds: ['a', 'c', 'a', 'e'] }, new AbortController().signal)
+            assert(!createdLoop.isError)
+            const invalidLoop = await loopBridge.call('create_day_chain', { tripId: 'trip', dayId: 'day2', markerIds: ['a', 'a'] }, new AbortController().signal)
+            assert(invalidLoop.isError)
+            const moved = await loopBridge.call('update_day_chain', { tripId: 'trip', dayId: 'day2', chainId: loop.id, stopIds: [a2.id, c2.id, e1.id, a1.id, c1.id] }, new AbortController().signal)
+            assert(!moved.isError)
+            assert.equal(readLoop().stops[0].note, 'second A')
+            assert.equal(readLoop().stops[3].note, 'first A')
+            assert.equal(routeTransportMode(readLoop(), 'a', 'c', 0), 'train')
+            const removed = await loopBridge.call('update_day_chain', { tripId: 'trip', dayId: 'day2', chainId: loop.id, stopIds: [c2.id, e1.id, a1.id, c1.id] }, new AbortController().signal)
+            assert(!removed.isError)
+            assert.equal(readLoop().stops.filter(stop => stop.markerId === 'a').length, 1)
+            assert.equal(readLoop().stops.find(stop => stop.markerId === 'a')!.note, 'first A')
+            assert.equal(readLoop().legs.length, 1)
+        } finally { await loopBridge.close() }
         // New IDs persist even after closing/reopening the DB (no random ID generation on read).
         assert.deepEqual(getDb().prepare('SELECT * FROM markers WHERE id=?').get('a'), markerBefore, 'visit schedule must not modify global marker')
         assert.equal((getDb().prepare('SELECT route_json FROM direction_cache WHERE cache_key=?').get('sentinel') as {route_json:string}).route_json, '{"distance":123,"duration":456}', 'planned duration must not overwrite provider cache')

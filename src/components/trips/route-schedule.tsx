@@ -45,8 +45,8 @@ function ScheduleEditor({ day, route, stop, next, title, onClose }: { day: TripD
     </form></Modal>
 }
 
-export function StopSchedule({ day, route, markerId, editable, noteOnly = false }: { day?: TripDay; route?: RouteChain; markerId: string; editable: boolean; noteOnly?: boolean }) {
-    const stop = route?.stops.find(s => s.markerId === markerId)
+export function StopSchedule({ day, route, markerId, stopIndex, editable, noteOnly = false }: { day?: TripDay; route?: RouteChain; markerId: string; stopIndex?: number; editable: boolean; noteOnly?: boolean }) {
+    const stop = stopIndex === undefined ? route?.stops.find(s => s.markerId === markerId) : route?.stops[stopIndex]
     const [open, setOpen] = useState(false)
     useEffect(() => { if (!editable) setOpen(false) }, [editable])
     useEffect(() => { setOpen(false) }, [day?.id, route?.id, stop?.id])
@@ -59,10 +59,10 @@ export function StopSchedule({ day, route, markerId, editable, noteOnly = false 
     </button>{open && <ScheduleEditor day={day} route={route} stop={stop} title="游览安排" onClose={() => setOpen(false)} />}</>
 }
 
-export function RouteLeg({ day, route, fromId, toId, distance, editable }: { day?: TripDay; route?: RouteChain; fromId: string; toId: string; distance: number | null; editable: boolean }) {
-    const index = route?.stops.findIndex(s => s.markerId === fromId) ?? -1
+export function RouteLeg({ day, route, fromId, toId, stopIndex, distance, editable }: { day?: TripDay; route?: RouteChain; fromId: string; toId: string; stopIndex?: number; distance: number | null; editable: boolean }) {
+    const index = stopIndex ?? (route?.stops.findIndex(s => s.markerId === fromId) ?? -1)
     const stop = route?.stops[index], next = route?.stops[index + 1]
-    const valid = next?.markerId === toId
+    const valid = stop?.markerId === fromId && next?.markerId === toId
     const leg = valid ? route?.legs.find(l => l.fromStopId === stop?.id && l.toStopId === next?.id) : undefined
     const [open, setOpen] = useState(false)
     useEffect(() => { if (!editable) setOpen(false) }, [editable])

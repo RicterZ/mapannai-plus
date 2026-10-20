@@ -18,7 +18,7 @@ Search, or tap anywhere on the map, to save restaurants, hotels, sights and stat
 
 ### Arrange it day by day
 
-A trip can span several destinations. Places you haven't scheduled wait in the trip until you drag them onto a day. Each day can hold several routes you reorder by dragging, and one place can show up on different days and routes.
+A trip can span several destinations. Places you haven't scheduled wait in the trip until you drag them onto a day. Each day can hold several routes you reorder by dragging, and one place can show up on different days and routes, or be revisited within a route (such as A → B → A), with separate arrangements for each visit. Consecutive visits to the same place are not allowed.
 
 The trip sidebar shows every route stop in order, with saved visit times, transport services and departure times. Open a day to read the full arrangements beside the map.
 

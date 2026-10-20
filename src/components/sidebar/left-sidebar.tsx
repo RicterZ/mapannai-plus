@@ -104,7 +104,7 @@ function DragGhostItem({ marker, index }: { marker: Marker; index: number }) {
 // ── ChainItem: node inside a chain (edit mode) ───────────────────────────────
 
 interface ChainItemProps {
-    id: string          // dnd-kit id, format: chain-${chainIdx}::${markerId}
+    id: string          // dnd-kit id: chain index + visit index
     marker: Marker
     index: number
     hasArrowAfter: boolean
@@ -147,19 +147,19 @@ function ChainItem({ id, marker, index, hasArrowAfter, distance, onRemove, onFly
                 <div className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full', getMarkerColor(marker.content.iconType || 'location'))}><PlaceIcon emoji={icon.emoji} size={20} /></div>
                 <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-1.5">
-                        <button className="route-schedule-button min-w-0 flex-1 text-left" onClick={onFlyTo} title="跳转到此位置"><div className="break-words text-sm font-medium leading-6 text-gray-800" title={marker.content.title}>{route?.stops.find(stop => stop.markerId === marker.id)?.isHighlight && <span aria-label="重点地点" title="重点地点" className="mr-1 text-amber-600">★</span>}{marker.content.title || '未命名地点'}</div></button>
-                        <div className="flex shrink-0 items-center"><StopSchedule day={day} route={route} markerId={marker.id} editable /></div>
+                        <button className="route-schedule-button min-w-0 flex-1 text-left" onClick={onFlyTo} title="跳转到此位置"><div className="break-words text-sm font-medium leading-6 text-gray-800" title={marker.content.title}>{route?.stops[index]?.isHighlight && <span aria-label="重点地点" title="重点地点" className="mr-1 text-amber-600">★</span>}{marker.content.title || '未命名地点'}</div></button>
+                        <div className="flex shrink-0 items-center"><StopSchedule day={day} route={route} markerId={marker.id} stopIndex={index} editable /></div>
                     </div>
                 </div>
               </div>
-              <StopSchedule day={day} route={route} markerId={marker.id} editable noteOnly />
+              <StopSchedule day={day} route={route} markerId={marker.id} stopIndex={index} editable noteOnly />
               <div className="flex items-center justify-end gap-1 border-t border-gray-100 px-2">
                 <button type="button" onClick={onRemove} className="route-item-action mr-auto px-2 text-xs text-gray-400 hover:text-red-500" aria-label={`从路线移除${marker.content.title || '地点'}`}>移除</button>
                 <button type="button" disabled={index === 0} onClick={() => onMove(-1)} className="route-item-action px-2 text-xs text-gray-500 hover:text-accent-600 disabled:opacity-30">上移</button>
                 <button type="button" disabled={last} onClick={() => onMove(1)} className="route-item-action px-2 text-xs text-gray-500 hover:text-accent-600 disabled:opacity-30">下移</button>
               </div>
             </div>
-            {hasArrowAfter && nextId && <RouteLeg day={day} route={route} fromId={marker.id} toId={nextId} distance={distance} editable />}
+            {hasArrowAfter && nextId && <RouteLeg day={day} route={route} fromId={marker.id} toId={nextId} stopIndex={index} distance={distance} editable />}
         </div>
     )
 }
@@ -281,9 +281,9 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
     const routeSettings = useRouteSettings()
     // Refresh displayed distances as planned segments enter the cache.
     useRouteProgress()
-    const segmentDistance = (from: Marker, to: Marker | undefined, route?: RouteChain): number | null => {
+    const segmentDistance = (from: Marker, to: Marker | undefined, route?: RouteChain, stopIndex?: number): number | null => {
         if (!routeSettings.enabled || !to) return null
-        const transportMode = routeTransportMode(route, from.id, to.id)
+        const transportMode = routeTransportMode(route, from.id, to.id, stopIndex)
         const origin = { lat: from.coordinates.latitude, lng: from.coordinates.longitude }
         const destination = { lat: to.coordinates.latitude, lng: to.coordinates.longitude }
         const key = routeCacheKey(routeProvider, {
@@ -311,7 +311,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         selectMarker, openSidebar, openPopup,
         setActiveView, deleteTrip, updateTrip,
         removeMarkerFromDay,
-        updateDayChains, updateTripDay,
+        updateDayChains, updateRouteSchedule, updateTripDay,
     } = useMapStore()
 
     useEffect(() => {
@@ -536,8 +536,9 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 if (id.startsWith('chain-') && id.includes('::')) {
                     const sepIdx = id.indexOf('::')
                     const chainIdx = parseInt(id.slice(6, sepIdx))
-                    const markerId = id.slice(sepIdx + 2)
-                    return { type: 'chain-item' as const, chainIdx, markerId }
+                    const index = Number(id.slice(sepIdx + 2))
+                    const markerId = currentDay.chains[chainIdx]?.[index]
+                    return { type: 'chain-item' as const, chainIdx, markerId, index }
                 }
                 if (id.startsWith('palette::')) return { type: 'palette' as const, markerId: id.slice(9) }
                 return { type: 'unknown' as const }
@@ -552,15 +553,21 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
             if (drag.type === 'chain-item' && drop.type === 'chain-item' && drag.chainIdx === drop.chainIdx) {
                 // Case A: reorder within same chain
                 const chain = newChains[drag.chainIdx]
-                const fromIdx = chain.indexOf(drag.markerId)
-                const toIdx = chain.indexOf(drop.markerId)
+                const fromIdx = drag.index
+                const toIdx = drop.index
                 if (fromIdx === -1 || toIdx === -1) return
+                const route = currentDay.routeChains?.[drag.chainIdx]
+                if (route) {
+                    void updateRouteSchedule(currentDay.tripId, currentDay.id, route.id, { stopIds: arrayMove(route.stops.map(stop => stop.id), fromIdx, toIdx) }).catch(error => toast.error(error.message))
+                    return
+                }
                 newChains[drag.chainIdx] = arrayMove(chain, fromIdx, toIdx)
             } else if (drag.type === 'chain-item' && drop.type === 'chain-item' && drag.chainIdx !== drop.chainIdx) {
+                if (chains[drag.chainIdx].filter(id => id === drag.markerId).length > 1 || chains[drop.chainIdx].includes(drag.markerId)) { toast.error('重复访问请先从原路线移除，再加入目标路线'); return }
                 // Case B: move chain node to a different chain
                 newChains[drag.chainIdx] = newChains[drag.chainIdx].filter(id => id !== drag.markerId)
                 const targetChain = newChains[drop.chainIdx]
-                const insertAt = targetChain.indexOf(drop.markerId)
+                const insertAt = drop.index
                 const safeInsert = insertAt === -1 ? targetChain.length : insertAt
                 newChains[drop.chainIdx] = [
                     ...targetChain.slice(0, safeInsert),
@@ -572,9 +579,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 // Case C: palette node → chain drop zone (append to end)
                 const chainIdx = drop.chainIdx
                 if (chainIdx < newChains.length) {
-                    if (!newChains[chainIdx].includes(drag.markerId)) {
-                        newChains[chainIdx] = [...newChains[chainIdx], drag.markerId]
-                    }
+                    newChains[chainIdx] = [...newChains[chainIdx], drag.markerId]
                 } else {
                     // Pending chain slot: create new chain with this marker
                     newChains = [...newChains, [drag.markerId]]
@@ -583,9 +588,10 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
             } else if (drag.type === 'palette' && drop.type === 'chain-item') {
                 // Case D: palette node → onto a chain item (insert before that item)
                 const chainIdx = drop.chainIdx
-                if (!newChains[chainIdx].includes(drag.markerId)) {
+                if (newChains[chainIdx].slice(drop.index).includes(drag.markerId)) { toast.error('再次访问请先用＋地点加入路线末尾，再调整顺序'); return }
+                {
                     const targetChain = newChains[chainIdx]
-                    const insertAt = targetChain.indexOf(drop.markerId)
+                    const insertAt = drop.index
                     const safeInsert = insertAt === -1 ? targetChain.length : insertAt
                     newChains[chainIdx] = [
                         ...targetChain.slice(0, safeInsert),
@@ -600,7 +606,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 return
             }
 
-            void updateDayChains(activeView.tripId, activeView.dayId, newChains).catch(() => toast.error('路线保存失败，请重试'))
+            void updateDayChains(activeView.tripId, activeView.dayId, newChains).catch(() => toast.error('路线保存失败，请检查是否存在相邻重复地点，或稍后重试'))
             return
         }
 
@@ -667,8 +673,8 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
             return
         }
 
-        void updateDayChains(activeView.tripId, activeView.dayId, newChains).catch(() => toast.error('路线保存失败，请重试'))
-    }, [currentDay, activeView, isolatedMarkers, addMarkerEnabled, updateDayChains])
+        void updateDayChains(activeView.tripId, activeView.dayId, newChains).catch(() => toast.error('路线保存失败，请检查是否存在相邻重复地点，或稍后重试'))
+    }, [currentDay, activeView, isolatedMarkers, addMarkerEnabled, updateDayChains, updateRouteSchedule])
 
     // ── Handlers ────────────────────────────────────────────────────────────
 
@@ -721,16 +727,14 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
     }
 
     // 从某条链中移除指定节点（保留单节点链，只清理空链）
-    const handleRemoveFromChain = useCallback(async (markerId: string, chainIdx: number) => {
-        if (!currentDay || !activeView.tripId || !activeView.dayId) return
-        const newChains = (currentDay.chains ?? [])
-            .map((c, i) => i === chainIdx ? c.filter(id => id !== markerId) : c)
-            .filter(c => c.length >= 1)
+    const handleRemoveFromChain = useCallback(async (visitIndex: number, chainIdx: number) => {
+        if (!currentDay) return
+        const route = currentDay.routeChains?.[chainIdx]
         try {
-            await updateDayChains(currentDay.tripId, currentDay.id, newChains)
-            toast.success('已从路线移除，地点仍在当天行程', { action: { label: '撤销', onClick: () => { void updateDayChains(currentDay.tripId, currentDay.id, currentDay.chains).catch(() => toast.error('撤销失败')) } } })
-        } catch { toast.error('移除失败，请重试') }
-    }, [currentDay, activeView, updateDayChains])
+            if (route && route.stops.length > 1) await updateRouteSchedule(currentDay.tripId, currentDay.id, route.id, { stopIds: route.stops.filter((_, index) => index !== visitIndex).map(stop => stop.id) })
+            else await updateDayChains(currentDay.tripId, currentDay.id, currentDay.chains.filter((_, index) => index !== chainIdx))
+        } catch (error) { toast.error(error instanceof Error ? error.message : '移除失败，请重试') }
+    }, [currentDay, updateDayChains, updateRouteSchedule])
     const handleAddToRoute = async (markerId: string, chainIndex?: number) => {
         if (!currentDay || savingRoute) return
         setSavingRoute(true)
@@ -738,25 +742,21 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         const chains = before.map(chain => [...chain])
         const index = chainIndex ?? chains.length
         if (index >= chains.length) chains.push([markerId])
-        else if (!chains[index].includes(markerId)) chains[index].push(markerId)
-        else { setSavingRoute(false); return }
+        else chains[index].push(markerId)
         try {
             await updateDayChains(currentDay.tripId, currentDay.id, chains)
             setRoutePicker(null)
             setCollapsedRoutes(value => { const next = new Set(value); next.delete(index); return next })
             if (index === before.length) setPendingEmptyChains(value => Math.max(0, value - 1))
             toast.success(`已加入路线 ${index + 1}`, { action: { label: '撤销', onClick: () => { void updateDayChains(currentDay.tripId, currentDay.id, before).catch(() => toast.error('撤销失败')) } } })
-        } catch { toast.error('加入路线失败，请重试') }
+        } catch { toast.error('加入失败，请检查是否与末站重复，或稍后重试') }
         finally { setSavingRoute(false) }
     }
-    const handleMoveInRoute = async (chainIndex: number, markerId: string, offset: number) => {
-        if (!currentDay) return
-        const chains = currentDay.chains.map(chain => [...chain])
-        const index = chains[chainIndex]?.indexOf(markerId) ?? -1
-        if (index < 0 || index + offset < 0 || index + offset >= chains[chainIndex].length) return
-        chains[chainIndex] = arrayMove(chains[chainIndex], index, index + offset)
-        try { await updateDayChains(currentDay.tripId, currentDay.id, chains) }
-        catch { toast.error('调整顺序失败，请重试') }
+    const handleMoveInRoute = async (chainIndex: number, index: number, offset: number) => {
+        const route = currentDay?.routeChains?.[chainIndex]
+        if (!currentDay || !route || index + offset < 0 || index + offset >= route.stops.length) return
+        try { await updateRouteSchedule(currentDay.tripId, currentDay.id, route.id, { stopIds: arrayMove(route.stops.map(stop => stop.id), index, index + offset) }) }
+        catch (error) { toast.error(error instanceof Error ? error.message : '调整顺序失败，请重试') }
     }
     const toggleRoute = (index: number) => setCollapsedRoutes(value => { const next = new Set(value); next.has(index) ? next.delete(index) : next.add(index); return next })
 
@@ -767,9 +767,9 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
     const activeDragMarkerId = useMemo(() => {
         if (!activeDragId) return null
         if (activeDragId.startsWith('palette::')) return activeDragId.slice(9)
-        if (activeDragId.includes('::')) return activeDragId.split('::')[1]
+        if (activeDragId.startsWith('chain-')) { const [chain, index] = activeDragId.split('::'); return currentDay?.chains[Number(chain.slice(6))]?.[Number(index)] ?? null }
         return activeDragId
-    }, [activeDragId])
+    }, [activeDragId, currentDay])
     const activeDragMarker = activeDragMarkerId ? currentDayMarkers.find(m => m.id === activeDragMarkerId) : null
     const activeDragIndex = activeDragMarkerId ? currentDayMarkers.findIndex(m => m.id === activeDragMarkerId) : -1
 
@@ -1213,7 +1213,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
         if (addMarkerEnabled) {
             // All chain item ids for SortableContext (per chain)
             const getChainItemIds = (chainIdx: number) =>
-                (currentDay?.chains?.[chainIdx] ?? []).map(id => `chain-${chainIdx}::${id}`)
+                (currentDay?.chains?.[chainIdx] ?? []).map((_, index) => `chain-${chainIdx}::${index}`)
 
             const totalChains = chainedGroupsEdit.length + pendingEmptyChains
 
@@ -1256,16 +1256,16 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                             <ChainDropContainer chainIdx={chainIdx} isEmpty={chainGroup.length === 0}>
                                                 {chainGroup.map((marker, idx) => (
                                                     <ChainItem
-                                                        key={`chain-${chainIdx}::${marker.id}`}
-                                                        id={`chain-${chainIdx}::${marker.id}`}
+                                                        key={currentDay?.routeChains?.[chainIdx]?.stops[idx]?.id ?? idx}
+                                                        id={`chain-${chainIdx}::${idx}`}
                                                         marker={marker}
                                                         index={idx}
                                                         hasArrowAfter={idx < chainGroup.length - 1}
-                                                        distance={segmentDistance(marker, chainGroup[idx + 1], currentDay?.routeChains?.[chainIdx])}
-                                                        onRemove={() => handleRemoveFromChain(marker.id, chainIdx)}
+                                                        distance={segmentDistance(marker, chainGroup[idx + 1], currentDay?.routeChains?.[chainIdx], idx)}
+                                                        onRemove={() => handleRemoveFromChain(idx, chainIdx)}
                                                         onFlyTo={() => handleMarkerClick(marker.id)}
                                                         selected={interactionState.selectedMarkerId === marker.id}
-                                                        onMove={offset => { void handleMoveInRoute(chainIdx, marker.id, offset) }}
+                                                        onMove={offset => { void handleMoveInRoute(chainIdx, idx, offset) }}
                                                         last={idx === chainGroup.length - 1}
                                                         day={currentDay ?? undefined}
                                                         route={(() => { const chain = currentDay?.routeChains?.[chainIdx]; return chain?.stops.length === chainGroup.length && chain.stops.every((stop, i) => stop.markerId === chainGroup[i].id) ? chain : undefined })()}
@@ -1318,7 +1318,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                             selected={interactionState.selectedMarkerId === marker.id}
                                         />
                                     ))}
-                                {!showAllDayMarkers && currentDayMarkers.every(marker => currentDay?.chains.some(chain => chain.includes(marker.id))) && <p className="py-4 text-center text-xs text-gray-500">所有地点都已加入路线。切换「全部地点」可加入其他路线。</p>}
+                                {!showAllDayMarkers && currentDayMarkers.every(marker => currentDay?.chains.some(chain => chain.includes(marker.id))) && <p className="py-4 text-center text-xs text-gray-500">所有地点都已加入路线。切换「全部地点」可安排再次访问或加入其他路线。</p>}
                             </div>
                         </div>
 
@@ -1359,7 +1359,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                     const route = candidate?.stops.length === group.length && candidate.stops.every((stop, i) => stop.markerId === group[i].id) ? candidate : undefined
                                     const stop = route?.stops[idx]
                                     return (
-                                        <div key={marker.id} className={cn('journey-route-visit', idx < group.length - 1 && 'journey-route-visit-connected')}>
+                                        <div key={stop?.id ?? idx} className={cn('journey-route-visit', idx < group.length - 1 && 'journey-route-visit-connected')}>
                                             <div data-marker-id={marker.id} className={cn('journey-place-card journey-stop-row bg-white overflow-hidden', interactionState.selectedMarkerId === marker.id && 'journey-stop-selected')}>
                                                 <button
                                                     className="journey-place-trigger w-full flex items-start gap-2 px-2 py-3 text-left"
@@ -1383,7 +1383,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                 </button>
                                                 {stop?.note && <div className="journey-visit-note whitespace-pre-wrap break-words pb-3 pr-3 text-xs leading-5 text-gray-500">{stop.note}</div>}
                                             </div>
-                                            {idx < group.length - 1 && <RouteLeg day={currentDay ?? undefined} route={route} fromId={marker.id} toId={group[idx + 1].id} distance={segmentDistance(marker, group[idx + 1], route)} editable={false} />}
+                                            {idx < group.length - 1 && <RouteLeg day={currentDay ?? undefined} route={route} fromId={marker.id} toId={group[idx + 1].id} stopIndex={idx} distance={segmentDistance(marker, group[idx + 1], route, idx)} editable={false} />}
                                         </div>
                                     )
                                 })}
@@ -1531,11 +1531,11 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 <p className="mb-3 text-xs text-gray-500">{routePicker.markerId ? markers.find(marker => marker.id === routePicker.markerId)?.content.title : '从当天地点中选择，加入后排在路线末尾。'}</p>
                 <div className="space-y-2">
                     {routePicker.markerId ? <>
-                        {currentDay.chains.map((chain, index) => <button key={index} disabled={savingRoute || chain.includes(routePicker.markerId!)} onClick={() => { void handleAddToRoute(routePicker.markerId!, index) }} className="flex min-h-[44px] w-full items-center justify-between rounded-lg border px-3 text-sm hover:bg-gray-50 disabled:opacity-40" style={{ color: routeColor(index, currentDay.id, currentDay.colorIndex) }}>路线 {index + 1}<span className="text-xs text-gray-500">{chain.includes(routePicker.markerId!) ? '已加入' : `${chain.length} 个地点`}</span></button>)}
+                        {currentDay.chains.map((chain, index) => <button key={index} disabled={savingRoute || chain[chain.length - 1] === routePicker.markerId!} onClick={() => { void handleAddToRoute(routePicker.markerId!, index) }} className="flex min-h-[44px] w-full items-center justify-between rounded-lg border px-3 text-sm hover:bg-gray-50 disabled:opacity-40" style={{ color: routeColor(index, currentDay.id, currentDay.colorIndex) }}>路线 {index + 1}<span className="text-xs text-gray-500">{chain[chain.length - 1] === routePicker.markerId! ? '已是末站' : `${chain.length} 次访问`}</span></button>)}
                         <button disabled={savingRoute} onClick={() => { void handleAddToRoute(routePicker.markerId!) }} className="min-h-[44px] w-full rounded-lg border border-dashed border-gray-300 text-sm text-gray-600">＋ 新建路线并加入</button>
                     </> : <>
-                        {currentDayMarkers.filter(marker => !currentDay.chains[routePicker.chainIndex!]?.includes(marker.id)).map(marker => <button key={marker.id} disabled={savingRoute} onClick={() => { void handleAddToRoute(marker.id, routePicker.chainIndex) }} className="min-h-[44px] w-full rounded-lg border px-3 py-2 text-left text-sm hover:bg-gray-50 disabled:opacity-40">{marker.content.title || '未命名地点'}</button>)}
-                        {currentDayMarkers.every(marker => currentDay.chains[routePicker.chainIndex!]?.includes(marker.id)) && <p className="py-4 text-center text-sm text-gray-500">当天地点都已在这条路线中。</p>}
+                        {currentDayMarkers.filter(marker => currentDay.chains[routePicker.chainIndex!]?.slice(-1)[0] !== marker.id).map(marker => <button key={marker.id} disabled={savingRoute} onClick={() => { void handleAddToRoute(marker.id, routePicker.chainIndex) }} className="min-h-[44px] w-full rounded-lg border px-3 py-2 text-left text-sm hover:bg-gray-50 disabled:opacity-40">{marker.content.title || '未命名地点'}</button>)}
+                        {currentDayMarkers.every(marker => currentDay.chains[routePicker.chainIndex!]?.slice(-1)[0] === marker.id) && <p className="py-4 text-center text-sm text-gray-500">暂无可添加的其他地点。</p>}
                     </>}
                 </div>
                 <button disabled={savingRoute} onClick={() => setRoutePicker(null)} className="mt-4 min-h-[40px] w-full rounded-lg bg-gray-100 text-sm text-gray-600">{savingRoute ? '正在保存…' : '取消'}</button>

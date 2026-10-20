@@ -284,7 +284,7 @@ export function registerTripTools(server: McpServer) {
         {
             tripId: z.string().describe('旅行 ID'),
             dayId: z.string().describe('天 ID（来自 get_trip_detail）'),
-            markerIds: z.array(z.string()).min(2).describe('行程链中的标记 ID，按游览顺序排列，至少两个'),
+            markerIds: z.array(z.string()).min(2).describe('行程链中的标记 ID，按游览顺序排列，至少两次访问；允许ABA，不允许AA'),
             operationId: z.string().min(1).max(200).optional().describe('可选幂等操作ID，重试复用'),
         },
         async ({ operationId, ...args }) => idempotentOperation('create_day_chain', operationId, args, () => {
@@ -306,17 +306,18 @@ export function registerTripTools(server: McpServer) {
         '修改已有路线顺序、地点游览安排与路段交通安排，以及stops.isHighlight重点地点、legs.isHighlight重点行程。优先传稳定 chainId；省略字段保留，时间/时长/车次号/note传null清除。车次号独立放serviceNumber。计划时长不影响寻路缓存，不自动排程。',
         {
             ...chainTarget,
-            markerIds: z.array(z.string()).min(2).optional().describe('可选：修改后的完整地点顺序，至少两个不重复的已有地点ID'),
+            markerIds: z.array(z.string()).min(2).optional().describe('可选：修改后的完整地点顺序，至少两次访问，允许非相邻重复地点（ABA），禁止相邻重复（AA）；同地点已有访问按出现顺序复用'),
+            stopIds: z.array(z.string().min(1)).min(1).optional().describe('已有访问ID的完整新顺序，可移除访问；与markerIds二选一，精确区分同地点多次访问'),
             stops: z.array(stopPatchSchema).optional().describe('可选：按访问stopId局部修改游览时间、停留分钟数、note、isHighlight重点地点（true标记，false/null取消，省略保留）'),
             legs: z.array(legPatchSchema).optional().describe('可选：按相邻访问ID修改交通、独立线路/车次号serviceNumber、出发时间、计划分钟数、note、isHighlight重点行程（true标记，false/null取消，省略保留）；remove=true清除交通安排'),
         },
-        async ({ tripId, dayId, chainId, chainIndex, markerIds, stops, legs }) => {
+        async ({ tripId, dayId, chainId, chainIndex, markerIds, stopIds, stops, legs }) => {
             const day = getDayById(dayId)
             if (!day || day.tripId !== tripId) throw new Error('行程日不存在')
             if ((chainId === undefined) === (chainIndex === undefined)) throw new Error('chainId和chainIndex须二选一')
             const id = chainId ?? day.routeChains?.[chainIndex!]?.id
             if (!id) throw new Error('路线不存在，请查询最新行程')
-            const updated = updateRouteChain(tripId, dayId, id, { markerIds, stops, legs })
+            const updated = updateRouteChain(tripId, dayId, id, { markerIds, stopIds, stops, legs })
             return { content: [{ type: 'text', text: JSON.stringify({ success: true, dayId, chainId: id, markerIds: updated.markerIds, chains: updated.chains, routeChains: updated.routeChains }) }] }
         }
     )

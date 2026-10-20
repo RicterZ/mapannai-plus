@@ -315,7 +315,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
         const relevant = tripDays.filter(day => activeView.mode === 'day' ? day.id === activeView.dayId : activeView.mode === 'trip' ? day.tripId === activeView.tripId : true)
         return relevant.flatMap(day => (day.chains || []).flatMap((chain, chainIndex) => chain.slice(0, -1).flatMap((fromId, index) => {
             const from = byId.get(fromId), to = byId.get(chain[index + 1])
-            return from && to ? [{ dayId: day.id, displayKey: `${day.id}:${chainIndex}:${index}`, transportMode: routeTransportMode(day.routeChains?.[chainIndex], fromId, to.id), fromId, toId: to.id, origin: { lat: from.coordinates.latitude, lng: from.coordinates.longitude }, destination: { lat: to.coordinates.latitude, lng: to.coordinates.longitude } }] : []
+            return from && to ? [{ dayId: day.id, displayKey: `${day.id}:${chainIndex}:${index}`, transportMode: routeTransportMode(day.routeChains?.[chainIndex], fromId, to.id, index), fromId, toId: to.id, origin: { lat: from.coordinates.latitude, lng: from.coordinates.longitude }, destination: { lat: to.coordinates.latitude, lng: to.coordinates.longitude } }] : []
         })))
     }, [props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId])
     const planned = usePlannedRoutes(routeSegments, routeProvider, routeViewport)
@@ -348,7 +348,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
                 const fromMarker = byId.get(chain[index]), toMarker = byId.get(chain[index + 1])
                 if (!fromMarker || !toMarker) continue
                 const [fromLng, fromLat] = toDisplayPoint(fromMarker.coordinates), [toLng, toLat] = toDisplayPoint(toMarker.coordinates)
-                const segment = { transportMode: routeTransportMode(day.routeChains?.[chainIndex], fromMarker.id, toMarker.id), fromId: fromMarker.id, toId: toMarker.id, origin: { lat: fromMarker.coordinates.latitude, lng: fromMarker.coordinates.longitude }, destination: { lat: toMarker.coordinates.latitude, lng: toMarker.coordinates.longitude } }
+                const segment = { transportMode: routeTransportMode(day.routeChains?.[chainIndex], fromMarker.id, toMarker.id, index), fromId: fromMarker.id, toId: toMarker.id, origin: { lat: fromMarker.coordinates.latitude, lng: fromMarker.coordinates.longitude }, destination: { lat: toMarker.coordinates.latitude, lng: toMarker.coordinates.longitude } }
                 const cachedPath = planned.enabled ? planned.routes[routeCacheKey(routeProvider, segment)] : null
                 rawPaths.set(`${day.id}:${chainIndex}:${index}`, cachedPath && !isRangeFallback(cachedPath) ? displayPaths.get(`${day.id}:${chainIndex}:${index}`)!.map(point => toDisplayPoint({ longitude: point.lng, latitude: point.lat })) : getBezierPath({ lng: fromLng, lat: fromLat }, { lng: toLng, lat: toLat }))
             }
@@ -373,7 +373,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
                 const [fromLng, fromLat] = toDisplayPoint(fromMarker.coordinates), [toLng, toLat] = toDisplayPoint(toMarker.coordinates)
                 const from = { lng: fromLng, lat: fromLat }, to = { lng: toLng, lat: toLat }
                 const highlighted = day.id === effectiveDayId
-                const segment = { transportMode: routeTransportMode(day.routeChains?.[chainIndex], fromMarker.id, toMarker.id), fromId: fromMarker.id, toId: toMarker.id, origin: { lat: fromMarker.coordinates.latitude, lng: fromMarker.coordinates.longitude }, destination: { lat: toMarker.coordinates.latitude, lng: toMarker.coordinates.longitude } }
+                const segment = { transportMode: routeTransportMode(day.routeChains?.[chainIndex], fromMarker.id, toMarker.id, index), fromId: fromMarker.id, toId: toMarker.id, origin: { lat: fromMarker.coordinates.latitude, lng: fromMarker.coordinates.longitude }, destination: { lat: toMarker.coordinates.latitude, lng: toMarker.coordinates.longitude } }
                 const cachedPath = planned.enabled ? planned.routes[routeCacheKey(routeProvider, segment)] : null
                 const path = lanePaths.get(`${day.id}:${chainIndex}:${index}`)!
                 pickableRoutesRef.current.push({ dayId: day.id, path })

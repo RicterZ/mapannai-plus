@@ -23,7 +23,8 @@ export const legPatchSchema = z.object({
     remove: z.boolean().optional().describe('true 清除整段交通安排，不删除地点；不能同时填写其他安排字段'),
 }).strict()
 export const routeChainPatchSchema = z.object({
-    markerIds: z.array(id).min(2).optional().describe('可选的新完整地点顺序；同一路线不得重复 marker ID'),
+    markerIds: z.array(id).min(2).optional().describe('可选的新完整地点顺序；允许非相邻重复地点；已有访问按同一地点的出现顺序复用，精确重排/移除访问请用 stopIds'),
+    stopIds: z.array(id).min(1).optional().describe('已有访问ID的完整新顺序，可移除访问；不重复且须属于当前路线，与markerIds二选一'),
     stops: z.array(stopPatchSchema).optional(),
     legs: z.array(legPatchSchema).optional(),
 }).strict()

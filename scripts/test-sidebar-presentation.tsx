@@ -21,8 +21,8 @@ assert.match(html, /未加入路线 · 2 个地点/)
 assert.match(html, /&lt;清水寺&gt;/)
 assert.equal((html.match(/&lt;清水寺&gt;/g) || []).length, 2, 'Shared places appear in each route, without changing member counts')
 assert.ok(html.indexOf('二年坂') > html.indexOf('&lt;清水寺&gt;'))
-assert.match(preview({ chains: [['0', '1', '2', '3', '4']] }), /还有 2 站/)
-assert.match(preview({ chains: [['0'], ['1'], ['2']] }), /还有 1 条路线/)
+assert.match(preview({ chains: [['0', '1', '2', '3', '4']] }), /京都站/)
+assert.match(preview({ chains: [['0'], ['1'], ['2']] }), /路线 3/)
 assert.match(preview({ chains: [['missing'], []] }), /5 个地点 · 0 条路线/)
 assert.match(preview({ chains: [] }), /花见小路/)
 assert.match(preview({ chains: [] }, []), /还没有安排地点/)
@@ -37,3 +37,18 @@ assert.doesNotMatch(leg(null, false, false, { ...route, legs: [] }), /公交|添
 assert.match(leg(null, true, false, { ...route, legs: [] }), /添加交通安排/)
 assert.match(renderToStaticMarkup(<StopSchedule day={day} route={route} markerId="0" editable />), /0分钟/)
 console.log('Sidebar presentation passed: ordered previews, independent routes, unplanned members, empty/missing places, escaping, directed traffic, distances and zero-duration schedules.')
+
+const loop: RouteChain = {
+    id: 'loop', stops: [{ id: 'a1', markerId: '0', startTime: '08:00', note: 'first visit' }, { id: 'b1', markerId: '1' }, { id: 'a2', markerId: '0', startTime: '17:00', note: 'return visit' }, { id: 'b2', markerId: '1' }],
+    legs: [{ fromStopId: 'a1', toStopId: 'b1', mode: 'bus', serviceNumber: 'BUS1' }, { fromStopId: 'a2', toStopId: 'b2', mode: 'train', serviceNumber: 'TRAIN2' }],
+}
+const returnVisit = renderToStaticMarkup(<StopSchedule day={day} route={loop} markerId="0" stopIndex={2} editable />)
+assert.match(returnVisit, /17:00/)
+assert.doesNotMatch(returnVisit, /08:00/)
+const returnNote = renderToStaticMarkup(<StopSchedule day={day} route={loop} markerId="0" stopIndex={2} editable noteOnly />)
+assert.match(returnNote, /return visit/)
+assert.doesNotMatch(returnNote, /first visit/)
+const returnLeg = renderToStaticMarkup(<RouteLeg day={day} route={loop} fromId="0" toId="1" stopIndex={2} distance={42} editable />)
+assert.match(returnLeg, /TRAIN2/)
+assert.doesNotMatch(returnLeg, /BUS1/)
+console.log('Repeated visit presentation passed: independent time, note and traffic for the second visit.')

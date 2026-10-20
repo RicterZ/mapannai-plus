@@ -39,7 +39,7 @@ const isAnnotationEdit = (name: string, raw: string) => {
     try { args = JSON.parse(raw) } catch { return false }
     if (!args || typeof args !== 'object' || Array.isArray(args)) return false
     if (name === 'update_trip_day') return Object.keys(args).every(key => ['tripId', 'dayId', 'title'].includes(key))
-    return name === 'update_day_chain' && args.markerIds === undefined
+    return name === 'update_day_chain' && args.markerIds === undefined && args.stopIds === undefined
 }
 const changeTitleTool = { type: 'function' as const, function: {
     name: 'change_title', description: '修改当前网页会话的标题，概括用户的旅游意图。',

@@ -47,6 +47,7 @@ function createMcpServer(): McpServer {
 ## 核心概念
 
 ### 路线安排与地图重点标签
+- 同一路线允许非相邻重复地点（A→B→A、A→B→C→A→D），禁止相邻重复（A→A）。每次访问有独立stopId。markerIds更新按同地点出现顺序复用旧访问；需要精确移动或移除某次访问时传完整stopIds（与markerIds二选一），安排跟随访问ID。
 - 每日 \`routeChains\` 是完整路线；兼容 \`chains\` 仅是 marker ID 顺序投影。路线使用稳定 \`id\`，每次地点访问 \`stops\` 有独立 \`id\` 和 \`markerId\`。
 - \`stops\`：\`startTime\`（当天当地 HH:mm）、\`durationMinutes\`（用户计划停留分钟数）、\`note\`。isHighlight 标记此次访问为重点地点，优先显示当天地图标签。不要改全局地点来保存一次访问的安排。
 - \`legs\`：有方向的相邻访问 \`fromStopId\` / \`toStopId\`、\`mode\`、独立线路/车次号 \`serviceNumber\`（地铁2号线、公交101、G123、NH920、船班号），以及同样的时间/时长/note；不要把车次号写进 note。

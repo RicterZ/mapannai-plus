@@ -54,22 +54,24 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
             const color = routeColor(0, day.id, day.colorIndex)
             const date = `${Number(day.date.slice(5, 7))}月${Number(day.date.slice(8, 10))}日`
             const dayLabel = `第${dayIndex + 1}天`
-            const places = ids.filter(id => anchors.get(day.id)?.includes(id)).map(id => {
+            const places = ids.filter(id => anchors.get(day.id)?.includes(id)).flatMap(id => {
                 const marker = byId.get(id)!
-                const stop = day.routeChains?.flatMap((route, i) => route.stops.every((item, j) => item.markerId === day.chains[i]?.[j]) ? route.stops : []).find(item => item.markerId === id && item.isHighlight)
-                const timing = [stop?.startTime, stop?.durationMinutes !== undefined ? `停留 ${formatPlannedDuration(stop.durationMinutes)}` : null].filter(Boolean).join(' · ')
-                const emoji = (MARKER_ICONS[marker.content.iconType || 'location'] || MARKER_ICONS.location).emoji
-                return { id: `${day.id}:${id}`, dayId: day.id, markerId: id as string | null, coordinates: marker.coordinates, color,
-                    eyebrow: date, timing, note: stop?.note || '', title: marker.content.title || '未命名地点',
-                    time: stop?.startTime, duration: stop?.durationMinutes !== undefined ? `停留 ${compactDuration(stop.durationMinutes)}` : '',
-                    subtitle: '', emoji, mode: null as string | null,
-                    routeKey: null as string | null, legMarkerIds: null as string[] | null,
-                }
+                const visits = day.routeChains?.flatMap((route, i) => route.stops.length === day.chains[i]?.length && route.stops.every((item, j) => item.markerId === day.chains[i]?.[j]) ? route.stops : []).filter(item => item.markerId === id && item.isHighlight) ?? []
+                return visits.map(stop => {
+                    const timing = [stop?.startTime, stop?.durationMinutes !== undefined ? `停留 ${formatPlannedDuration(stop.durationMinutes)}` : null].filter(Boolean).join(' · ')
+                    const emoji = (MARKER_ICONS[marker.content.iconType || 'location'] || MARKER_ICONS.location).emoji
+                    return { id: `${day.id}:${stop.id}`, dayId: day.id, markerId: id as string | null, coordinates: marker.coordinates, color,
+                        eyebrow: date, timing, note: stop?.note || '', title: marker.content.title || '未命名地点',
+                        time: stop?.startTime, duration: stop?.durationMinutes !== undefined ? `停留 ${compactDuration(stop.durationMinutes)}` : '',
+                        subtitle: '', emoji, mode: null as string | null,
+                        routeKey: null as string | null, legMarkerIds: null as string[] | null,
+                    }
+                })
             })
             // Arranged legs get the same card at the midpoint of their displayed link.
             const legs = day.chains.flatMap((chain, chainIndex) => chain.slice(1).flatMap((toId, index) => {
                 const fromId = chain[index], route = day.routeChains?.[chainIndex]
-                const from = byId.get(fromId), to = byId.get(toId), mode = routeTransportMode(route, fromId, toId)
+                const from = byId.get(fromId), to = byId.get(toId), mode = routeTransportMode(route, fromId, toId, index)
                 // Manual highlights apply to any transport mode.
                 if (!from || !to || !mode || !route) return []
                 const fromStop = route.stops[index], toStop = route.stops[index + 1]
@@ -200,7 +202,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                             {card.subtitle && <span className="mt-0.5 block text-[11px] leading-4 text-gray-500" style={clamp(1)}>{card.subtitle}</span>}
                         </span>
                     </span>
-                    {card.visits.map((visit, index) => <span key={visit.dayId} className={index ? 'mt-2 border-t border-gray-100 pt-2' : 'mt-2'}>
+                    {card.visits.map((visit, index) => <span key={`${visit.dayId}:${index}`} className={index ? 'mt-2 border-t border-gray-100 pt-2' : 'mt-2'}>
                         <span className="flex items-center gap-1.5 whitespace-nowrap text-[11px] leading-4">
                             <span className="rounded px-1.5 py-px font-semibold text-white" style={{ backgroundColor: visit.color }}>{visit.dayLabel}</span>
                             <span className="text-gray-400">{visit.eyebrow}</span>

@@ -17,10 +17,10 @@ export function resolveRouteMode(origin: RoutePoint, destination: RoutePoint, tr
 }
 
 /** Match an active directed edge only; never inherit an inactive/reversed leg. */
-export function routeTransportMode(route: RouteChain | undefined, fromId: string, toId: string): TransportMode | undefined {
-    const index = route?.stops.findIndex(stop => stop.markerId === fromId) ?? -1
+export function routeTransportMode(route: RouteChain | undefined, fromId: string, toId: string, stopIndex?: number): TransportMode | undefined {
+    const index = stopIndex ?? (route?.stops.findIndex(stop => stop.markerId === fromId) ?? -1)
     const from = route?.stops[index], to = route?.stops[index + 1]
-    if (!from || to?.markerId !== toId) return undefined
+    if (from?.markerId !== fromId || to?.markerId !== toId) return undefined
     return route?.legs.find(leg => leg.fromStopId === from.id && leg.toStopId === to.id)?.mode
 }
 

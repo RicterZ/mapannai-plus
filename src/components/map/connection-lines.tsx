@@ -162,7 +162,7 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
                             from: fromMarker,
                             to: toMarker,
                             dayId: day.id,
-                            transportMode: routeTransportMode(day.routeChains?.[ci], fromMarker.id, toMarker.id),
+                            transportMode: routeTransportMode(day.routeChains?.[ci], fromMarker.id, toMarker.id, i),
                             fromId: fromMarker.id,
                             toId: toMarker.id,
                             color: routeColor(ci, day.id, day.colorIndex),

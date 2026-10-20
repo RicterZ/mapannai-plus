@@ -126,10 +126,10 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 - `RouteChain={id,stops,legs,inactiveLegs?}`。`ChainStop={id,markerId,startTime?,durationMinutes?,note?}`；`ChainLeg={fromStopId,toStopId,mode,serviceNumber?,startTime?,durationMinutes?,note?}`。共用 `Schedule` 类型，不使用运行时 class。安排属于路线中的一次访问或有方向的相邻路段，不属于全局 Marker。
 - `serviceNumber` 是独立字符串字段，涵盖地铁线路、公交号、火车车次、航班号、船班号；不能塞进 note。`note` 是补充纯文本。mode 支持 walking/cycling/driving/taxi/bus/subway/train/flight/ferry/other。
 - startTime 为所属行程日当地钟表时间 HH:mm；durationMinutes 为非负整数计划分钟数，可为0；省略未知值，不自动推算下一站，不作跨时区转换，不覆盖寻路缓存中的 distance/duration。侧栏展示和编辑安排；交通方式决定该有向路段的寻路模式，时间/时长/车次备注不参与本轮寻路，不改写用户计划时长。
-- API：`POST /api/trips/[id]/days/[dayId]/chains` 用 markerIds 创建路线；`GET/PATCH/DELETE .../chains/[chainId]` 读取、局部修改、删除。PATCH 接收可选完整 markerIds 顺序、stops/legs 局部修改列表；字段省略保留，null清除可选安排字段，空白 serviceNumber/note 清除。leg remove=true清除交通记录，不能同时修改其他字段。严校验字段、时间、访问归属、方向相邻、重复地点/修改项；失败整次回滚。
+- API：`POST /api/trips/[id]/days/[dayId]/chains` 用 markerIds 创建路线；`GET/PATCH/DELETE .../chains/[chainId]` 读取、局部修改、删除。PATCH 接收可选完整 markerIds 顺序、stops/legs 局部修改列表；字段省略保留，null清除可选安排字段，空白 serviceNumber/note 清除。leg remove=true清除交通记录，不能同时修改其他字段。严校验字段、时间、访问归属、方向相邻、相邻重复地点/重复修改项；失败整次回滚。
 - 服务 `src/lib/db/route-chain-service.ts` 和 schema `src/lib/trips/route-chain-schema.ts` 由 Web/MCP 共用。create_day_chain 返回 routeChain；update_day_chain 支持 chainId 或旧 chainIndex（二选一）、stops/legs；delete_day_chain 同样兼容。get_trip_detail 返回完整 routeChains。修改删除不创建或删除全局地点。
 - 旧 chains 写入先匹配原样路线，再识别无歧义的修改；安排跟随同一路线访问ID，仍有方向相邻的交通才展示，暂时断开的同路线有向边保存在 `inactiveLegs`，移回原方向相邻时恢复；反向边独立，不能继承原方向。删除地点/路线和明确清除安排才删除对应记录。存在多个候选且可能串用安排时拒绝旧写入，要求 chainId；不把不确定的安排迁移到其他路线。一般标题、日期、当天成员更新保留全部安排。
-- 从日期移除或全局删除 marker 时同时清理所有相关 stops/legs，保留其他访问安排；日期顺移保留钟表时间与时长。新结构允许历史单点/空链迁移，但新建与重排路线仍要求至少两个不重复地点，暂不开放同一路线重复访问同一 marker。
+- 从日期移除或全局删除 marker 时同时清理所有相关 stops/legs，保留其他访问安排；日期顺移保留钟表时间与时长。新结构允许历史单点/空链迁移，但新建路线至少两次访问，允许同一路线非相邻重复访问同一marker（ABA/ABCAD），禁止相邻重复（AA）。每次访问保留独立stopId；markerIds写入按同地点出现顺序复用访问，精确重排/移除用完整stopIds（与markerIds二选一，不重复且属于当前路线，可保留历史单访问链）。Web排序/移除按访问ID，日成员仍去重；各renderer按访问位置读取交通方式，重复路段可有不同交通安排。移除访问/地点若会产生AA则拒绝并回滚，须先调整路线，不自动合并或丢弃访问安排。重复访问跨路线拖动及插入到同地点既有访问之前不猜测身份，提示使用移除/末尾添加后按访问ID排序。无新增环境变量。
 - 验证：`npx tsx scripts/test-route-chain-schedules.ts` 使用隔离旧库测试迁移、ID持久化、Web/MCP安排写入与清除、错误回滚、旧客户端兼容、路线/地点删除与相邻交通清理；不可使用生产数据做写入测试。
 
 ## 地图与服务抽象

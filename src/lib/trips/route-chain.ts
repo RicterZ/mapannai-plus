@@ -1,6 +1,10 @@
 import { v4 as randomUUID } from 'uuid'
 import type { ChainLeg, ChainStop, RouteChain } from '@/types/trip'
 
+export function validateRouteVisits(markerIds: string[]): void {
+    if (markerIds.some((id, index) => index > 0 && id === markerIds[index - 1])) throw new Error('相邻访问不能是同一个地点，请在两次访问之间安排其他地点')
+}
+
 export function projectChains(routes: RouteChain[]): string[][] {
     return routes.map(route => route.stops.map(stop => stop.markerId))
 }
@@ -12,9 +16,10 @@ export function retainAdjacentLegs(stops: ChainStop[], legs: ChainLeg[]): ChainL
     return legs.filter(leg => pairs.has(JSON.stringify([leg.fromStopId, leg.toStopId])))
 }
 /** A marker's schedule follows its visit within this route, never across routes. */
-export function reorderRouteStops(route: RouteChain, markerIds: string[]): RouteChain {
+export function reorderRouteStops(route: RouteChain, markerIds: string[], visitIds?: string[]): RouteChain {
+    validateRouteVisits(visitIds ? visitIds.map(id => route.stops.find(stop => stop.id === id)!.markerId) : markerIds)
     const available = [...route.stops]
-    const stops = markerIds.map(markerId => {
+    const stops = visitIds ? visitIds.map(id => route.stops.find(stop => stop.id === id)!) : markerIds.map(markerId => {
         const index = available.findIndex(stop => stop.markerId === markerId)
         return index < 0 ? { id: `stop_${randomUUID()}`, markerId } : available.splice(index, 1)[0]
     })
@@ -28,6 +33,7 @@ export function reorderRouteStops(route: RouteChain, markerIds: string[]): Route
 export function removeRouteMarker(routes: RouteChain[], markerId: string): RouteChain[] {
     return routes.map(route => {
         const stops = route.stops.filter(stop => stop.markerId !== markerId)
+        validateRouteVisits(stops.map(stop => stop.markerId))
         const stopIds = new Set(stops.map(stop => stop.id))
         return { ...route, stops, legs: retainAdjacentLegs(stops, route.legs), inactiveLegs: route.inactiveLegs?.filter(leg => stopIds.has(leg.fromStopId) && stopIds.has(leg.toStopId)) }
     }).filter(route => route.stops.length > 0)
@@ -55,6 +61,7 @@ export function reconcileLegacyChains(previous: RouteChain[], chains: string[][]
             }
             if (route) used.add(route.id)
         }
+        validateRouteVisits(ids)
         return route ? reorderRouteStops(route, ids) : newRouteChain(ids)
     })
 }

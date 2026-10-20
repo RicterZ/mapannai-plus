@@ -15,7 +15,7 @@ async function main() {
         const marker = (id: string) => upsertMarker(id, 121, 31, { title: id })
         trip('a'); trip('b')
         for (const id of ['single', 'multiDay', 'multiTrip', 'chainOnly', 'unrelated']) marker(id)
-        day('a1', 'a', ['single', 'multiDay', 'multiTrip'], [['single', 'single', 'chainOnly']])
+        day('a1', 'a', ['single', 'multiDay', 'multiTrip'], [['single', 'chainOnly', 'single']])
         day('a2', 'a', ['multiDay'])
         day('a3', 'a', [])
         day('b1', 'b', ['multiTrip'])

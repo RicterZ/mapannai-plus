@@ -1,7 +1,7 @@
 import { getDb } from './index'
 import { getDayById, upsertTripDay } from './trip-service'
 import { getMarkerById } from './marker-service'
-import { newRouteChain, reorderRouteStops } from '@/lib/trips/route-chain'
+import { newRouteChain, reorderRouteStops, validateRouteVisits } from '@/lib/trips/route-chain'
 import { routeChainPatchSchema, type RouteChainPatch } from '@/lib/trips/route-chain-schema'
 import type { ChainLeg, ChainStop, TripDay } from '@/types/trip'
 
@@ -27,10 +27,11 @@ export function createRouteChain(tripId: string, dayId: string, markerIds: strin
     return getDb().transaction(() => {
         const day = getDayById(dayId)
         if (!day || day.tripId !== tripId) throw new Error('行程日不存在')
-        if (markerIds.length < 2 || new Set(markerIds).size !== markerIds.length) throw new Error('路线需要至少两个不重复地点')
+        if (markerIds.length < 2) throw new Error('路线需要至少两次地点访问')
         if (markerIds.some(id => !getMarkerById(id))) throw new Error('路线包含不存在的地点')
+        validateRouteVisits(markerIds)
         const route = newRouteChain(markerIds)
-        const addedMarkerIds = markerIds.filter(id => !day.markerIds.includes(id))
+        const addedMarkerIds = Array.from(new Set(markerIds)).filter(id => !day.markerIds.includes(id))
         upsertTripDay({ ...day, markerIds: [...day.markerIds, ...addedMarkerIds] }, [...(day.routeChains ?? []), route])
         return { route, addedMarkerIds }
     })()
@@ -42,10 +43,13 @@ export function updateRouteChain(tripId: string, dayId: string, chainId: string,
     return getDb().transaction(() => {
         const { day, route } = target(tripId, dayId, chainId)
         if (patch.markerIds) {
-            if (new Set(patch.markerIds).size !== patch.markerIds.length) throw new Error('路线不能重复使用地点')
             if (patch.markerIds.some(id => !getMarkerById(id))) throw new Error('路线包含不存在的地点')
         }
-        let updated = patch.markerIds ? reorderRouteStops(route, patch.markerIds) : route
+        if (patch.stopIds) {
+            if (patch.markerIds) throw new Error('stopIds和markerIds须二选一')
+            if (new Set(patch.stopIds).size !== patch.stopIds.length || patch.stopIds.some(id => !route.stops.some(stop => stop.id === id))) throw new Error('访问ID不能重复且必须属于当前路线')
+        }
+        let updated = patch.stopIds ? reorderRouteStops(route, [], patch.stopIds) : patch.markerIds ? reorderRouteStops(route, patch.markerIds) : route
         const stops = updated.stops.map(stop => ({ ...stop }))
         const legs = updated.legs.map(leg => ({ ...leg }))
         let inactiveLegs = updated.inactiveLegs ?? []
@@ -78,7 +82,7 @@ export function updateRouteChain(tripId: string, dayId: string, chainId: string,
         }
         updated = { ...updated, stops, legs, inactiveLegs: inactiveLegs.length ? inactiveLegs : undefined }
         const routes = day.routeChains!.map(item => item.id === chainId ? updated : item)
-        const markerIds = [...day.markerIds, ...stops.map(stop => stop.markerId).filter(id => !day.markerIds.includes(id))]
+        const markerIds = [...day.markerIds, ...Array.from(new Set(stops.map(stop => stop.markerId))).filter(id => !day.markerIds.includes(id))]
         upsertTripDay({ ...day, markerIds }, routes)
         return getDayById(dayId)!
     })()
