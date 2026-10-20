@@ -1078,6 +1078,9 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     })()}
                 </section>}
 
+                <footer className="px-1 pt-6 text-center text-[10px] text-gray-500" style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
+                    <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="hover:underline">铁路数据 © OpenStreetMap contributors · ODbL</a>
+                </footer>
             </div>
         </div>
     )
@@ -1490,9 +1493,6 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 </div>
 
                 </>}
-                <footer className="shrink-0 bg-white px-4 py-2 text-center text-[10px] text-gray-500" style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
-                    <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="hover:underline">铁路数据 © OpenStreetMap contributors · ODbL</a>
-                </footer>
             </div>
 
             {dayTitleEditor && <Modal title="修改日期标题" onClose={() => setDayTitleEditor(null)} busy={savingDayTitle}>
