@@ -279,8 +279,8 @@ function TripPendingMarker({ marker, editable, onSelect, onAssign, onRemove }: {
 
 export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEnabled, onToggleAddMarker, onSearchPlaces, searchPanel }: LeftSidebarProps) => {
     const routeSettings = useRouteSettings()
-    const progress = useRouteProgress()
-    // The existing progress subscription rerenders after each segment is cached.
+    // Refresh displayed distances as planned segments enter the cache.
+    useRouteProgress()
     const segmentDistance = (from: Marker, to: Marker | undefined, route?: RouteChain): number | null => {
         if (!routeSettings.enabled || !to) return null
         const transportMode = routeTransportMode(route, from.id, to.id)
@@ -1489,16 +1489,6 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     {displayMode === 'day' && renderDayView()}
                 </div>
 
-                {/* 全局路线规划设置 */}
-                <div className="route-settings-bar bg-white border-t border-gray-100 px-4 py-2 flex-shrink-0">
-                    <div className="flex items-center justify-between gap-2 whitespace-nowrap">
-                        <span className="text-xs text-gray-600 whitespace-nowrap">路线规划</span>
-                        {routeSettings.enabled && (progress.calculating || progress.failed > 0) && <span role="status" aria-live="polite" className="min-w-0 flex-1 truncate text-right text-xs text-gray-500" title={progress.calculating ? `正在计算 ${progress.completed + progress.failed}/${progress.total}，虚线为示意连接` : progress.failed ? `${progress.failed} 段暂时无法规划，虚线为示意连接` : ''}>
-                            {progress.calculating ? `${progress.completed + progress.failed}/${progress.total}` : progress.failed ? <button type="button" onClick={progress.retry} className="route-retry-button text-accent-600 hover:underline" aria-label={`重试 ${progress.failed} 段失败路线`}>重试 {progress.failed} 段</button> : null}
-                        </span>}
-
-                    </div>
-                </div>
                 </>}
                 <footer className="shrink-0 bg-white px-4 py-2 text-center text-[10px] text-gray-500" style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
                     <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="hover:underline">铁路数据 © OpenStreetMap contributors · ODbL</a>
