@@ -16,6 +16,18 @@ function withRouteDistance(route: MapRoute, origin: RoutePoint, destination: Rou
 
 const inFlight = new Map<string, Promise<MapRoute>>()
 
+/** Cache-only lookup: never contacts a map provider. */
+export function readSavedDirection(origin: RoutePoint, destination: RoutePoint, transportMode?: TransportMode): MapRoute | null {
+    const mode = resolveRouteMode(origin, destination, transportMode)
+    if (!mode) return null
+    const fromChina = isInChina(origin.lng, origin.lat), toChina = isInChina(destination.lng, destination.lat)
+    const provider = fromChina ? 'amap' : 'google'
+    const policy = fromChina !== toChina ? 'cross-border' : transportMode === 'train' || transportMode === 'subway'
+        ? `osm-rail-offline-v4:${transportMode}:${provider}` : transportMode === 'bus' ? `bus-fallback-v1:${provider}` : provider
+    const cached = getCachedDirection(directionCacheKey(`regional-v1:${policy}`, mode, origin, destination))
+    return cached ? withRouteDistance(cached, origin, destination) : null
+}
+
 /** Persist real routes and terminal coverage failures, shared by Web and MCP. */
 export async function getSavedDirection(origin: RoutePoint, destination: RoutePoint, requestedMode?: TravelMode, override?: string, transportMode?: TransportMode): Promise<MapRoute> {
     const mode = resolveRouteMode(origin, destination, transportMode, requestedMode)

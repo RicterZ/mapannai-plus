@@ -15,7 +15,7 @@ export interface RouteMetrics { distance: number; duration: number | null }
 const fallbackPaths = new WeakSet<RoutePath>()
 export function isRangeFallback(path: RoutePath | null | undefined): boolean { return !!path && fallbackPaths.has(path) }
 const metricsCache = new Map<string, RouteMetrics>()
-const cachePrefix = 'mapannai_route_v1:'
+const cachePrefix = 'mapannai_route_v3:'
 const inFlight = new Map<string, Promise<RoutePath>>()
 const memoryCache = new Map<string, RoutePath>()
 const requestSpacingMs = 1200
@@ -41,7 +41,7 @@ function enqueueRequest<T>(request: () => Promise<T>): Promise<T> {
 export function routeCacheKey(provider: string, segment: RouteSegment): string {
     const mode = resolveRouteMode(segment.origin, segment.destination, segment.transportMode) ?? 'schematic'
     const point = (p: RouteCoordinate) => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`
-    return `${mode === 'transit' ? 'mapannai_route_v2:' : cachePrefix}${provider}${segment.transportMode === 'train' || segment.transportMode === 'subway' ? `:osm-rail-offline-v4:${segment.transportMode}` : segment.transportMode === 'bus' ? ':bus-fallback-v1' : ''}:${mode}:${segment.fromId}:${segment.toId}:${point(segment.origin)}:${point(segment.destination)}`
+    return `${cachePrefix}${provider}${segment.transportMode === 'train' || segment.transportMode === 'subway' ? `:osm-rail-offline-v4:${segment.transportMode}` : segment.transportMode === 'bus' ? ':bus-fallback-v1' : ''}:${mode}:${point(segment.origin)}:${point(segment.destination)}`
 }
 export function readCachedRoute(key: string): RoutePath | null {
     const memory = memoryCache.get(key)
@@ -51,7 +51,7 @@ export function readCachedRoute(key: string): RoutePath | null {
         if (!raw) return null
         const stored = JSON.parse(raw)
         const path = Array.isArray(stored) ? stored : stored.path
-        if (stored.fallback && Array.isArray(path)) fallbackPaths.add(path)
+        if (stored.fallback) return null
         if (!Array.isArray(path) || path.length < 2 || !path.every(p => Number.isFinite(p.lat) && Number.isFinite(p.lng))) return null
         memoryCache.set(key, path)
         return path
@@ -67,6 +67,27 @@ export function readRouteMetrics(key: string): RouteMetrics | null {
         return Number.isFinite(metrics.distance) && metrics.distance >= 0 && (metrics.duration === null || (Number.isFinite(metrics.duration) && metrics.duration >= 0)) ? metrics : null
     } catch { return null }
 }
+// Batch SQLite cache reads bypass the provider rate-limit queue.
+export async function hydrateSavedRoutes(provider: string, segments: RouteSegment[]): Promise<void> {
+    const missing = segments.filter(segment => resolveRouteMode(segment.origin, segment.destination, segment.transportMode) !== null && !readCachedRoute(routeCacheKey(provider, segment)))
+    for (let i = 0; i < missing.length; i += 500) {
+        const batch = missing.slice(i, i + 500)
+        const response = await fetchWithAuth('/api/directions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ segments: batch.map(({ origin, destination, transportMode }) => ({ origin, destination, transportMode })) }) })
+        if (!response.ok) throw new Error('读取路线缓存失败')
+        const data = await response.json()
+        batch.forEach((segment, index) => {
+            const route = data.routes?.[index]
+            if (!route || !Array.isArray(route.path) || route.path.length < 2 || !route.path.every((p: RouteCoordinate) => Number.isFinite(p.lat) && Number.isFinite(p.lng))) return
+            const key = routeCacheKey(provider, segment)
+            if (route.fallback) fallbackPaths.add(route.path)
+            memoryCache.set(key, route.path)
+            const metrics = { distance: route.distance, duration: route.duration }
+            metricsCache.set(key, metrics)
+            try { localStorage.setItem(key, JSON.stringify(route.fallback ? { path: route.path, fallback: route.fallback } : route.path)); localStorage.setItem(`${key}:metrics`, JSON.stringify(metrics)) } catch { /* storage unavailable */ }
+        })
+    }
+}
+
 export async function getPlannedRoute(provider: string, segment: RouteSegment): Promise<RoutePath> {
     const mode = resolveRouteMode(segment.origin, segment.destination, segment.transportMode)
     const key = routeCacheKey(provider, segment)

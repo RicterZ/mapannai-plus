@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getPlannedRoute, readCachedRoute, routeCacheKey, RoutePath, RouteSegment } from './route-cache'
+import { hydrateSavedRoutes, getPlannedRoute, readCachedRoute, routeCacheKey, RoutePath, RouteSegment } from './route-cache'
 import { useRouteSettings } from './route-settings'
 import { useRouteProgress } from './route-progress'
 
@@ -52,7 +52,17 @@ export function usePlannedRoutes(segments: RouteSegment[], provider: string, vie
         })
         // Schedule one segment at a time so a changed viewport can reprioritize the rest.
         void (async () => {
-            for (const [key, segment] of ordered) {
+            try { await hydrateSavedRoutes(provider, ordered.map(([, segment]) => segment)) } catch (error) { console.warn('读取路线缓存失败:', error) }
+            if (cancelled) return
+            // Publish all saved paths together instead of revealing them through the QPS queue.
+            for (const [key] of ordered) {
+                const path = readCachedRoute(key)
+                if (path) cached[key] = path
+            }
+            setRoutes({ ...cached })
+            completed = Object.keys(cached).length
+            report({ total: requested.size, completed, failed, calculating: completed + failed < requested.size })
+            for (const [key, segment] of ordered.filter(([key]) => !cached[key])) {
                 if (cancelled) break
                 try {
                     const path = await getPlannedRoute(provider, segment)
@@ -65,5 +75,10 @@ export function usePlannedRoutes(segments: RouteSegment[], provider: string, vie
         })()
         return () => { cancelled = true }
     }, [enabled, provider, requested, retryVersion, viewport?.west, viewport?.east, viewport?.south, viewport?.north, viewport?.centerLat, viewport?.centerLng])
-    return { enabled, routes, failedKeys }
+    const visibleRoutes = { ...routes }
+    for (const key of Array.from(requested.keys())) {
+        const path = readCachedRoute(key)
+        if (path) visibleRoutes[key] = path
+    }
+    return { enabled, routes: visibleRoutes, failedKeys }
 }

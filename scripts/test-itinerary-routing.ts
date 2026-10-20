@@ -25,7 +25,7 @@ async function main() {
     const { directionCacheKey, cacheDirection, getCachedDirection } = await import('../src/lib/db/direction-cache')
     const { getDb } = await import('../src/lib/db')
     const { connectPlanningTools } = await import('../src/lib/ai/mcp-tools')
-    const { routeCacheKey, getPlannedRoute, isRangeFallback, readRouteMetrics } = await import('../src/lib/map/route-cache')
+    const { routeCacheKey, hydrateSavedRoutes, readCachedRoute, getPlannedRoute, isRangeFallback, readRouteMetrics } = await import('../src/lib/map/route-cache')
     Object.assign(globalThis, { React }) // tsx uses classic JSX for this repo's preserve setting.
     const { RouteLeg } = await import('../src/components/trips/route-schedule')
     const { useMapStore } = await import('../src/store/map-store')
@@ -113,7 +113,7 @@ async function main() {
         assert.equal(noTrack.data.duration, null)
         assert.deepEqual(noTrack.data.path, [noTrackOrigin, destination])
         assert(directionCacheKey('amap', 'transit', origin, destination).startsWith('v2:'))
-        assert(routeCacheKey('amap', { ...segment, transportMode: 'train' }).startsWith('mapannai_route_v2:'))
+        assert(routeCacheKey('amap', { ...segment, transportMode: 'train' }).startsWith('mapannai_route_v3:'))
         responseMode = 'empty'
         r = await api({ origin: { ...origin, lng: 116.5 }, destination, mode: 'transit' })
         assert.equal(r.status, 200); assert.equal(r.data.fallback, 'NO_ROUTE'); assert.equal(r.data.distanceKind, undefined)
@@ -188,6 +188,22 @@ async function main() {
         process.env.MAP_DIRECTIONS_PROVIDER = 'google' // Legacy setting must not override regional routing.
         const planned = await getPlannedRoute('regional-v1', { ...segment, transportMode: 'cycling' })
         assert(!isRangeFallback(planned)); assert.equal(readRouteMetrics(routeCacheKey('regional-v1', { ...segment, transportMode: 'cycling' }))?.distance, 200)
+        const copied = { ...segment, fromId: 'copy-a', toId: 'copy-b', transportMode: 'cycling' as const }
+        assert.equal(routeCacheKey('regional-v1', copied), routeCacheKey('regional-v1', { ...segment, transportMode: 'cycling' }), 'cache identity is coordinates and mode, not marker IDs')
+        const hydrateSegment = { ...segment, origin: { ...origin, lng: 116.4321 }, transportMode: 'walking' as const }
+        await api({ origin: hydrateSegment.origin, destination, transportMode: 'walking' })
+        const beforeBatch = requests.length
+        await hydrateSavedRoutes('regional-v1', [hydrateSegment])
+        assert(readCachedRoute(routeCacheKey('regional-v1', hydrateSegment)))
+        assert.equal(requests.length, beforeBatch, 'batch hydration must not call map providers')
+        const missingBatch = await api({ segments: [{ origin: { ...origin, lng: 118.1234 }, destination }] })
+        assert.deepEqual(missingBatch.data.routes, [null])
+        assert.equal(requests.length, beforeBatch, 'cache misses must not plan during hydration')
+        assert.equal((await api({ segments: [{ origin: null, destination }] })).status, 400)
+        const stale = { ...segment, origin: { ...origin, lng: 119.1234 } }
+        const staleKey = routeCacheKey('regional-v1', stale)
+        local.set(staleKey, JSON.stringify({ path: [stale.origin, destination], fallback: 'NO_ROUTE' }))
+        assert.equal(readCachedRoute(staleKey), null, 'persisted fallback must not mask a newer server route after reload')
         console.log('Itinerary routing passed: mapping/2km default, directed reorder, API modes, AMap walking/driving/cycling/transit mock shapes/cities, Google four modes, fallback/direct distances, cache reuse/expiry, temporary errors, MCP compatibility, client cache and route card rendering.')
     } finally {
         globalThis.fetch = previousFetch

@@ -1,12 +1,18 @@
 import { transportModeSchema } from '@/lib/trips/route-chain-schema'
 import { NextRequest, NextResponse } from 'next/server'
-import { getSavedDirection } from '@/lib/map/direction-service'
+import { getSavedDirection, readSavedDirection } from '@/lib/map/direction-service'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json()
+        if (Array.isArray(body.segments)) {
+            if (body.segments.length > 500) return NextResponse.json({ error: '路段过多' }, { status: 400 })
+            const valid = body.segments.every((s: any) => s && [s.origin, s.destination].every(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180) && (s.transportMode === undefined || transportModeSchema.safeParse(s.transportMode).success))
+            if (!valid) return NextResponse.json({ error: '路段参数无效' }, { status: 400 })
+            return NextResponse.json({ routes: body.segments.map((s: any) => readSavedDirection(s.origin, s.destination, s.transportMode)) })
+        }
         const { origin, destination, mode, transportMode } = body
         if (![origin, destination].every(p => p && Number.isFinite(p.lat) && Number.isFinite(p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180)) return NextResponse.json({ error: '需要有效起点和终点坐标' }, { status: 400 })
         if (mode !== undefined && !['walking', 'driving', 'bicycling', 'transit'].includes(mode)) return NextResponse.json({ error: '路线模式无效' }, { status: 400 })
