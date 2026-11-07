@@ -17,7 +17,9 @@ export interface PlaceEditorValues {
     markdownContent: string
 }
 
-export function PlaceEditorDialog({ title, address, initial, onClose, onSave }: {
+export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tripNote, noteScope }: {
+    noteScope?: string
+    tripNote?: { tripName: string; placeName: string }
     title: string
     address?: string
     initial: PlaceEditorValues
@@ -35,12 +37,12 @@ export function PlaceEditorDialog({ title, address, initial, onClose, onSave }: 
     const dialogRef = useDialogFocus(true, close, busy)
     const save = async () => {
         if (busy) return
-        if (!values.title.trim()) { setError('请输入地点名称'); return }
+        if (!tripNote && !values.title.trim()) { setError('请输入地点名称'); return }
         setSaving(true)
         setError('')
         try {
             await onSave({ ...values, title: values.title.trim() })
-            toast.success('地点已保存')
+            toast.success(tripNote ? '旅行笔记已保存' : '地点已保存')
             onClose()
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : '保存失败，请重试')
@@ -54,9 +56,10 @@ export function PlaceEditorDialog({ title, address, initial, onClose, onSave }: 
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto lg:flex lg:overflow-hidden">
                 <fieldset disabled={busy} className="min-w-0 space-y-5 border-b border-gray-100 bg-gray-50/60 p-5 lg:w-[280px] lg:shrink-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
-                    <label className="block text-xs font-medium text-gray-500">地点名称<input value={values.title} onChange={event => setValues({ ...values, title: event.target.value })} className="workspace-field mt-2" placeholder="给这个地点起个名字" /></label>
+                    <label className="block text-xs font-medium text-gray-500">{tripNote ? '本次旅行显示标题（可选）' : '地点名称'}<input value={values.title} onChange={event => setValues({ ...values, title: event.target.value })} className="workspace-field mt-2" placeholder={tripNote?.placeName || "给这个地点起个名字"} /></label>
                     {address && <p className="text-xs leading-5 text-gray-500">{address}</p>}
-                    <div><span className="mb-2 block text-xs font-medium text-gray-500">分类</span><IconSelector selectedIcon={values.iconType} onSelect={iconType => setValues({ ...values, iconType })} /></div>
+                    {tripNote && <p className="text-xs leading-5 text-gray-500">{tripNote.tripName} · {tripNote.placeName}<br />仅修改本次旅行内容，通用资料保持共享。清空标题和正文后保存可删除本次笔记。</p>}
+                    {!tripNote && <><div><span className="mb-2 block text-xs font-medium text-gray-500">分类</span><IconSelector selectedIcon={values.iconType} onSelect={iconType => setValues({ ...values, iconType })} /></div>
                     <div>
                         <span className="mb-2 block text-xs font-medium text-gray-500">封面</span>
                         <input id={uploadId} disabled={busy} type="file" accept="image/*" className="hidden" onChange={async event => {
@@ -77,9 +80,10 @@ export function PlaceEditorDialog({ title, address, initial, onClose, onSave }: 
                             <div className="flex items-center justify-between text-xs text-gray-500"><label htmlFor={uploadId} className="cursor-pointer rounded-lg px-2 py-2 hover:bg-gray-100">更换封面</label><button type="button" onClick={() => setValues({ ...values, headerImage: '' })} className="rounded-lg px-2 py-2 hover:bg-gray-100">移除</button></div>
                         </div> : <label htmlFor={uploadId} className="flex h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white text-xs text-gray-400 hover:border-gray-400"><ImagePlus size={22} />{uploading ? '上传中…' : '添加封面'}</label>}
                     </div>
+                    </>}
                 </fieldset>
                 <div className="flex min-h-[300px] min-w-0 flex-1 flex-col lg:min-h-0">
-                    <div className="px-5 pt-4 pb-2 text-xs font-medium text-gray-500">地点笔记</div>
+                    <div className="px-5 pt-4 pb-2 text-xs font-medium text-gray-500">{tripNote ? '本次旅行笔记' : noteScope ? `本次旅行笔记 · ${noteScope}` : '地点通用笔记 · 所有旅行共享'}</div>
                     <div className={`min-h-0 flex-1 ${busy ? 'pointer-events-none opacity-60' : ''}`} aria-busy={busy}>
                         <RichEditor editable={!busy} onUploadingChange={setBodyUploading} content={values.markdownContent} onChange={markdownContent => setValues(current => ({ ...current, markdownContent }))} placeholder="记录想做的事、地址提示或旅行攻略…" />
                     </div>
@@ -87,7 +91,7 @@ export function PlaceEditorDialog({ title, address, initial, onClose, onSave }: 
             </div>
             <div className="shrink-0 border-t border-gray-100 px-5 py-4">
                 {error && <p role="alert" className="mb-3 text-sm text-red-600">{error}</p>}
-                <div className="flex justify-end gap-2"><button disabled={busy} onClick={close} className="workspace-secondary-button">取消</button><button disabled={busy} onClick={() => void save()} className="workspace-primary-button">{saving ? '保存中…' : uploading || bodyUploading ? '上传中…' : '保存地点'}</button></div>
+                <div className="flex justify-end gap-2"><button disabled={busy} onClick={close} className="workspace-secondary-button">取消</button><button disabled={busy} onClick={() => void save()} className="workspace-primary-button">{saving ? '保存中…' : uploading || bodyUploading ? '上传中…' : tripNote ? '保存旅行笔记' : '保存地点'}</button></div>
             </div>
         </div>
     </div>

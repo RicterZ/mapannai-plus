@@ -38,6 +38,7 @@ const isAnnotationEdit = (name: string, raw: string) => {
     let args: Record<string, unknown>
     try { args = JSON.parse(raw) } catch { return false }
     if (!args || typeof args !== 'object' || Array.isArray(args)) return false
+    if (name === 'update_trip_marker_note') return Object.keys(args).every(key => ['tripId', 'markerId', 'title', 'content', 'expectedUpdatedAt'].includes(key))
     if (name === 'update_trip_day') return Object.keys(args).every(key => ['tripId', 'dayId', 'title'].includes(key))
     return name === 'update_day_chain' && args.markerIds === undefined && args.stopIds === undefined
 }

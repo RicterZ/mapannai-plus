@@ -5,6 +5,7 @@ import type { MarkerCoordinates, MarkerIconType } from '@/types/marker'
 import { PlaceEditorDialog } from './place-editor-dialog'
 
 interface AddMarkerModalProps {
+    noteScope?: string
     coordinates: MarkerCoordinates
     placeReferences?: PlaceReferences
     isOpen: boolean
@@ -22,7 +23,7 @@ interface AddMarkerModalProps {
     placeAddress?: string
 }
 
-export function AddMarkerModal({ coordinates, isOpen, onClose, onSave, placeName, placeAddress, placeReferences }: AddMarkerModalProps) {
+export function AddMarkerModal({ coordinates, isOpen, onClose, onSave, placeName, placeAddress, placeReferences, noteScope }: AddMarkerModalProps) {
     if (!isOpen) return null
-    return <PlaceEditorDialog title="添加地点" address={placeAddress} initial={{ title: placeName || '', iconType: 'location', headerImage: '', markdownContent: '' }} onClose={onClose} onSave={values => onSave({ coordinates, name: values.title, iconType: values.iconType, address: placeAddress, placeReferences, headerImage: values.headerImage || undefined, markdownContent: values.markdownContent })} />
+    return <PlaceEditorDialog noteScope={noteScope} title="添加地点" address={placeAddress} initial={{ title: placeName || '', iconType: 'location', headerImage: '', markdownContent: '' }} onClose={onClose} onSave={values => onSave({ coordinates, name: values.title, iconType: values.iconType, address: placeAddress, placeReferences, headerImage: values.headerImage || undefined, markdownContent: values.markdownContent })} />
 }

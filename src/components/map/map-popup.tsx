@@ -1,5 +1,6 @@
 'use client'
 
+import { TripPlaceTitle } from '@/components/trips/trip-place-title'
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { Popup } from 'react-map-gl/maplibre'
@@ -133,7 +134,7 @@ export const MapPopup = ({
                         )}
                         <div className="p-4 space-y-3">
                             <h3 className="text-base font-semibold leading-6 text-gray-900 pr-5">
-                                {selectedMarker.content.title || '未命名地点'}
+                                <TripPlaceTitle marker={selectedMarker} />
                             </h3>
                             {selectedMarker.content.address && (
                                 <p className="text-xs text-gray-500 leading-relaxed">{selectedMarker.content.address}</p>

@@ -34,6 +34,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         } catch { return NextResponse.json({ error: '目的地信息无效' }, { status: 400 }) }
         // Membership changes use the dedicated markers endpoint.
         delete body.description // Retired trip-level notes; ignore legacy clients.
+        delete body.markerNotes
         delete body.markerIds
         if (body.startDate !== undefined && body.startDate !== trip.startDate) {
             const startDate = body.startDate

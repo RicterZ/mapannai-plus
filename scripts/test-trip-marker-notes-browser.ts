@@ -1,0 +1,92 @@
+// NODE_PATH must provide Playwright; all API traffic is intercepted into an isolated SQLite database.
+import assert from 'node:assert/strict'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { NextRequest } from 'next/server'
+const { chromium } = require('playwright')
+
+async function main() {
+    const directory = mkdtempSync(path.join(tmpdir(), 'mapannai-note-browser-'))
+    process.env.SQLITE_PATH = path.join(directory, 'test.db')
+    const { upsertTrip, setTripMarker, getAllTrips, getAllTripDays } = await import('../src/lib/db/trip-service')
+    const { upsertMarker, getAllMarkers } = await import('../src/lib/db/marker-service')
+    const { getTripMarkerNote, updateTripMarkerNote } = await import('../src/lib/db/trip-marker-note-service')
+    const handlers = await import('../src/app/api/trips/[id]/markers/[markerId]/note/route')
+    const { getDb } = await import('../src/lib/db')
+    console.log('Launching browser')
+    const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true })
+    console.log('Browser ready')
+    try {
+        const now = new Date().toISOString()
+        for (const id of ['ba', 'ff14']) upsertTrip({ id, name: id === 'ba' ? 'BA旅行' : 'FF14旅行', startDate: '2026-10-01', endDate: '2026-10-01', createdAt: now, updatedAt: now })
+        upsertMarker('venue', 140.035, 35.647, { title: '幕张展览馆', markdownContent: '<p>通用入口攻略</p>' })
+        setTripMarker('ba', 'venue', true)
+        updateTripMarkerNote('ff14', 'venue', { content: '<p>FF14活动</p>' })
+        const errors: string[] = []
+        for (const mobile of (process.env.REVIEW_MOBILE_ONLY ? [true] : [false, true])) {
+            const context = await browser.newContext({ viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 1050 }, isMobile: mobile, hasTouch: mobile })
+            const page = await context.newPage()
+            page.setDefaultTimeout(12000)
+            page.on('pageerror', (error: Error) => errors.push(error.message))
+            await page.route('**/api/**', async (route: any) => {
+                const request = route.request(), url = new URL(request.url()), method = request.method()
+                if (method === 'GET' && url.pathname === '/api/markers') return route.fulfill({ json: [] })
+                if (method === 'GET' && url.pathname === '/api/dataset') return route.fulfill({ json: { success: true, data: getAllMarkers() } })
+                if (method === 'GET' && url.pathname === '/api/trips') return route.fulfill({ json: getAllTrips().map(trip => ({ ...trip, days: getAllTripDays().filter(day => day.tripId === trip.id) })) })
+                if (url.pathname === '/api/trips/ba/markers/venue/note' && (method === 'PATCH' || method === 'POST')) {
+                    const response = await handlers[method as 'PATCH' | 'POST'](new NextRequest(url, { method, body: request.postData() }), { params: { id: 'ba', markerId: 'venue' } })
+                    return route.fulfill({ status: response.status, body: await response.text(), contentType: 'application/json' })
+                }
+                return route.fulfill({ status: 400, json: { error: 'Unexpected fixture request' } })
+            })
+            console.log('Opening fixture', { mobile })
+            await page.goto(`${process.env.REVIEW_BASE_URL || 'http://127.0.0.1:3108'}/#trip/ba`, { waitUntil: 'domcontentloaded' })
+            const toggle = page.getByRole('switch', { name: '编辑模式' })
+            if (mobile) await page.getByRole('button', { name: '展开 MapAnNai 侧栏' }).click()
+            await toggle.waitFor({ timeout: 20000 }).catch(async (error: Error) => { console.error('Startup', errors, (await page.locator('body').innerText()).slice(0, 1500)); throw error })
+            console.log('Fixture loaded')
+            await toggle.click()
+            if (mobile) await page.getByRole('button', { name: '展开 MapAnNai 侧栏' }).click()
+            await page.locator('.journey-pending-place > button.flex-1').click()
+            await page.locator('.app-popup').getByRole('button', { name: '查看', exact: true }).click()
+            console.log('Detail opened', { mobile })
+            const sidebar = page.locator('.right-sidebar')
+            await sidebar.getByRole('button', { name: /添加本次笔记|编辑本次笔记/ }).waitFor()
+            if (!mobile) {
+                await sidebar.getByRole('button', { name: '复制通用笔记到本次旅行' }).click()
+                await sidebar.getByRole('button', { name: '编辑本次笔记' }).waitFor()
+                assert.equal(getTripMarkerNote('ba', 'venue')!.content, '<p>通用入口攻略</p>')
+            }
+            await sidebar.getByRole('button', { name: /编辑本次笔记|添加本次笔记/ }).click()
+            const dialog = page.getByRole('dialog', { name: '编辑本次旅行笔记' })
+            await dialog.getByPlaceholder('幕张展览馆').fill(mobile ? 'BA手机编辑' : 'BA粉丝节')
+            await dialog.locator('[contenteditable=true]').fill(mobile ? '手机活动安排' : 'BA活动安排')
+            await dialog.getByRole('button', { name: '保存旅行笔记', exact: true }).click()
+            await dialog.waitFor({ state: 'hidden' })
+            console.log('Saved trip note', { mobile })
+            assert.equal(getTripMarkerNote('ba', 'venue')!.title, mobile ? 'BA手机编辑' : 'BA粉丝节')
+            assert.equal(getTripMarkerNote('ff14', 'venue')!.content, '<p>FF14活动</p>')
+            assert.equal(getAllMarkers().features[0].properties.markdownContent, '<p>通用入口攻略</p>')
+            await sidebar.getByRole('button', { name: '编辑通用资料' }).click()
+            const shared = page.getByRole('dialog', { name: '编辑地点通用资料 · 所有旅行共享' })
+            await shared.waitFor(); assert.equal(await shared.locator('[contenteditable=true]').innerText(), '通用入口攻略')
+            await shared.getByRole('button', { name: '取消', exact: true }).click()
+            console.log('Shared scope verified', { mobile })
+            await sidebar.getByRole('button', { name: '返回地图' }).click()
+            if (mobile) await page.getByRole('button', { name: '展开 MapAnNai 侧栏' }).click().catch(() => {})
+            await page.getByRole('region', { name: '旅行地点笔记' }).getByRole('button', { name: /BA/ }).click()
+            await sidebar.getByRole('heading', { name: mobile ? 'BA手机编辑' : 'BA粉丝节', exact: true }).waitFor()
+            await page.waitForFunction(() => {
+                const panel = document.querySelector('.right-sidebar')!
+                const rect = panel.getBoundingClientRect()
+                return Math.abs(rect.right - window.innerWidth) < 1
+            })
+            await page.screenshot({ path: path.join(tmpdir(), `stud121-${mobile ? 'mobile' : 'desktop'}.png`), fullPage: true })
+            await context.close()
+        }
+        assert.deepEqual(errors, [])
+        console.log('Desktop/mobile trip note browser checks passed: copy, edit/save, shared scope, trip isolation and retained-note entry.')
+    } catch (error) { console.error('Browser scenario failed:', error); throw error } finally { await browser.close(); getDb().close(); rmSync(directory, { recursive: true, force: true }) }
+}
+main().catch(error => { console.error(error); process.exitCode = 1 })

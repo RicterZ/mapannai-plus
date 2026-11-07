@@ -4,7 +4,11 @@ import type { Trip, TripDay } from '@/types/trip'
 export function exclusiveMarkerIds(targetDays: TripDay[], allDays: TripDay[], trips: Trip[] = [], targetTripId?: string): string[] {
     const ids = (day: TripDay) => Array.from(new Set([...day.markerIds, ...day.chains.flat()]))
     const candidates = new Set(targetDays.flatMap(ids))
-    if (targetTripId) trips.find(trip => trip.id === targetTripId)?.markerIds?.forEach(id => candidates.add(id))
+    if (targetTripId) {
+        const target = trips.find(trip => trip.id === targetTripId)
+        target?.markerIds?.forEach(id => candidates.add(id))
+        target?.markerNotes?.forEach(note => candidates.add(note.markerId))
+    }
     const targetDayIds = new Set(targetDays.map(day => day.id))
     const retained = new Set<string>()
     for (const day of allDays) {
@@ -14,6 +18,7 @@ export function exclusiveMarkerIds(targetDays: TripDay[], allDays: TripDay[], tr
     for (const trip of trips) {
         if (trip.id === targetTripId) continue
         for (const id of trip.markerIds ?? []) retained.add(id)
+        for (const note of trip.markerNotes ?? []) retained.add(note.markerId)
     }
     return Array.from(candidates).filter(id => !retained.has(id))
 }

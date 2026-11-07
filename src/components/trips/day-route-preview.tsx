@@ -1,4 +1,5 @@
 import React from 'react'
+import { TripPlaceTitle } from './trip-place-title'
 import { Bike, Bus, Car, Footprints, Plane, Ship, TrainFront, Route } from 'lucide-react'
 import type { Marker } from '@/types/marker'
 import type { TripDay, TransportMode } from '@/types/trip'
@@ -36,7 +37,7 @@ export function DayRoutePreview({ day, markers }: { day: TripDay; markers: Marke
                         return <li key={`${position}-${id}`} className="relative pb-3 pl-4 last:pb-0">
                             <span aria-hidden="true" className="absolute -left-[4px] top-1.5 h-[7px] w-[7px] rounded-full border border-gray-400 bg-white" />
                             <div className="flex items-baseline gap-2">
-                                <span className="min-w-0 flex-1 break-words text-xs leading-5 text-gray-700">{byId.get(id)!.content.title || '未命名地点'}</span>
+                                <span className="min-w-0 flex-1 break-words text-xs leading-5 text-gray-700"><TripPlaceTitle marker={byId.get(id)!} tripId={day.tripId} /></span>
                                 {stop?.startTime && <span className="shrink-0 text-[11px] tabular-nums text-gray-500">{stop.startTime}</span>}
                             </div>
                             {stop?.durationMinutes !== undefined && <div className="text-[11px] text-gray-400">停留 {formatPlannedDuration(stop.durationMinutes)}</div>}
@@ -53,7 +54,7 @@ export function DayRoutePreview({ day, markers }: { day: TripDay; markers: Marke
         })}
         {unplanned.length > 0 && <div className="mt-3 text-[11px] leading-5 text-gray-400">
             未加入路线 · {unplanned.length} 个地点
-            <div className="break-words text-xs text-gray-500">{unplanned.map(marker => marker.content.title || '未命名地点').join(' · ')}</div>
+            <div className="break-words text-xs text-gray-500">{unplanned.map(marker => <span key={marker.id} className="mr-2 inline-block"><TripPlaceTitle marker={marker} tripId={day.tripId} /></span>)}</div>
         </div>}
         {markers.length === 0 && <div className="mt-3 text-xs text-gray-400">还没有安排地点</div>}
         <div className="mt-3 text-[11px] text-gray-400">{markers.length} 个地点 · {routes.length} 条路线</div>

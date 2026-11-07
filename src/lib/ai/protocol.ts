@@ -76,6 +76,7 @@ export const toolLabels: Record<string, string> = {
     ask_datetime: '选择日期时间', ask_choice: '选择偏好', preview_itinerary: '预览行程',
     change_title: '修改会话标题',
     record_plan_skeleton: '制定全程骨架', finish_planning_day: '核实当天安排', submit_trip_review: '提交行程审阅',
+    get_trip_marker_note: '查看旅行地点笔记', update_trip_marker_note: '更新旅行地点笔记',
     update_trip: '更新旅行', update_trip_day: '更新每日安排', delete_trip_day: '删除行程日',
     update_day_chain: '调整路线安排', delete_day_chain: '删除路线',
     search_destinations: '查询目的地', search_web: '搜索旅行资料', fetch_web: '阅读网页资料',
