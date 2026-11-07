@@ -76,9 +76,12 @@ async function main() {
         day('ba1', 'ba', [])
         const { mapProviderFactory } = await import('../src/lib/map/providers')
         const originalProvider = mapProviderFactory.createServiceProvider
-        mapProviderFactory.createServiceProvider = (() => ({ searchPlaces: async (name: string) => [{
+        mapProviderFactory.createServiceProvider = () => ({ searchPlaces: async (name: string) => [{
             name, coordinates: name === 'invalid-new-place' ? { longitude: 141, latitude: 36 } : { longitude: 140, latitude: 35 },
-        }] })) as typeof originalProvider
+        }], searchPlacesPage: async () => { throw new Error('Unexpected pagination') },
+            getPlaceDetails: async () => { throw new Error('Unexpected details') },
+            getDirections: async () => { throw new Error('Unexpected directions') },
+        })
         try {
             const planned = await client.callTool({ name: 'plan_trip_day', arguments: { tripId: 'ba', dayId: 'ba1', country: 'JP',
                 places: [{ name: 'venue', iconType: 'activity', content: '<p>conflicting</p>' }] } })
