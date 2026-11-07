@@ -81,6 +81,9 @@ function initSchema(db: Database.Database) {
         CREATE INDEX IF NOT EXISTS idx_trip_marker_notes_marker ON trip_marker_notes(marker_id);
     `)
 
+    const noteCols = db.prepare('PRAGMA table_info(trip_marker_notes)').all() as { name: string }[]
+    if (!noteCols.some(column => column.name === 'header_image')) db.exec('ALTER TABLE trip_marker_notes ADD COLUMN header_image TEXT')
+
     const markerCols = db.prepare('PRAGMA table_info(markers)').all() as { name: string }[]
     if (!markerCols.some(c => c.name === 'place_references')) db.exec('ALTER TABLE markers ADD COLUMN place_references TEXT')
 

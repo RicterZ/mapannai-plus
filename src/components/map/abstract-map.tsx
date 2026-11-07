@@ -822,10 +822,10 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
         markdownContent: string
     }) => {
         const { tripId, dayId } = newPlaceTargetRef.current ?? { tripId: null, dayId: null }
-        const markerId = createdPlaceRef.current ?? await createMarkerFromModal({ ...data, markdownContent: tripId ? '' : data.markdownContent })
+        const markerId = createdPlaceRef.current ?? await createMarkerFromModal({ ...data, headerImage: tripId ? undefined : data.headerImage, markdownContent: tripId ? '' : data.markdownContent })
         if (createdPlaceRef.current) {
             await updateMarkerFromModal({ markerId, title: data.name, iconType: data.iconType,
-                headerImage: data.headerImage, markdownContent: tripId
+                headerImage: tripId ? useMapStore.getState().markers.find(marker => marker.id === markerId)?.content.headerImage : data.headerImage, markdownContent: tripId
                     ? useMapStore.getState().markers.find(marker => marker.id === markerId)?.content.markdownContent || ''
                     : data.markdownContent })
         }
@@ -836,10 +836,10 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
         } catch {
             throw new Error('地点已保存，加入行程失败。再次保存可重试加入。')
         }
-        if (tripId && data.markdownContent) {
+        if (tripId && (data.markdownContent || data.headerImage)) {
             const note = useMapStore.getState().trips.find(trip => trip.id === tripId)?.markerNotes?.find(note => note.markerId === markerId)
-            if (note?.content && note.content !== data.markdownContent) throw new Error('本次旅行已有笔记，请关闭后打开地点详情整理，避免覆盖')
-            if (note?.content !== data.markdownContent) await useMapStore.getState().saveTripMarkerNote(tripId, markerId, { content: data.markdownContent, expectedUpdatedAt: note?.updatedAt ?? null })
+            if ((note?.content && note.content !== data.markdownContent) || (note?.headerImage && note.headerImage !== data.headerImage)) throw new Error('本次旅行已有笔记，请关闭后打开地点详情整理，避免覆盖')
+            if (note?.content !== data.markdownContent || note?.headerImage !== data.headerImage) await useMapStore.getState().saveTripMarkerNote(tripId, markerId, { content: data.markdownContent, headerImage: data.headerImage || null, expectedUpdatedAt: note?.updatedAt ?? null })
         }
         closePopup()
     }, [createMarkerFromModal, updateMarkerFromModal, addMarkerToDay, closePopup])

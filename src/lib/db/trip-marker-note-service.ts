@@ -7,12 +7,12 @@ export class TripMarkerNoteError extends Error {
 }
 
 export function getTripMarkerNotes(tripId: string): TripMarkerNote[] {
-    return getDb().prepare(`SELECT trip_id AS tripId, marker_id AS markerId, title, content, updated_at AS updatedAt
+    return getDb().prepare(`SELECT trip_id AS tripId, marker_id AS markerId, title, content, header_image AS headerImage, updated_at AS updatedAt
         FROM trip_marker_notes WHERE trip_id = ? ORDER BY updated_at DESC, marker_id`).all(tripId) as TripMarkerNote[]
 }
 
 export function getTripMarkerNote(tripId: string, markerId: string): TripMarkerNote | null {
-    return (getDb().prepare(`SELECT trip_id AS tripId, marker_id AS markerId, title, content, updated_at AS updatedAt
+    return (getDb().prepare(`SELECT trip_id AS tripId, marker_id AS markerId, title, content, header_image AS headerImage, updated_at AS updatedAt
         FROM trip_marker_notes WHERE trip_id = ? AND marker_id = ?`).get(tripId, markerId) as TripMarkerNote | undefined) ?? null
 }
 
@@ -36,15 +36,16 @@ export function updateTripMarkerNote(tripId: string, markerId: string, input: un
         const title = patch.title === undefined ? existing?.title ?? '' : patch.title ?? ''
         const rawContent = patch.content === undefined ? existing?.content ?? '' : patch.content ?? ''
         const content = rawContent.replace(/<(?:p|br)\b[^>]*>|<\/p>|&nbsp;/gi, '').trim() ? rawContent : ''
-        if (!title && !content.trim()) {
+        const headerImage = patch.headerImage === undefined ? existing?.headerImage ?? null : patch.headerImage || null
+        if (!title && !content.trim() && !headerImage) {
             getDb().prepare('DELETE FROM trip_marker_notes WHERE trip_id = ? AND marker_id = ?').run(tripId, markerId)
             return null
         }
         const updatedAt = new Date(Math.max(Date.now(), existing ? Date.parse(existing.updatedAt) + 1 : 0)).toISOString()
-        getDb().prepare(`INSERT INTO trip_marker_notes (trip_id, marker_id, title, content, updated_at)
-            VALUES (?, ?, ?, ?, ?) ON CONFLICT(trip_id, marker_id) DO UPDATE SET
-            title = excluded.title, content = excluded.content, updated_at = excluded.updated_at`)
-            .run(tripId, markerId, title, content, updatedAt)
+        getDb().prepare(`INSERT INTO trip_marker_notes (trip_id, marker_id, title, content, header_image, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(trip_id, marker_id) DO UPDATE SET
+            title = excluded.title, content = excluded.content, header_image = excluded.header_image, updated_at = excluded.updated_at`)
+            .run(tripId, markerId, title, content, headerImage, updatedAt)
         return getTripMarkerNote(tripId, markerId)
     }).immediate()
 }

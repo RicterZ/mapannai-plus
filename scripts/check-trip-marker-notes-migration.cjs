@@ -19,7 +19,7 @@ async function main() {
         if (!args.length && !hasNotes) throw new Error('Trip note migration has not run')
         if (hasNotes) {
             const columns = db.prepare('PRAGMA table_info(trip_marker_notes)').all()
-            for (const name of ['trip_id', 'marker_id', 'title', 'content', 'updated_at']) if (!columns.some(column => column.name === name)) throw new Error(`Missing column: ${name}`)
+            for (const name of ['trip_id', 'marker_id', 'title', 'content', 'updated_at', ...(args.length ? [] : ['header_image'])]) if (!columns.some(column => column.name === name)) throw new Error(`Missing column: ${name}`)
             const keys = db.prepare('PRAGMA foreign_key_list(trip_marker_notes)').all()
             if (!['trips', 'markers'].every(table => keys.some(key => key.table === table && key.on_delete === 'CASCADE'))) throw new Error('Missing cascading foreign keys')
         }

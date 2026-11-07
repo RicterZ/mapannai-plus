@@ -40,7 +40,7 @@ export function registerTripTools(server: McpServer) {
             if (!getTripById(tripId) || !getMarkerById(markerId)) throw new Error('旅行或地点不存在')
             return { content: [{ type: 'text', text: JSON.stringify({ note: getTripMarkerNote(tripId, markerId) }) }] }
         })
-    server.tool('update_trip_marker_note', '修改本次旅行的地点标题和富文本笔记，不改地点通用资料；省略保留，null清除，标题正文全空时删除笔记但保留地点与安排。先读取并传expectedUpdatedAt防止覆盖。可为已移出日程地点保留旅行笔记。',
+    server.tool('update_trip_marker_note', '修改本次旅行的地点标题、独立封面headerImage和富文本笔记，不改地点通用资料；省略保留，null清除，标题正文封面全空时删除笔记但保留地点与安排。先读取并传expectedUpdatedAt防止覆盖。可为已移出日程地点保留旅行笔记。',
         { tripId: z.string(), markerId: z.string(), ...tripMarkerNotePatchSchema.shape }, async ({ tripId, markerId, ...patch }) => ({
             content: [{ type: 'text', text: JSON.stringify({ note: updateTripMarkerNote(tripId, markerId, patch) }) }],
         }))

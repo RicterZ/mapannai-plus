@@ -1,10 +1,10 @@
 'use client'
 
+import { PlaceCover } from '@/components/trips/place-cover'
 import { TripPlaceTitle } from '@/components/trips/trip-place-title'
 import { PlaceIcon } from '@/components/ui/place-icon'
 
 import { Plus } from 'lucide-react'
-import { compressedImageUrl } from '@/lib/upload/image-url'
 
 import { tripDestinations } from '@/lib/trips/destination'
 
@@ -1070,7 +1070,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                             return <div key={type} className="mb-3 bg-white">
                                 <div className="flex items-center gap-2 py-2 text-[11px] text-gray-400"><span>{icon.name}</span><span className="ml-auto">{group.length}</span></div>
                                 <div className="divide-y divide-gray-100">{group.map(marker => <button key={marker.id} onClick={() => handleMarkerClick(marker.id)} className="flex w-full items-center gap-3 py-3 text-left hover:bg-gray-50">
-                                    {marker.content.headerImage ? <img src={compressedImageUrl(marker.content.headerImage)} loading="lazy" alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" /> : <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center text-lg"><PlaceIcon emoji={icon.emoji} size={30} /></span>}
+                                    <PlaceCover marker={marker} tripId={null} className="h-12 w-12 shrink-0 rounded-xl object-cover" fallback={<span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center text-lg"><PlaceIcon emoji={icon.emoji} size={30} /></span>} />
                                     <span className="min-w-0 flex-1"><span className="line-clamp-2 break-words text-sm font-medium text-gray-800"><TripPlaceTitle marker={marker} /></span>{marker.content.address && <span className="mt-1 line-clamp-2 text-xs leading-4 text-gray-400">{marker.content.address}</span>}</span>
                                     <svg className="h-3.5 w-3.5 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m9 5 7 7-7 7" /></svg>
                                 </button>)}</div>
@@ -1378,7 +1378,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                     <span className="journey-stop-number relative z-10 mt-1 flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 bg-white text-[10px] font-medium shrink-0" style={{ color: routeColor(chainIdx, currentDay?.id, currentDay?.colorIndex) }}>{idx + 1}</span>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-start gap-2">
-                                                            {marker.content.headerImage ? <img src={compressedImageUrl(marker.content.headerImage)} alt="" loading="lazy" className="h-8 w-8 shrink-0 rounded-md object-cover" /> : <span className="journey-category-icon flex h-8 w-8 shrink-0 items-center justify-center"><PlaceIcon emoji={icon.emoji} size={26} /></span>}
+                                                            <PlaceCover marker={marker} className="h-8 w-8 shrink-0 rounded-md object-cover" fallback={<span className="journey-category-icon flex h-8 w-8 shrink-0 items-center justify-center"><PlaceIcon emoji={icon.emoji} size={26} /></span>} />
                                                             <div className="min-w-0 flex-1 break-words text-base font-semibold leading-8 text-gray-900" title={marker.content.title}>{stop?.isHighlight && <span aria-label="重点地点" title="重点地点" className="mr-1 text-amber-600">★</span>}<TripPlaceTitle marker={marker} /></div>
                                                         </div>
                                                         {marker.content.address && (

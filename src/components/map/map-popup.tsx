@@ -1,5 +1,6 @@
 'use client'
 
+import { PlaceCover } from '@/components/trips/place-cover'
 import { TripPlaceTitle } from '@/components/trips/trip-place-title'
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
@@ -10,7 +11,6 @@ import { cn } from '@/utils/cn'
 import { toMapCoordinates } from '@/lib/map/basemap'
 import type { BasemapProviderType } from '@/types/map-provider'
 import { wgs84ToGcj02 } from '@/lib/coord-transform'
-import { compressedImageUrl } from '@/lib/upload/image-url'
 
 interface MapPopupProps {
     basemap?: BasemapProviderType
@@ -122,16 +122,7 @@ export const MapPopup = ({
                 {selectedMarker ? (
                     // 已有标记：显示标题、编辑/删除、加入今天
                     <div className="max-w-[280px]">
-                        {selectedMarker.content.headerImage && (
-                            <div className="w-full h-28 bg-gray-100">
-                                <img
-                                    src={compressedImageUrl(selectedMarker.content.headerImage)}
-                                    alt={selectedMarker.content.title || '地点封面'}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => { e.currentTarget.style.display = 'none' }}
-                                />
-                            </div>
-                        )}
+                        <PlaceCover marker={selectedMarker} className="h-28 w-full object-cover" />
                         <div className="p-4 space-y-3">
                             <h3 className="text-base font-semibold leading-6 text-gray-900 pr-5">
                                 <TripPlaceTitle marker={selectedMarker} />
