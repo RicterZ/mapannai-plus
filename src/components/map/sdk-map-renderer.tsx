@@ -9,7 +9,7 @@ import { isRangeFallback } from '@/lib/map/route-cache'
 
 import { startAnimationLoop } from '@/lib/ui/animation-loop'
 
-import React, { useEffect, useImperativeHandle, useRef, useState, useSyncExternalStore } from 'react'
+import React, { useEffect, useImperativeHandle, useRef, useState, useSyncExternalStore, useDeferredValue } from 'react'
 import { createPortal } from 'react-dom'
 import { useMapStore } from '@/store/map-store'
 import type { Marker } from '@/types/marker'
@@ -297,7 +297,9 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
         routeOverlaysRef.current.clear()
     }, [])
 
-    const { tripDays, activeView, interactionState } = useMapStore()
+    const { tripDays, activeView: currentView, interactionState } = useMapStore()
+    // Let sidebar navigation paint before rebuilding the expanded route scope.
+    const activeView = useDeferredValue(currentView)
     const [hoveredDayId, setHoveredDayId] = useState<string | null>(null)
     const effectiveDayId = activeView.mode === 'day' ? activeView.dayId : interactionState.highlightedDayId ?? hoveredDayId
     const zoomThreshold = useSyncExternalStore(

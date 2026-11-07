@@ -183,7 +183,6 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
     const toggleAddMarker = () => {
         const next = !addMarkerEnabled
         localStorage.setItem('addMarkerEnabled', String(next))
-        if (next) useMapStore.getState().closeSidebar()
         setAddMarkerEnabled(next)
     }
     useEffect(() => {

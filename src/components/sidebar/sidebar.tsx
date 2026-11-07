@@ -5,7 +5,7 @@ import { TripPlaceNotes } from '@/components/trips/trip-place-notes'
 import { PlaceIcon } from '@/components/ui/place-icon'
 
 import { useRef, useState, useEffect } from 'react'
-import { ArrowUpRight, Check, NotebookPen, Pencil, X } from 'lucide-react'
+import { ArrowUpRight, Pencil, X } from 'lucide-react'
 import { routeColor } from '@/lib/map/route-presentation'
 import { useMapStore } from '@/store/map-store'
 import { MARKER_ICONS } from '@/types/marker'
@@ -18,7 +18,7 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
     const [animState, setAnimState] = useState<'hidden' | 'entering' | 'visible' | 'exiting'>('hidden')
     const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
     const [noteTripId, setNoteTripId] = useState<string | null>(null)
-    const { markers, interactionState, closeSidebar, openEditMarkerModal, activeView, trips, tripDays, editMode } = useMapStore()
+    const { markers, interactionState, closeSidebar, openEditMarkerModal, activeView, trips, tripDays } = useMapStore()
     const { isSidebarOpen, displayedMarkerId } = interactionState
     const marker = markers.find(item => item.id === displayedMarkerId)
     useEffect(() => { setNoteTripId(activeView.tripId) }, [displayedMarkerId, isSidebarOpen, activeView.tripId])
@@ -45,7 +45,7 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
             <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-3">
                 <span className="text-xs font-medium text-gray-500">地点详情</span>
                 <div className="flex items-center gap-1">
-                    {marker && editMode.isEnabled && <button onClick={() => openEditMarkerModal(marker.id, noteTripId)} className="workspace-icon-button" aria-label="编辑地点" title="编辑地点"><Pencil size={17} /></button>}
+                    {marker && <button onClick={() => openEditMarkerModal(marker.id, noteTripId)} className="workspace-icon-button" aria-label="编辑地点" title="编辑地点"><Pencil size={17} /></button>}
                     <button onClick={close} className="workspace-icon-button" aria-label="返回地图" title="返回地图"><X size={18} /></button>
                 </div>
             </div>
@@ -63,7 +63,6 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
                     {!!memberships.length && <section className="space-y-2"><h3 className="text-xs font-medium text-gray-400">所属行程</h3><div className="space-y-1.5">{memberships.map(({ trip, days }) => {
                         const selected = noteTripId === trip.id
                         const ordered = tripDays.filter(day => day.tripId === trip.id).sort((a, b) => a.date.localeCompare(b.date))
-                        const hasNote = trip.markerNotes?.some(note => note.markerId === marker.id)
                         return <button key={trip.id} type="button" aria-label={trip.name} aria-pressed={selected}
                             className={cn('trip-membership flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors', selected ? 'border-slate-300 bg-slate-100/80' : 'border-transparent bg-gray-50 hover:bg-gray-100')}
                             onClick={() => setNoteTripId(current => current === trip.id ? null : trip.id)}>
@@ -73,10 +72,8 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
                                 <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs leading-4 text-gray-500">
                                     {days.length ? days.map(day => { const index = ordered.findIndex(item => item.id === day.id); return <span key={day.id} className="inline-flex items-center gap-1 whitespace-nowrap"><span className="size-1.5 rounded-full" style={{ background: routeColor(0, day.id, day.colorIndex) }} />第{index + 1}天 <span className="text-gray-400">{day.date.slice(5).replace('-', '/')}</span></span> })
                                         : <span className="text-gray-400">{trip.markerIds?.includes(marker.id) ? '未分配日期' : '已移出行程'}</span>}
-                                    {hasNote && <span className="inline-flex items-center gap-1 whitespace-nowrap text-gray-500"><NotebookPen size={12} />旅行笔记</span>}
                                 </span>
                             </span>
-                            <span className={cn('mt-2 flex size-5 shrink-0 items-center justify-center rounded-full border', selected ? 'border-slate-700 bg-slate-700 text-white' : 'border-gray-300 bg-white text-transparent')}><Check size={12} strokeWidth={3} /></span>
                         </button>
                     })}</div></section>}
                     <PlaceCover marker={marker} tripId={noteTripId} className="aspect-video w-full rounded-2xl object-cover" />
