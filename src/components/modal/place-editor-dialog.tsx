@@ -70,8 +70,9 @@ export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tr
                     {scopeEditor?.navigation}
                     <label className="block text-xs font-medium text-gray-500">{tripNote ? '本次旅行显示标题（可选）' : '地点名称'}<input value={values.title} onChange={event => setValues({ ...values, title: event.target.value })} className="workspace-field mt-2" placeholder={tripNote?.placeName || "给这个地点起个名字"} /></label>
                     {address && <p className="text-xs leading-5 text-gray-500">{address}</p>}
-                    {tripNote && <p className="text-xs leading-5 text-gray-500">{tripNote.tripName} · {tripNote.placeName}<br />仅修改本次旅行内容，通用资料保持共享。清空标题和正文后保存可删除本次笔记。</p>}
+                    {tripNote && <p className="text-xs leading-5 text-gray-500">{tripNote.tripName} · {tripNote.placeName}<br />仅修改本次旅行内容，通用资料保持共享。清空标题、正文和封面后保存可删除本次笔记。</p>}
                     {!tripNote && <><div><span className="mb-2 block text-xs font-medium text-gray-500">分类</span><IconSelector selectedIcon={values.iconType} onSelect={iconType => setValues({ ...values, iconType })} /></div>
+                    </>}
                     <div>
                         <span className="mb-2 block text-xs font-medium text-gray-500">封面</span>
                         <input id={uploadId} disabled={busy} type="file" accept="image/*" className="hidden" onChange={async event => {
@@ -92,7 +93,6 @@ export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tr
                             <div className="flex items-center justify-between text-xs text-gray-500"><label htmlFor={uploadId} className="cursor-pointer rounded-lg px-2 py-2 hover:bg-gray-100">更换封面</label><button type="button" onClick={() => setValues({ ...values, headerImage: '' })} className="rounded-lg px-2 py-2 hover:bg-gray-100">移除</button></div>
                         </div> : <label htmlFor={uploadId} className="flex h-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white text-xs text-gray-400 hover:border-gray-400"><ImagePlus size={22} />{uploading ? '上传中…' : '添加封面'}</label>}
                     </div>
-                    </>}
                 </fieldset>
                 <div className="flex min-h-[300px] min-w-0 flex-1 flex-col lg:min-h-0">
                     <div className="px-5 pt-4 pb-2 text-xs font-medium text-gray-500">{tripNote ? '本次旅行笔记' : noteScope ? `本次旅行笔记 · ${noteScope}` : '地点通用笔记 · 所有旅行共享'}</div>

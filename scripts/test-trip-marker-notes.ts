@@ -12,6 +12,7 @@ async function main() {
     const legacy = new Database(process.env.SQLITE_PATH)
     legacy.exec(`CREATE TABLE markers (id TEXT PRIMARY KEY, longitude REAL, latitude REAL, title TEXT, address TEXT, header_image TEXT, icon_type TEXT, markdown_content TEXT, description TEXT, created_at TEXT, updated_at TEXT);
         INSERT INTO markers VALUES ('venue',140,35,'幕张展览馆',NULL,NULL,'activity','<p>FF14</p><img src="https://images.example/ticket.jpg">',NULL,'2026-01-01','2026-01-01');`)
+    legacy.exec(`CREATE TABLE trip_marker_notes (trip_id TEXT REFERENCES trips(id) ON DELETE CASCADE, marker_id TEXT REFERENCES markers(id) ON DELETE CASCADE, title TEXT NOT NULL DEFAULT '', content TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL, PRIMARY KEY(trip_id, marker_id))`)
     legacy.close()
     try {
         const trips = await import('../src/lib/db/trip-service')
@@ -27,6 +28,7 @@ async function main() {
         assert.match(execFileSync(process.execPath, [checker, '--backup', backup], { encoding: 'utf8' }), /\"integrity\":\"ok\"/)
         assert.throws(() => execFileSync(process.execPath, [checker, '--backup', backup], { stdio: 'pipe' }), /Command failed/)
         assert.match(execFileSync(process.execPath, [checker], { encoding: 'utf8' }), /\"tripNoteTable\":true/)
+        assert((getDb().prepare('PRAGMA table_info(trip_marker_notes)').all() as { name: string }[]).some(column => column.name === 'header_image'), 'existing note table adds cover without destructive migration')
         const original = markers.getMarkerById('venue')!
         assert(original.properties.markdownContent.includes('<img'))
         trips.setTripMarker('ff14', 'venue', true)
@@ -41,7 +43,11 @@ async function main() {
         assert.throws(() => notes.updateTripMarkerNote('missing', 'venue', { content: 'x' }), /旅行不存在/)
         assert.throws(() => notes.updateTripMarkerNote('ba', 'missing', { content: 'x' }), /地点不存在/)
         for (const input of [{ unknown: 1 }, { title: 42 }, { content: 'x'.repeat(500001) }]) assert.throws(() => notes.updateTripMarkerNote('ba', 'venue', input), /字段无效/)
+        notes.updateTripMarkerNote('ba', 'venue', { headerImage: 'https://images.example/ba-cover.jpg' })
         notes.updateTripMarkerNote('ba', 'venue', { title: null })
+        assert.equal(notes.getTripMarkerNote('ba', 'venue')!.headerImage, 'https://images.example/ba-cover.jpg', 'old updates preserve trip cover')
+        assert.throws(() => notes.updateTripMarkerNote('ba', 'venue', { headerImage: 'javascript:alert(1)' }), /字段无效/)
+        notes.updateTripMarkerNote('ba', 'venue', { headerImage: null })
         assert.equal(notes.getTripMarkerNote('ba', 'venue')!.content, ba.content)
         day('ff1', 'ff14', ['venue']); day('ff2', 'ff14', [])
         assert.equal(trips.getTripById('ff14')!.markerIds!.length, 0)

@@ -5,6 +5,7 @@ export interface TripDestination {
 }
 
 export interface TripMarkerNote {
+  headerImage?: string | null
   tripId: string
   markerId: string
   title: string
