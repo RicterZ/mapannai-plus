@@ -245,39 +245,43 @@ export function registerTripTools(server: McpServer) {
                     const coordinateHash = generateCoordinateHash(coordinates.longitude, coordinates.latitude)
                     const featureId = `coord_${coordinateHash}`
 
-                    const existing = findNearbyMarker(coordinates.longitude, coordinates.latitude, 10)
+                    const saved = getDb().transaction(() => {
+                        const existing = findNearbyMarker(coordinates.longitude, coordinates.latitude, 10)
 
-                    let markerId = featureId
-                    if (!existing) {
-                        const now = new Date().toISOString()
-                        upsertMarker(featureId, coordinates.longitude, coordinates.latitude, {
-                            placeReferences: searchResults[0].placeReferences,
-                            markdownContent: '',
-                            headerImage: null,
-                            iconType: place.iconType,
-                            next: [],
-                            metadata: {
-                                id: featureId, title: place.name,
-                                description: 'MCP 行程规划', isPublished: true,
-                                createdAt: now, updatedAt: now, coordinateHash,
-                            },
-                        })
-                    } else {
-                        markerId = existing.id as string
-                    }
+                        let markerId = featureId
+                        if (!existing) {
+                            const now = new Date().toISOString()
+                            upsertMarker(featureId, coordinates.longitude, coordinates.latitude, {
+                                placeReferences: searchResults[0].placeReferences,
+                                markdownContent: '',
+                                headerImage: null,
+                                iconType: place.iconType,
+                                next: [],
+                                metadata: {
+                                    id: featureId, title: place.name,
+                                    description: 'MCP 行程规划', isPublished: true,
+                                    createdAt: now, updatedAt: now, coordinateHash,
+                                },
+                            })
+                        } else {
+                            markerId = existing.id as string
+                        }
 
-                    // Append to day (re-read for latest state)
-                    const freshDay = getDayById(dayId)!
-                    if (!freshDay.markerIds.includes(markerId)) {
-                        upsertTripDay({ ...freshDay, markerIds: [...freshDay.markerIds, markerId] })
-                    }
+                        // Append to day (re-read for latest state)
+                        const freshDay = getDayById(dayId)!
+                        if (!freshDay.markerIds.includes(markerId)) {
+                            upsertTripDay({ ...freshDay, markerIds: [...freshDay.markerIds, markerId] })
+                        }
 
-                    if (place.content !== undefined) {
-                        const note = getTripMarkerNote(tripId, markerId)
-                        if (note?.content && note.content !== place.content) throw new Error('本次旅行已有地点笔记，请先读取再明确更新')
-                        updateTripMarkerNote(tripId, markerId, { content: place.content, expectedUpdatedAt: note?.updatedAt ?? null })
-                    }
-                    results.push({ name: place.name, id: markerId, status: existing ? 'existing' : 'created', coordinates, placeReferences: getMarkerById(markerId)!.properties.placeReferences })
+                        let noteWarning: string | undefined
+                        if (place.content !== undefined) {
+                            const note = getTripMarkerNote(tripId, markerId)
+                            if (note?.content && note.content !== place.content) noteWarning = '地点已加入，已有旅行笔记未改；请先读取笔记再明确更新'
+                            else updateTripMarkerNote(tripId, markerId, { content: place.content, expectedUpdatedAt: note?.updatedAt ?? null })
+                        }
+                        return { name: place.name, id: markerId, status: existing ? 'existing' : 'created', noteWarning, coordinates, placeReferences: getMarkerById(markerId)!.properties.placeReferences }
+                    }).immediate()
+                    results.push(saved)
                 } catch (err) {
                     results.push({ name: place.name, id: null, status: 'error', error: err instanceof Error ? err.message : String(err) })
                 }

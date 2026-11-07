@@ -1557,7 +1557,10 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                 const day = days[dayIndex]
                 if (!trip || (!isTrip && !day)) return null
                 const noteCount = isTrip ? trip.markerNotes?.length ?? 0 : 0
-                const exclusiveCount = exclusiveMarkerIds(isTrip ? days : [day], tripDays, trips, isTrip ? trip.id : undefined).filter(id => markers.some(marker => marker.id === id)).length
+                const exclusiveIds = exclusiveMarkerIds(isTrip ? days : [day], tripDays, trips, isTrip ? trip.id : undefined).filter(id => markers.some(marker => marker.id === id))
+                const exclusiveCount = exclusiveIds.length
+                const itineraryIds = new Set([...(trip.markerIds ?? []), ...days.flatMap(day => [...day.markerIds, ...day.chains.flat()])])
+                const noteOnlyExclusiveCount = isTrip ? exclusiveIds.filter(id => !itineraryIds.has(id)).length : 0
                 return <Modal title={isTrip ? `删除「${trip.name}」？` : `删除第${dayIndex + 1}天？`} onClose={() => setPendingDeletion(null)} busy={deleting}>
                         <p className="mt-2 text-sm text-gray-600">
                             {isTrip
@@ -1570,6 +1573,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                             <input type="checkbox" checked={deleteExclusiveMarkers} disabled={deleting || exclusiveCount === 0} onChange={event => setDeleteExclusiveMarkers(event.target.checked)} />
                             同时删除独占地点（{exclusiveCount} 个）
                         </label>
+                        {noteOnlyExclusiveCount > 0 && <p className="mt-1 text-xs text-gray-500">其中 {noteOnlyExclusiveCount} 个地点仅保留本旅行笔记，勾选后也会删除地点本身。</p>}
                         <p className="mt-1 text-xs text-gray-500">{isTrip ? '其他旅行仍在使用的地点会保留；仅在本旅行多天出现的地点也会删除。' : '其他日期或旅行仍在使用的地点会保留。'}未勾选时保留全部地点。</p>
                         <div className="mt-5 flex justify-end gap-2">
                             <button type="button" autoFocus onClick={() => setPendingDeletion(null)} disabled={deleting} className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600">取消</button>

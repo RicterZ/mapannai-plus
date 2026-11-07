@@ -823,9 +823,11 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
     }) => {
         const { tripId, dayId } = newPlaceTargetRef.current ?? { tripId: null, dayId: null }
         const markerId = createdPlaceRef.current ?? await createMarkerFromModal({ ...data, markdownContent: tripId ? '' : data.markdownContent })
-        if (createdPlaceRef.current && !tripId) {
+        if (createdPlaceRef.current) {
             await updateMarkerFromModal({ markerId, title: data.name, iconType: data.iconType,
-                headerImage: data.headerImage, markdownContent: data.markdownContent })
+                headerImage: data.headerImage, markdownContent: tripId
+                    ? useMapStore.getState().markers.find(marker => marker.id === markerId)?.content.markdownContent || ''
+                    : data.markdownContent })
         }
         createdPlaceRef.current = markerId
         try {

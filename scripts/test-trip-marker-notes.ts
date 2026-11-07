@@ -73,6 +73,30 @@ async function main() {
         assert(!result.isError)
         const read = await client.callTool({ name: 'get_trip_marker_note', arguments: { tripId: 'ba', markerId: 'venue' } })
         assert(JSON.stringify(read).includes('updated'))
+        day('ba1', 'ba', [])
+        const { mapProviderFactory } = await import('../src/lib/map/providers')
+        const originalProvider = mapProviderFactory.createServiceProvider
+        mapProviderFactory.createServiceProvider = (() => ({ searchPlaces: async (name: string) => [{
+            name, coordinates: name === 'invalid-new-place' ? { longitude: 141, latitude: 36 } : { longitude: 140, latitude: 35 },
+        }] })) as typeof originalProvider
+        try {
+            const planned = await client.callTool({ name: 'plan_trip_day', arguments: { tripId: 'ba', dayId: 'ba1', country: 'JP',
+                places: [{ name: 'venue', iconType: 'activity', content: '<p>conflicting</p>' }] } })
+            assert(!planned.isError)
+            const payload = JSON.parse((planned.content as Array<{ text: string }>)[0].text)
+            assert.equal(payload.results[0].id, 'venue')
+            assert.equal(payload.results[0].status, 'existing')
+            assert.match(payload.results[0].noteWarning, /已加入/)
+            assert(trips.getDayById('ba1')!.markerIds.includes('venue'))
+            assert.equal(notes.getTripMarkerNote('ba', 'venue')!.content, '<p>updated</p>')
+            const beforeCount = markers.getAllMarkers().features.length
+            const failed = await client.callTool({ name: 'plan_trip_day', arguments: { tripId: 'ba', dayId: 'ba1', country: 'JP',
+                places: [{ name: 'invalid-new-place', iconType: 'activity', content: 'x'.repeat(500001) }] } })
+            const failedPayload = JSON.parse((failed.content as Array<{ text: string }>)[0].text)
+            assert.equal(failedPayload.results[0].id, null)
+            assert.equal(markers.getAllMarkers().features.length, beforeCount, 'failed content write rolls back a new marker')
+            assert.deepEqual(trips.getDayById('ba1')!.markerIds, ['venue'], 'failed content write rolls back membership')
+        } finally { mapProviderFactory.createServiceProvider = originalProvider }
         await client.close(); await server.close()
         const { deletedMarkerIds } = trips.deleteTrip('ff14', true)
         assert(!deletedMarkerIds.includes('venue'), 'another trip note protects marker with no day or pending membership')
