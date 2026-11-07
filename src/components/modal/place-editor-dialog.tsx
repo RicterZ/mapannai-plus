@@ -1,6 +1,7 @@
 'use client'
 
-import { useId, useState } from 'react'
+import React, { useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ImagePlus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useDialogFocus } from '@/lib/ui/use-dialog-focus'
@@ -17,7 +18,8 @@ export interface PlaceEditorValues {
     markdownContent: string
 }
 
-export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tripNote, noteScope }: {
+export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tripNote, noteScope, scopeEditor }: {
+    scopeEditor?: { values: PlaceEditorValues; onChange: (values: PlaceEditorValues) => void; navigation: React.ReactNode }
     noteScope?: string
     tripNote?: { tripName: string; placeName: string }
     title: string
@@ -26,7 +28,16 @@ export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tr
     onClose: () => void
     onSave: (values: PlaceEditorValues) => Promise<void>
 }) {
-    const [values, setValues] = useState(initial)
+    const [localValues, setLocalValues] = useState(initial)
+    const values = scopeEditor?.values ?? localValues
+    const valuesRef = useRef(values)
+    valuesRef.current = values
+    const setValues: React.Dispatch<React.SetStateAction<PlaceEditorValues>> = action => {
+        const next = typeof action === 'function' ? action(valuesRef.current) : action
+        valuesRef.current = next
+        if (scopeEditor) scopeEditor.onChange(next)
+        else setLocalValues(next)
+    }
     const [saving, setSaving] = useState(false)
     const [uploading, setUploading] = useState(false)
     const [bodyUploading, setBodyUploading] = useState(false)
@@ -43,12 +54,12 @@ export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tr
         try {
             await onSave({ ...values, title: values.title.trim() })
             toast.success(tripNote ? '旅行笔记已保存' : '地点已保存')
-            onClose()
+            if (!scopeEditor) onClose()
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : '保存失败，请重试')
         } finally { setSaving(false) }
     }
-    return <div className="fixed inset-0 modal-viewport z-[100] flex items-center justify-center bg-black/30 p-4" onMouseDown={event => { if (event.target === event.currentTarget) close() }}>
+    return createPortal(<div className="fixed inset-0 modal-viewport z-[200] flex items-center justify-center bg-black/30 p-4" onMouseDown={event => { if (event.target === event.currentTarget) close() }}>
         <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} className="dialog-card place-editor-dialog flex max-h-full w-full max-w-[880px] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl outline-none">
             <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
                 <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
@@ -56,6 +67,7 @@ export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tr
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto lg:flex lg:overflow-hidden">
                 <fieldset disabled={busy} className="min-w-0 space-y-5 border-b border-gray-100 bg-gray-50/60 p-5 lg:w-[280px] lg:shrink-0 lg:overflow-y-auto lg:border-b-0 lg:border-r">
+                    {scopeEditor?.navigation}
                     <label className="block text-xs font-medium text-gray-500">{tripNote ? '本次旅行显示标题（可选）' : '地点名称'}<input value={values.title} onChange={event => setValues({ ...values, title: event.target.value })} className="workspace-field mt-2" placeholder={tripNote?.placeName || "给这个地点起个名字"} /></label>
                     {address && <p className="text-xs leading-5 text-gray-500">{address}</p>}
                     {tripNote && <p className="text-xs leading-5 text-gray-500">{tripNote.tripName} · {tripNote.placeName}<br />仅修改本次旅行内容，通用资料保持共享。清空标题和正文后保存可删除本次笔记。</p>}
@@ -94,5 +106,5 @@ export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tr
                 <div className="flex justify-end gap-2"><button disabled={busy} onClick={close} className="workspace-secondary-button">取消</button><button disabled={busy} onClick={() => void save()} className="workspace-primary-button">{saving ? '保存中…' : uploading || bodyUploading ? '上传中…' : tripNote ? '保存旅行笔记' : '保存地点'}</button></div>
             </div>
         </div>
-    </div>
+    </div>, document.body)
 }

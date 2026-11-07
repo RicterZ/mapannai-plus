@@ -91,7 +91,7 @@ interface MapStore {
     closeAddMarkerModal: () => void
 
     // 编辑弹窗 actions
-    openEditMarkerModal: (markerId: string) => void
+    openEditMarkerModal: (markerId: string, tripId?: string | null) => void
     closeEditMarkerModal: () => void
 
     // 左侧边栏 actions
@@ -371,11 +371,11 @@ export const useMapStore = create<MapStore>()(
             },
 
             // 编辑弹窗 actions
-            openEditMarkerModal: (markerId) => {
+            openEditMarkerModal: (markerId, tripId) => {
                 set({
                     editMarkerModal: {
                         isOpen: true,
-                        tripId: get().activeView.tripId,
+                        tripId: tripId === undefined ? get().activeView.tripId : tripId,
                         markerId,
                     },
                     interactionState: {

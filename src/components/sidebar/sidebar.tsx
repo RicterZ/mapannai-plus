@@ -1,5 +1,6 @@
 'use client'
 
+import { placeMemberships } from '@/lib/trips/place-memberships'
 import { TripPlaceNotes } from '@/components/trips/trip-place-notes'
 import { PlaceIcon } from '@/components/ui/place-icon'
 
@@ -40,7 +41,7 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
     useEffect(() => { if (sidebarRef.current) sidebarRef.current.inert = !isSidebarOpen }, [isSidebarOpen, animState])
     if (animState === 'hidden') return null
     const icon = MARKER_ICONS[marker?.content.iconType || 'location'] || MARKER_ICONS.location
-    const memberships = marker ? trips.map(trip => ({ trip, days: tripDays.filter(day => day.tripId === trip.id && day.markerIds.includes(marker.id)).sort((a, b) => a.date.localeCompare(b.date)) })).filter(item => item.days.length || item.trip.markerIds?.includes(marker.id)) : []
+    const memberships = marker ? placeMemberships(marker.id, trips, tripDays) : []
     return <>
         <div className={cn('fixed inset-0 z-[69] bg-black lg:hidden panel-backdrop', isSidebarOpen ? 'panel-open' : 'panel-closed', animState === 'visible' ? 'opacity-25' : 'opacity-0')} onClick={close} />
         <div ref={sidebarRef} className={cn('right-sidebar fixed right-0 bottom-0 z-[70] flex h-full w-full max-w-md flex-col bg-white lg:top-0 lg:bottom-0 lg:h-auto lg:w-[420px] lg:max-w-[420px] sidebar-ipad-portrait sidebar-ipad-landscape app-panel', (animState === 'entering' || animState === 'exiting') ? 'translate-x-full' : 'translate-x-0')} style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
@@ -70,9 +71,9 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
                             }}>{adding ? '加入中…' : currentDay ? '加入当天' : '加入旅行'}</button>}
                         </div>
                     </div>
-                    {!!memberships.length && <section className="space-y-2"><h3 className="text-xs font-medium text-gray-400">所属行程</h3><div className="space-y-1">{memberships.map(({ trip, days }) => <div key={trip.id} className="rounded-xl bg-gray-50 px-3 py-2.5">
-                        <button className="w-full text-left text-sm font-medium text-gray-700 hover:text-gray-900" onClick={() => { setActiveView('trip', trip.id); openLeftSidebar() }}>{trip.name}</button>
-                        <div className="mt-1 flex flex-wrap gap-1">{days.length ? days.map(day => <button key={day.id} onClick={() => { setActiveView('day', trip.id, day.id); openLeftSidebar() }} className="rounded-md px-1.5 py-1 text-xs text-gray-500 hover:bg-gray-200">{day.date.slice(5).replace('-', '/')}</button>) : <span className="text-xs text-gray-400">未分配日期</span>}</div>
+                    {!!memberships.length && <section className="space-y-2"><h3 className="text-xs font-medium text-gray-400">所属行程</h3><div className="space-y-1">{memberships.map(({ trip, days }) => <div key={trip.id} aria-label={trip.name} className={cn('rounded-xl border px-3 py-2.5', activeView.tripId === trip.id ? 'border-blue-300 bg-blue-50' : 'border-transparent bg-gray-50')}>
+                        <button aria-pressed={activeView.tripId === trip.id} className="min-h-[32px] w-full text-left text-sm font-medium text-gray-700 hover:text-gray-900" onClick={() => { setActiveView('trip', trip.id, null, { focusFirstMarker: false }); openLeftSidebar() }}>{trip.name}</button>
+                        <div className="mt-1 flex flex-wrap gap-1">{days.length ? days.map(day => <button key={day.id} onClick={() => { setActiveView('day', trip.id, day.id, { focusFirstMarker: false }); openLeftSidebar() }} className="rounded-md px-1.5 py-1 text-xs text-gray-500 hover:bg-gray-200">{day.date.slice(5).replace('-', '/')}</button>) : <span className="text-xs text-gray-400">{trip.markerIds?.includes(marker.id) ? '未分配日期' : '保留旅行笔记'}</span>}</div>
                     </div>)}</div></section>}
                     {marker.content.headerImage && <img src={compressedImageUrl(marker.content.headerImage)} loading="lazy" alt={marker.content.title || '地点封面'} className="aspect-video w-full rounded-2xl object-cover" />}
                     <TripPlaceNotes key={marker.id} marker={marker} />
