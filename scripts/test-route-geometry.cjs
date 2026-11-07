@@ -53,3 +53,12 @@ assert.equal(layoutRoutePaths([{ dayId: 'a', path: outbound }, { dayId: 'a', pat
 assert.deepEqual(layoutRoutePaths([{ dayId: 'a', path: null }]), [null], 'pending route stays pending')
 assert(smoothRoutePath([p(0, 0), p(0, 0), p(0, 0)]).every(point => Number.isFinite(point.lat)), 'duplicates stay finite')
 console.log('PASS: traffic circles, major turns/loops, reciprocal separation, endpoints, bounded offsets, raw data, stable order, crossings, cache and pending routes')
+
+const cachedPair = layoutRoutePaths(pair)
+const expanded = layoutRoutePaths([...pair, { dayId: 'other-trip', path: crossing }])
+assert.equal(expanded[0], cachedPair[0], 'returning to overview reuses the existing day layout')
+assert.equal(layoutRoutePaths(pair)[1], cachedPair[1], 'returning to a trip reuses the day layout')
+const replaced = layoutRoutePaths([{ dayId: 'a', path: outbound }, { dayId: 'a', path: crossing }])
+assert.equal(replaced[0], smoothRoutePath(outbound), 'changed path invalidates same-day displacement')
+assert.equal(layoutRoutePaths(pair)[0].some(point => point.lat > 0), true, 'restoring a removed segment rebuilds separation')
+console.log('PASS: overview/trip layout reuse and path/member cache invalidation')

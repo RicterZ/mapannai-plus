@@ -124,7 +124,32 @@ export function smoothRoutePath(path: RoutePath): RoutePath {
 interface DisplayRoute { dayId: string; path: RoutePath | null }
 
 /** Spread shared corridors within a day; independent days keep their geography. */
+const dayLayouts = new Map<string, { paths: Array<RoutePath | null>; result: Array<RoutePath | null> }>()
+
 export function layoutRoutePaths(routes: DisplayRoute[]): Array<RoutePath | null> {
+    const groups = new Map<string, number[]>()
+    routes.forEach((route, index) => {
+        const indices = groups.get(route.dayId) ?? []
+        indices.push(index)
+        groups.set(route.dayId, indices)
+    })
+    const result: Array<RoutePath | null> = new Array(routes.length)
+    for (const [dayId, indices] of Array.from(groups)) {
+        const paths = indices.map(index => routes[index].path)
+        let entry = dayLayouts.get(dayId)
+        // View changes do not change a day's geometry; replaced paths invalidate it.
+        if (!entry || entry.paths.length !== paths.length || paths.some((path, i) => path !== entry!.paths[i])) {
+            entry = { paths, result: layoutDayRoutes(indices.map(index => routes[index])) }
+        }
+        dayLayouts.delete(dayId)
+        dayLayouts.set(dayId, entry)
+        if (dayLayouts.size > 64) dayLayouts.delete(dayLayouts.keys().next().value!)
+        indices.forEach((index, i) => { result[index] = entry!.result[i] })
+    }
+    return result
+}
+
+function layoutDayRoutes(routes: DisplayRoute[]): Array<RoutePath | null> {
     const paths = routes.map(route => route.path ? smoothRoutePath(route.path) : null)
     const sampleCount = 64
     const sampled = paths.map(path => {

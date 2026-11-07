@@ -7,7 +7,7 @@ import { isRangeFallback } from '@/lib/map/route-cache'
 
 import { startAnimationLoop } from '@/lib/ui/animation-loop'
 
-import { useMemo, useEffect, useState, useSyncExternalStore } from 'react'
+import { useMemo, useEffect, useState, useSyncExternalStore, useDeferredValue } from 'react'
 import { Source, Layer, useMap, Marker as MapGlMarker } from 'react-map-gl/maplibre'
 import type { GeoJSONSource } from 'maplibre-gl'
 import { toMapCoordinates } from '@/lib/map/basemap'
@@ -47,7 +47,9 @@ interface ConnectionLine {
 }
 
 export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: ConnectionLinesProps) => {
-    const { markers, tripDays, activeView, interactionState } = useMapStore()
+    const { markers, tripDays, activeView: currentView, interactionState } = useMapStore()
+    // Let sidebar navigation paint before rebuilding the expanded route scope.
+    const activeView = useDeferredValue(currentView)
     const { highlightedDayId } = interactionState
     const { current: map } = useMap()
     const [routeViewport, setRouteViewport] = useState<RouteViewport | null>(null)
