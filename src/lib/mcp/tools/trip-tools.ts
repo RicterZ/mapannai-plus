@@ -1,3 +1,5 @@
+import { tripMarkerNotePatchSchema } from '@/lib/trips/trip-marker-note'
+import { getTripMarkerNote, updateTripMarkerNote } from '@/lib/db/trip-marker-note-service'
 import { tripDestinationSchema, tripDestinationsSchema } from '@/lib/trips/destination'
 /**
  * MCP Trip Tools
@@ -33,6 +35,16 @@ import { idempotentOperation } from '@/lib/db/idempotent-operation'
 
 export function registerTripTools(server: McpServer) {
 
+    server.tool('get_trip_marker_note', '读取指定旅行中某地点的专属笔记；不改变全局地点通用内容。',
+        { tripId: z.string(), markerId: z.string() }, async ({ tripId, markerId }) => {
+            if (!getTripById(tripId) || !getMarkerById(markerId)) throw new Error('旅行或地点不存在')
+            return { content: [{ type: 'text', text: JSON.stringify({ note: getTripMarkerNote(tripId, markerId) }) }] }
+        })
+    server.tool('update_trip_marker_note', '修改本次旅行的地点标题和富文本笔记，不改地点通用资料；省略保留，null清除，标题正文全空时删除笔记但保留地点与安排。先读取并传expectedUpdatedAt防止覆盖。可为已移出日程地点保留旅行笔记。',
+        { tripId: z.string(), markerId: z.string(), ...tripMarkerNotePatchSchema.shape }, async ({ tripId, markerId, ...patch }) => ({
+            content: [{ type: 'text', text: JSON.stringify({ note: updateTripMarkerNote(tripId, markerId, patch) }) }],
+        }))
+
     // list_trips
     server.tool(
         'list_trips',
@@ -45,7 +57,7 @@ export function registerTripTools(server: McpServer) {
                 .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
                 .map(trip => {
                     const tripDays = days.filter(d => d.tripId === trip.id)
-                    const totalMarkers = new Set([...tripDays.flatMap(d => d.markerIds), ...(trip.markerIds ?? [])]).size
+                    const totalMarkers = new Set([...tripDays.flatMap(d => d.markerIds), ...(trip.markerIds ?? []), ...(trip.markerNotes ?? []).map(note => note.markerId)]).size
                     return {
                         id: trip.id,
                         name: trip.name,
@@ -240,7 +252,7 @@ export function registerTripTools(server: McpServer) {
                         const now = new Date().toISOString()
                         upsertMarker(featureId, coordinates.longitude, coordinates.latitude, {
                             placeReferences: searchResults[0].placeReferences,
-                            markdownContent: place.content || '',
+                            markdownContent: '',
                             headerImage: null,
                             iconType: place.iconType,
                             next: [],
@@ -260,6 +272,11 @@ export function registerTripTools(server: McpServer) {
                         upsertTripDay({ ...freshDay, markerIds: [...freshDay.markerIds, markerId] })
                     }
 
+                    if (place.content !== undefined) {
+                        const note = getTripMarkerNote(tripId, markerId)
+                        if (note?.content && note.content !== place.content) throw new Error('本次旅行已有地点笔记，请先读取再明确更新')
+                        updateTripMarkerNote(tripId, markerId, { content: place.content, expectedUpdatedAt: note?.updatedAt ?? null })
+                    }
                     results.push({ name: place.name, id: markerId, status: existing ? 'existing' : 'created', coordinates, placeReferences: getMarkerById(markerId)!.properties.placeReferences })
                 } catch (err) {
                     results.push({ name: place.name, id: null, status: 'error', error: err instanceof Error ? err.message : String(err) })

@@ -4,6 +4,14 @@ export interface TripDestination {
   longitude: number
 }
 
+export interface TripMarkerNote {
+  tripId: string
+  markerId: string
+  title: string
+  content: string
+  updatedAt: string
+}
+
 export interface Trip {
   id: string           // "trip_${uuid}"
   name: string         // "东京2024"
@@ -13,6 +21,7 @@ export interface Trip {
   destination?: TripDestination | null // First destination for legacy clients
   coverImage?: string
   emoji?: string       // 旅行图标，默认 ✈️
+  markerNotes?: TripMarkerNote[] // Includes notes retained after removing a place from the itinerary
   markerIds?: string[]  // Places saved to this trip but not assigned to a day
   createdAt: string
   updatedAt: string

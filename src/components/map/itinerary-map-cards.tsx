@@ -35,7 +35,7 @@ function compactDuration(minutes: number) {
 const clamp = (lines: number): React.CSSProperties => ({ display: '-webkit-box', WebkitLineClamp: lines, WebkitBoxOrient: 'vertical', overflow: 'hidden' })
 
 export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routePaths, subscribe, onMarkerClick, onFitMarkers }: Props) {
-    const { activeView, tripDays, markers, leftSidebar, interactionState, setActiveView } = useMapStore()
+    const { activeView, tripDays, trips, markers, leftSidebar, interactionState, setActiveView } = useMapStore()
     const root = useRef<HTMLDivElement>(null)
     const [placements, setPlacements] = useState<MapCardPlacement[]>([])
     const [moving, setMoving] = useState(false)
@@ -47,6 +47,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
     useEffect(() => { setHidden(false) }, [activeView.tripId])
     const cards = useMemo(() => {
         const byId = new Map(markers.map(marker => [marker.id, marker]))
+        const notes = new Map(trips.find(trip => trip.id === activeView.tripId)?.markerNotes?.map(note => [note.markerId, note]))
         const days = tripDays.filter(day => day.tripId === activeView.tripId).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))
         const anchors = itineraryAnchors(days, markers, false)
         const list = days.flatMap((day, dayIndex) => activeView.mode !== 'trip' && day.id !== activeView.dayId ? [] : (() => {
@@ -61,9 +62,9 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                     const timing = [stop?.startTime, stop?.durationMinutes !== undefined ? `停留 ${formatPlannedDuration(stop.durationMinutes)}` : null].filter(Boolean).join(' · ')
                     const emoji = (MARKER_ICONS[marker.content.iconType || 'location'] || MARKER_ICONS.location).emoji
                     return { id: `${day.id}:${stop.id}`, dayId: day.id, markerId: id as string | null, coordinates: marker.coordinates, color,
-                        eyebrow: date, timing, note: stop?.note || '', title: marker.content.title || '未命名地点',
+                        eyebrow: date, timing, note: stop?.note || '', title: notes.get(marker.id)?.title || marker.content.title || '未命名地点',
                         time: stop?.startTime, duration: stop?.durationMinutes !== undefined ? `停留 ${compactDuration(stop.durationMinutes)}` : '',
-                        subtitle: '', emoji, mode: null as string | null,
+                        subtitle: notes.get(marker.id)?.title ? marker.content.title || '' : '', emoji, mode: null as string | null,
                         routeKey: null as string | null, legMarkerIds: null as string[] | null,
                     }
                 })
@@ -101,7 +102,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
             merged.push(copy)
         }
         return merged
-    }, [activeView.mode, activeView.tripId, activeView.dayId, tripDays, markers])
+    }, [activeView.mode, activeView.tripId, activeView.dayId, tripDays, trips, markers])
 
     useEffect(() => {
         const element = root.current

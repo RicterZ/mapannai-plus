@@ -1,4 +1,5 @@
 import { getDb } from './index'
+import { getTripMarkerNotes } from './trip-marker-note-service'
 import { tripDestinationsSchema, tripDestinations } from '@/lib/trips/destination'
 import { Trip, TripDay, RouteChain } from '@/types/trip'
 import { exclusiveMarkerIds } from '@/lib/trip-deletion'
@@ -199,6 +200,7 @@ function rowToTrip(row: any): Trip {
     const stored = row.destination ? JSON.parse(row.destination) : null
     const destinations = Array.isArray(stored) ? stored : stored ? [stored] : []
     return {
+        markerNotes: getTripMarkerNotes(row.id),
         destinations,
         destination: destinations[0] ?? null,
         markerIds: JSON.parse(row.marker_ids || '[]'),

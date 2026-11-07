@@ -1,3 +1,5 @@
+import type { TripMarkerNotePatch } from '@/lib/trips/trip-marker-note'
+import type { TripMarkerNote } from '@/types/trip'
 import type { PlaceReferences } from '@/types/place-references'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
@@ -36,6 +38,7 @@ interface MapStore {
 
     // 编辑弹窗状态
     editMarkerModal: {
+        tripId?: string | null
         isOpen: boolean
         markerId: string | null
     }
@@ -55,6 +58,8 @@ interface MapStore {
     tripDays: TripDay[]
     tripsLoaded: boolean
     activeView: ActiveView
+
+    saveTripMarkerNote: (tripId: string, markerId: string, patch: TripMarkerNotePatch, copyFromPlace?: boolean) => Promise<void>
 
     // Actions
     createMarkerFromModal: (data: {
@@ -288,7 +293,7 @@ export const useMapStore = create<MapStore>()(
                 await get().deleteMarkerFromDataset(markerId)
                 set(state => ({
                     markers: state.markers.filter(marker => marker.id !== markerId),
-                    trips: state.trips.map(trip => ({ ...trip, markerIds: trip.markerIds?.filter(id => id !== markerId) })),
+                    trips: state.trips.map(trip => ({ ...trip, markerNotes: trip.markerNotes?.filter(note => note.markerId !== markerId), markerIds: trip.markerIds?.filter(id => id !== markerId) })),
                     tripDays: state.tripDays.map(day => ({ ...day, markerIds: day.markerIds.filter(id => id !== markerId), chains: day.chains.map(chain => chain.filter(id => id !== markerId)).filter(chain => chain.length > 0), routeChains: day.routeChains && removeRouteMarker(day.routeChains, markerId) })),
                     interactionState: {
                         ...state.interactionState,
@@ -370,6 +375,7 @@ export const useMapStore = create<MapStore>()(
                 set({
                     editMarkerModal: {
                         isOpen: true,
+                        tripId: get().activeView.tripId,
                         markerId,
                     },
                     interactionState: {
@@ -618,6 +624,18 @@ export const useMapStore = create<MapStore>()(
             },
 
             // ── Trip Actions ──────────────────────────────────────────────────
+
+            saveTripMarkerNote: async (tripId, markerId, patch, copyFromPlace = false) => {
+                const response = await fetchWithAuth(`/api/trips/${tripId}/markers/${markerId}/note`, {
+                    method: copyFromPlace ? 'POST' : 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(copyFromPlace ? { expectedUpdatedAt: patch.expectedUpdatedAt ?? null } : patch),
+                })
+                const result: { note?: TripMarkerNote | null; error?: string } = await response.json()
+                if (!response.ok) throw new Error(result.error || '保存旅行笔记失败')
+                set(state => ({ trips: state.trips.map(trip => trip.id === tripId ? { ...trip,
+                    markerNotes: [...(trip.markerNotes ?? []).filter(note => note.markerId !== markerId), ...(result.note ? [result.note] : [])],
+                } : trip) }), false, 'saveTripMarkerNote')
+            },
 
             loadTripsFromDataset: async () => {
                 try {

@@ -69,6 +69,18 @@ function initSchema(db: Database.Database) {
         );
     `)
 
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS trip_marker_notes (
+            trip_id TEXT NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+            marker_id TEXT NOT NULL REFERENCES markers(id) ON DELETE CASCADE,
+            title TEXT NOT NULL DEFAULT '',
+            content TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (trip_id, marker_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_trip_marker_notes_marker ON trip_marker_notes(marker_id);
+    `)
+
     const markerCols = db.prepare('PRAGMA table_info(markers)').all() as { name: string }[]
     if (!markerCols.some(c => c.name === 'place_references')) db.exec('ALTER TABLE markers ADD COLUMN place_references TEXT')
 

@@ -6,7 +6,7 @@
 
 - 用户已明确多次要求自动部署：本仓库功能/界面修复完成并通过相关检查后，默认自动 commit、push，再部署线上，不要停在“尚未提交/部署”，不要重复询问是否部署。
 - 仅提交本次任务相关改动，保留其他未提交工作；用户明确要求不提交、不部署或仅调研时除外。发现意外的外部改动时先确认，不擅自提交。
-- 部署命令：`ssh -p 2222 -o BatchMode=yes root@server 'bash /root/docker-services/build/mapannai-public/deploy.sh'`。部署脚本拉取远端 master 并构建，因此必须先推送。部署后核对服务器 commit、容器健康与 `https://map.ricterz.me/` HTTP 状态，完成后再报告；失败如实说明，不将“已启动”当成“已完成”。
+- 部署命令：`ssh -p 22 -o BatchMode=yes root@server 'bash /root/docker-services/build/mapannai-public/deploy.sh'`。部署脚本拉取远端 master 并构建，因此必须先推送。部署后核对服务器 commit、容器健康与 `https://map.ricterz.me/` HTTP 状态，完成后再报告；失败如实说明，不将“已启动”当成“已完成”。
 - 版本升级、打 tag 和创建 Release 仍按用户明确要求，不随普通部署自动执行。
 
 ## 产品理念：地点关联，不是导航
@@ -119,6 +119,17 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 - 地点内容主要是 Tiptap HTML；不要把历史 `markdownContent` 命名误认为仅支持纯 Markdown。
 
 - 旅行层级的 `Trip.description` 已停用：创建表单、Web API、数据返回和 MCP 工具不再读写/暴露。SQLite 旧列只保留兼容，更新其他旅行字段不覆盖历史值；地点富文本和路线访问/交通备注继续使用。此变更不需要新增环境变量。
+
+## 旅行专属地点笔记
+
+- `Trip.markerNotes` 保存 `(tripId, markerId)` 对应的可选显示标题和 Tiptap HTML，不复制 Marker 的坐标、地址、POI、分类或封面。通用攻略仍属于 Marker，逐次访问安排仍属于 stopId；同旅行多日和重复访问共享旅行笔记。
+- SQLite `trip_marker_notes` 在启动时非破坏性创建，旅行/地点外键级联删除；历史通用内容不自动拆分、改名或清空。上线前备份现有 SQLite，上线后用 `scripts/check-trip-marker-notes-migration.cjs` 验证表、外键和完整性；此脚本 `--backup <path>` 使用 SQLite 在线备份，不覆盖已有备份。无新增环境变量。
+- Web `GET/PATCH /api/trips/[id]/markers/[markerId]/note`，POST 仅将通用正文复制到空旅行正文，不清空来源、不覆盖已有旅行正文。严格 schema 与服务在 `src/lib/trips/trip-marker-note.ts`、`src/lib/db/trip-marker-note-service.ts`；省略字段保留、null清除，两项全空删除笔记，`expectedUpdatedAt`（首次 null）校验并发编辑冲突。
+- MCP `get_trip_marker_note` / `update_trip_marker_note` 共用服务；AI 活动内容写旅行笔记，`update_marker` 只改通用资料。`plan_trip_day` 的 content 写旅行笔记，复用已有 Marker 时同样生效，不覆盖已有不同正文。
+- 旅行/日期内的编辑入口默认本次内容，详情“编辑通用资料”明确作用于所有旅行。新建地点表单的正文随冻结添加目标保存到旅行；真实地点名称保持共享，专属标题与真实名称同时展示。首版无独立旅行封面，图片放富文本。
+- 从日程、路线、旅行待分配列表移除不删旅行笔记；旅行详情“地点笔记”列表可找回并重新加入。独立地点统计、旅行地点数量和独占地点删除保护均计入笔记引用；删除单日时连同本旅行笔记一起保护，删除整旅时仅该旅的笔记可清理。全局地点删除确认提示旅行笔记数量。
+- `/api/dataset` 仍仅表示全局地点，不包含旅行笔记；完整 SQLite 备份包含新表。旧客户端修改原字段不覆盖新表；iOS 未适配时仅展示通用笔记。不得将整份旅行内容塞进 Marker properties 兼容投影。
+- 验证：`npx tsx scripts/test-trip-marker-notes.ts` 使用隔离旧库与 Web/MCP；`scripts/test-trip-marker-notes-browser.ts` 使用独立 SQLite、拦截全部 API 请求验证编辑、复制与作用域。
 
 ## 路线游览与交通安排
 
@@ -269,7 +280,7 @@ MCP 工具直接调用服务层，不需要绕回本站 HTTP API。Web 与 MCP �
 - 本项目现有生产部署命令（仅在获得部署授权时使用）：
 
 ```bash
-ssh -p 2222 -o BatchMode=yes root@server \
+ssh -p 22 -o BatchMode=yes root@server \
   'bash /root/docker-services/build/mapannai-public/deploy.sh'
 ```
 

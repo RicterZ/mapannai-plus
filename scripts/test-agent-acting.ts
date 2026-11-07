@@ -9,6 +9,15 @@ async function main() {
  connect:async()=>({tools:[{type:'function',function:{name:'create_marker',description:'mock',parameters:{type:'object'}}}],call:async()=>{writes++;return {content:[]}},close:async()=>{}}),
  complete:async(_u,_k,body)=>{const b=body as any;const tail=b.messages.at(-1).content;assert.ok(!tail.includes('每天保存后调用'));assert.equal(b.tool_choice,phase==='acting'?'auto':'none');return Response.json({choices:[{message:round++?{content:'完成'}:{content:null,tool_calls:[{id:'create',type:'function',function:{name:'create_marker',arguments:'{}'}}]}}]})}
  });assert.equal(writes,phase==='acting'?1:0)}
+ for (const name of ['get_trip_marker_note', 'update_trip_marker_note']) {
+  let calls = 0, round = 0
+  await runPlanner({settings:{baseUrl:'https://example.com',model:'mock',apiKey:''},messages:[{role:'user',content:'把这次BA活动笔记写到旅行里'}],context:{localDate:'2026-10-16',tripId:'ba',dayId:null}},()=>{},new AbortController().signal,{
+   assess:async()=>({phase:'acting',facts,missing:[],assumptions:[],authorized:true,authorizationQuote:'把这次BA活动笔记写到旅行里',dayOutline:[],affectedDays:[]}),context:h=>h,
+   connect:async()=>({tools:[{type:'function',function:{name,description:'mock',parameters:{type:'object'}}}],call:async()=>{calls++;return {content:[]}},close:async()=>{}}),
+   complete:async()=>Response.json({choices:[{message:round++?{content:'完成'}:{content:null,tool_calls:[{id:'note',type:'function',function:{name,arguments:JSON.stringify({tripId:'ba',markerId:'venue',content:'<p>BA</p>'})}}]}}]})
+  })
+  assert.equal(calls,1,'Explicit trip note edits do not require changing itinerary membership or dates')
+ }
  console.log('Independent marker creation needs no itinerary dates or preview; chatting has no planning tail')
 }
 main().catch(e=>{console.error(e);process.exitCode=1})

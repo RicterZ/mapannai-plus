@@ -1,15 +1,16 @@
 'use client'
 
+import { TripPlaceNotes } from '@/components/trips/trip-place-notes'
 import { PlaceIcon } from '@/components/ui/place-icon'
 
 import { useRef, useState, useEffect } from 'react'
-import { ArrowUpRight, FileText, Pencil, X } from 'lucide-react'
+import { ArrowUpRight, Pencil, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMapStore } from '@/store/map-store'
 import { MARKER_ICONS } from '@/types/marker'
 import { cn } from '@/utils/cn'
 import { wgs84ToGcj02 } from '@/lib/coord-transform'
-import { compressedImageUrl, compressedContentImages } from '@/lib/upload/image-url'
+import { compressedImageUrl } from '@/lib/upload/image-url'
 
 export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
     const sidebarRef = useRef<HTMLDivElement>(null)
@@ -38,8 +39,6 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
     }, [isSidebarOpen])
     useEffect(() => { if (sidebarRef.current) sidebarRef.current.inert = !isSidebarOpen }, [isSidebarOpen, animState])
     if (animState === 'hidden') return null
-    const content = marker?.content.markdownContent || ''
-    const hasContent = !!content.trim() && content !== '<p></p>'
     const icon = MARKER_ICONS[marker?.content.iconType || 'location'] || MARKER_ICONS.location
     const memberships = marker ? trips.map(trip => ({ trip, days: tripDays.filter(day => day.tripId === trip.id && day.markerIds.includes(marker.id)).sort((a, b) => a.date.localeCompare(b.date)) })).filter(item => item.days.length || item.trip.markerIds?.includes(marker.id)) : []
     return <>
@@ -76,7 +75,7 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
                         <div className="mt-1 flex flex-wrap gap-1">{days.length ? days.map(day => <button key={day.id} onClick={() => { setActiveView('day', trip.id, day.id); openLeftSidebar() }} className="rounded-md px-1.5 py-1 text-xs text-gray-500 hover:bg-gray-200">{day.date.slice(5).replace('-', '/')}</button>) : <span className="text-xs text-gray-400">未分配日期</span>}</div>
                     </div>)}</div></section>}
                     {marker.content.headerImage && <img src={compressedImageUrl(marker.content.headerImage)} loading="lazy" alt={marker.content.title || '地点封面'} className="aspect-video w-full rounded-2xl object-cover" />}
-                    <section className="space-y-3"><h3 className="text-xs font-medium text-gray-400">地点笔记</h3>{hasContent ? <div className="prose prose-sm max-w-none rich-content" dangerouslySetInnerHTML={{ __html: compressedContentImages(content) }} /> : <div className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-400"><FileText size={20} className="mx-auto mb-2 text-gray-300" /><p>还没有地点笔记</p>{editMode.isEnabled && <button onClick={() => openEditMarkerModal(marker.id)} className="mt-2 rounded-lg px-3 py-2 text-xs text-gray-600 hover:bg-gray-100">添加笔记</button>}</div>}</section>
+                    <TripPlaceNotes key={marker.id} marker={marker} />
                     <details className="border-t border-gray-100 pt-3 text-xs text-gray-400"><summary className="cursor-pointer py-2">位置信息</summary><p className="py-2 font-mono">{marker.coordinates.latitude.toFixed(6)}, {marker.coordinates.longitude.toFixed(6)}</p></details>
                 </div>
             </div> : <div className="flex flex-1 items-center justify-center p-8 text-sm text-gray-400">选择一个地点查看详情</div>}

@@ -16,6 +16,8 @@ MapAnNai Plus is self-hosted, so your data stays on your own server. The web app
 
 Search, or tap anywhere on the map, to save restaurants, hotels, sights and stations. Give each place a cover photo, a category icon and rich notes — opening hours, the dish to order, what your friend actually said.
 
+A place can also have separate notes for each trip — tickets, event plans and photos — while its general tips stay shared. Open it within a trip to edit that trip's notes, or choose “Edit shared details” for information you want to reuse. Notes remain in the trip's place-notes list after removing the place from the itinerary. Existing notes stay shared until you copy and organize them yourself.
+
 ### Arrange it day by day
 
 A trip can span several destinations. Places you haven't scheduled wait in the trip until you drag them onto a day. Each day can hold several routes you reorder by dragging, and one place can show up on different days and routes, or be revisited within a route (such as A → B → A), with separate arrangements for each visit. Consecutive visits to the same place are not allowed.

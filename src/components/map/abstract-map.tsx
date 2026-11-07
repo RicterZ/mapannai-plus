@@ -803,8 +803,15 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
         if (useMapStore.getState().editMode.isEnabled) setPendingMarkerDelete(markerId)
     }, [closePopup])
 
+    const newPlaceTargetRef = useRef<{ tripId: string | null; dayId: string | null } | null>(null)
     const createdPlaceRef = useRef<string | null>(null)
-    useEffect(() => { if (!addMarkerModal.isOpen) createdPlaceRef.current = null }, [addMarkerModal.isOpen])
+    useEffect(() => {
+        if (!addMarkerModal.isOpen) { createdPlaceRef.current = null; newPlaceTargetRef.current = null }
+        else if (!newPlaceTargetRef.current) newPlaceTargetRef.current = {
+            tripId: searchOpen ? searchTarget?.tripId ?? null : activeView.tripId,
+            dayId: searchOpen ? searchTarget?.dayId ?? null : activeView.dayId,
+        }
+    }, [addMarkerModal.isOpen, searchOpen, searchTarget, activeView])
     const handleSaveNewMarker = useCallback(async (data: {
         coordinates: MarkerCoordinates
         name: string
@@ -814,11 +821,9 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
         headerImage?: string
         markdownContent: string
     }) => {
-        const { activeView: view } = useMapStore.getState()
-        const tripId = searchOpen ? searchTarget?.tripId : view.tripId
-        const dayId = searchOpen ? searchTarget?.dayId : view.dayId
-        const markerId = createdPlaceRef.current ?? await createMarkerFromModal(data)
-        if (createdPlaceRef.current) {
+        const { tripId, dayId } = newPlaceTargetRef.current ?? { tripId: null, dayId: null }
+        const markerId = createdPlaceRef.current ?? await createMarkerFromModal({ ...data, markdownContent: tripId ? '' : data.markdownContent })
+        if (createdPlaceRef.current && !tripId) {
             await updateMarkerFromModal({ markerId, title: data.name, iconType: data.iconType,
                 headerImage: data.headerImage, markdownContent: data.markdownContent })
         }
@@ -829,8 +834,13 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
         } catch {
             throw new Error('地点已保存，加入行程失败。再次保存可重试加入。')
         }
+        if (tripId && data.markdownContent) {
+            const note = useMapStore.getState().trips.find(trip => trip.id === tripId)?.markerNotes?.find(note => note.markerId === markerId)
+            if (note?.content && note.content !== data.markdownContent) throw new Error('本次旅行已有笔记，请关闭后打开地点详情整理，避免覆盖')
+            if (note?.content !== data.markdownContent) await useMapStore.getState().saveTripMarkerNote(tripId, markerId, { content: data.markdownContent, expectedUpdatedAt: note?.updatedAt ?? null })
+        }
         closePopup()
-    }, [createMarkerFromModal, updateMarkerFromModal, addMarkerToDay, searchOpen, searchTarget, closePopup])
+    }, [createMarkerFromModal, updateMarkerFromModal, addMarkerToDay, closePopup])
 
     const handleUpdateMarker = useCallback(async (data: {
         markerId: string
@@ -939,7 +949,7 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
                 onClose={closePlaceSearch} onQuery={query => { setFabQuery(query); setFabQueryError('') }} onSelect={handleFabResultClick} onAdd={result => { void addSearchResult(result) }} /> : undefined} />
 
             {pendingMarkerDelete && <Modal title="删除这个地点？" onClose={() => setPendingMarkerDelete(null)} busy={deletingMarker}>
-                <p className="text-sm text-gray-600">「{markers.find(marker => marker.id === pendingMarkerDelete)?.content.title || '未命名地点'}」将从地图及所有行程中删除。</p>
+                <p className="text-sm text-gray-600">「{markers.find(marker => marker.id === pendingMarkerDelete)?.content.title || '未命名地点'}」将从地图及所有行程中删除，其 {trips.filter(trip => trip.markerNotes?.some(note => note.markerId === pendingMarkerDelete)).length} 份旅行笔记也将删除。</p>
                 <div className="mt-5 flex justify-end gap-2">
                     <button disabled={deletingMarker} onClick={() => setPendingMarkerDelete(null)} className="rounded-lg border px-4 py-2 text-sm disabled:opacity-50">取消</button>
                     <button disabled={deletingMarker} onClick={async () => {
@@ -1080,6 +1090,7 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
 
             {/* 新增标记弹窗 */}
             <AddMarkerModal
+                noteScope={trips.find(trip => trip.id === (newPlaceTargetRef.current ? newPlaceTargetRef.current.tripId : searchOpen ? searchTarget?.tripId : activeView.tripId))?.name}
                 coordinates={addMarkerModal.coordinates || { latitude: 0, longitude: 0 }}
                 isOpen={addMarkerModal.isOpen}
                 onClose={closeAddMarkerModal}
