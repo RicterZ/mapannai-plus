@@ -76,15 +76,15 @@ export function RouteLeg({ day, route, fromId, toId, stopIndex, distance, editab
             <span />
         </div>
         {(leg || canEdit) && <button type="button" disabled={!canEdit} onClick={() => setOpen(true)} aria-label={canEdit ? '编辑交通安排' : '交通安排'} className="route-schedule-button journey-leg-details block text-left text-xs text-gray-500 enabled:hover:bg-gray-50 disabled:cursor-default">
-            <span className="flex items-start gap-2">
-                <Icon size={14} aria-hidden="true" className="mt-0.5 shrink-0 text-gray-400" />
-                <span className="min-w-0 flex-1 break-words">{leg ? <>{modes.find(m => m.value === leg.mode)?.label}{leg.serviceNumber && <span className="ml-1.5 font-medium text-gray-600">{leg.serviceNumber}</span>}</> : <span className="text-gray-400">添加交通安排</span>}</span>
-                {leg && <span className="flex shrink-0 flex-col items-end gap-0.5 text-[11px] tabular-nums">
+            <span className="grid grid-cols-[14px_minmax(0,1fr)_auto] items-start gap-x-2">
+                <Icon size={14} aria-hidden="true" className="mt-0.5 text-gray-400" />
+                <span className="min-w-0 break-words">{leg ? <>{modes.find(m => m.value === leg.mode)?.label}{leg.serviceNumber && <span className="ml-1.5 font-medium text-gray-600">{leg.serviceNumber}</span>}</> : <span className="text-gray-400">添加交通安排</span>}</span>
+                {leg && <span className="row-span-2 flex flex-col items-end gap-0.5 text-[11px] tabular-nums">
                     {leg.startTime && <span>{leg.startTime}</span>}
                     {leg.durationMinutes !== undefined && <span className="text-gray-400">{formatPlannedDuration(leg.durationMinutes)}</span>}
                 </span>}
+                {leg?.note && <span className="col-span-2 col-start-1 mt-1 block whitespace-pre-wrap break-words text-[11px] leading-5 text-gray-400">{leg.note}</span>}
             </span>
-            {leg?.note && <span className="mt-1 block whitespace-pre-wrap break-words text-[11px] leading-5 text-gray-400">{leg.note}</span>}
         </button>}
         {open && day && route && stop && next && <ScheduleEditor day={day} route={route} stop={stop} next={next} title="交通安排" onClose={() => setOpen(false)} />}
     </div>
