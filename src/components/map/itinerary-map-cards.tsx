@@ -20,7 +20,7 @@ interface Props {
     routeMidpoint: (key: string) => MarkerCoordinates | undefined
     routePaths: () => Array<Array<{ x: number; y: number }>>
     project: (coordinates: MarkerCoordinates) => { x: number; y: number } | undefined
-    subscribe: (update: () => void, moving: () => void) => () => void
+    subscribe: (update: () => void, moving: () => void, zooming: () => void) => () => void
     onMarkerClick: (id: string) => void
     onFitMarkers: (ids: string[]) => void
 }
@@ -40,6 +40,12 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
     const root = useRef<HTMLDivElement>(null)
     const [placements, setPlacements] = useState<MapCardPlacement[]>([])
     const placementsRef = useRef(placements)
+    // While zooming, cards stay where they were on screen; the next layout glides them from there.
+    const [frozen, setFrozen] = useState<Array<{ id: string; left: number; top: number; opacity: number }> | null>(null)
+    const frozenRef = useRef(frozen)
+    frozenRef.current = frozen
+    const seedRef = useRef<Map<string, { dx: number; dy: number }> | null>(null)
+    const animatedRef = useRef<ReturnType<typeof useAnimatedPlacements>>([])
     placementsRef.current = placements
     // Each label lives inside a native map overlay at its anchor, so the map itself moves it during pan/zoom.
     const anchorsRef = useRef(new Map<string, MapAnchor & { coordinates: MarkerCoordinates }>())
@@ -136,7 +142,14 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                 const rightPanel = interactionState.isSidebarOpen ? document.querySelector('.right-sidebar')?.getBoundingClientRect().width || 400 : 0
                 const bounds = { left: leftSidebar.isOpen ? 420 : 20, top: 100, right: rect.width - rightPanel - 76, bottom: rect.height - 90 }
                 const previous = placementsRef.current
-                const apply = (next: MapCardPlacement[]) => setPlacements(current => sameItineraryPlacements(current, next) ? current : next)
+                const apply = (next: MapCardPlacement[]) => {
+                    const still = frozenRef.current
+                    if (!still) return setPlacements(current => sameItineraryPlacements(current, next) ? current : next)
+                    const at = new Map(anchors.map(a => [a.id, a]))
+                    seedRef.current = new Map(still.flatMap(f => { const a = at.get(f.id); return a ? [[f.id, { dx: f.left - a.x, dy: f.top - a.y }] as const] : [] }))
+                    setPlacements(next)
+                    setFrozen(null)
+                }
                 const kept = keepItineraryPlacements(previous, anchors, bounds)
                 worker?.terminate()
                 worker = undefined
@@ -164,6 +177,15 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
             frame = 0
             worker?.terminate()
             worker = undefined
+        }, () => {
+            if (frozenRef.current) return
+            const origin = element.getBoundingClientRect()
+            const snapshot = animatedRef.current.flatMap(item => {
+                const box = !item.leaving && anchorNodes.get(item.id)?.querySelector('button')?.getBoundingClientRect()
+                return box ? [{ id: item.id, left: box.left - origin.left, top: box.top - origin.top, opacity: item.opacity }] : []
+            })
+            frozenRef.current = snapshot
+            setFrozen(snapshot)
         })
         update()
         return () => { observer.disconnect(); window.removeEventListener('itineraryRoutesChanged', update); unsubscribe(); clearTimeout(settled); cancelAnimationFrame(frame); worker?.terminate() }
@@ -182,33 +204,15 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
         }
     }, [cards, hidden])
 
-    const animated = useAnimatedPlacements(placements)
-
-    if (!cards.length) return null
-    return <div ref={root} className="pointer-events-none absolute inset-0 z-20 hidden lg:block" aria-label="地图行程说明">
-        <div className="pointer-events-auto absolute bottom-6 flex items-center gap-3 rounded-full border border-gray-200 bg-white/95 px-4 py-2 shadow-sm" style={{ left: leftSidebar.isOpen ? 420 : 20 }}>
-            <button type="button" onClick={() => {
-                const days = tripDays.filter(day => day.tripId === activeView.tripId && (activeView.mode === 'trip' || day.id === activeView.dayId))
-                onFitMarkers(Array.from(new Set(days.flatMap(day => [...day.chains.flat(), ...day.markerIds]))))
-            }} className="border-r border-gray-200 pr-3 text-xs text-gray-600">{activeView.mode === 'trip' ? '查看全程' : '查看当天'}</button>
-            <button type="button" aria-pressed={!hidden} onClick={() => setHidden(value => !value)} className="text-xs text-gray-600">{hidden ? '显示行程卡片' : '隐藏行程卡片'}</button>
-        </div>
-        {!hidden && animated.map(p => {
-            const card = cards.find(card => card.id === p.id), node = anchorNodes.get(p.id)
-            if (!card || !node) return null
-            const end = itineraryLeaderEnd({ id: p.id, x: 0, y: 0, left: p.dx, top: p.dy, width: p.width, height: p.height })
-            return createPortal(<div style={{ opacity: p.opacity, pointerEvents: p.leaving ? 'none' : undefined }}>
-                <svg aria-hidden="true" width="1" height="1" className="pointer-events-none absolute left-0 top-0 overflow-visible">
-                    <line x1={0} y1={0} x2={end.x} y2={end.y} stroke="white" strokeWidth="3.5" strokeLinecap="round" opacity="0.85" />
-                    <line x1={0} y1={0} x2={end.x} y2={end.y} stroke={card.color} strokeWidth="1.5" strokeLinecap="round" />
-                    <circle cx={0} cy={0} r="4.5" fill={card.color} stroke="white" strokeWidth="2" />
-                </svg>
+    const animated = useAnimatedPlacements(placements, seedRef)
+    animatedRef.current = animated
+    const cardButton = (card: typeof cards[number], style: React.CSSProperties, extra = '') => (
                 <button type="button"
                     onMouseEnter={() => { hoveredCard.current = card.id; window.dispatchEvent(new CustomEvent('markerDayHover', { detail: { dayId: card.dayId } })) }}
                     onMouseLeave={() => { hoveredCard.current = null; window.dispatchEvent(new CustomEvent('markerDayHover', { detail: { dayId: null } })) }}
                     title={[card.title, ...card.visits.flatMap(visit => [[visit.dayLabel, visit.eyebrow, visit.time, visit.duration].filter(Boolean).join(' '), visit.note])].filter(Boolean).join('\n')} onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else if (card.legMarkerIds) onFitMarkers(card.legMarkerIds); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
-                    className="absolute flex flex-col items-stretch overflow-hidden whitespace-normal rounded-xl border border-gray-200/80 bg-white px-3 py-2.5 text-left shadow-[0_4px_20px_rgba(15,23,42,0.08)] transition-shadow hover:shadow-[0_6px_24px_rgba(15,23,42,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
-                    style={{ left: p.dx, top: p.dy, width: 'max-content', minWidth: itineraryCardSize.minWidth, maxWidth: itineraryCardSize.width }}>
+                    className={`absolute flex flex-col items-stretch overflow-hidden whitespace-normal rounded-xl border border-gray-200/80 bg-white px-3 py-2.5 text-left shadow-[0_4px_20px_rgba(15,23,42,0.08)] transition-shadow hover:shadow-[0_6px_24px_rgba(15,23,42,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 ${extra}`}
+                    style={{ ...style, width: 'max-content', minWidth: itineraryCardSize.minWidth, maxWidth: itineraryCardSize.width }}>
                     <span className="flex items-start gap-2.5">
                         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `color-mix(in srgb, ${card.color} 14%, white)`, color: card.color }}>
                             {card.mode ? React.createElement(modeIcons[card.mode] || Route, { size: 15, strokeWidth: 2.2 }) : <PlaceIcon emoji={card.emoji} size={18} />}
@@ -228,7 +232,33 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                         {visit.note && <span className="mt-1.5 block whitespace-pre-wrap break-words text-xs leading-[18px] text-gray-600" style={clamp(3)}>{visit.note}</span>}
                     </span>)}
                 </button>
+    )
+
+    if (!cards.length) return null
+    return <div ref={root} className="pointer-events-none absolute inset-0 z-20 hidden lg:block" aria-label="地图行程说明">
+        <div className="pointer-events-auto absolute bottom-6 flex items-center gap-3 rounded-full border border-gray-200 bg-white/95 px-4 py-2 shadow-sm" style={{ left: leftSidebar.isOpen ? 420 : 20 }}>
+            <button type="button" onClick={() => {
+                const days = tripDays.filter(day => day.tripId === activeView.tripId && (activeView.mode === 'trip' || day.id === activeView.dayId))
+                onFitMarkers(Array.from(new Set(days.flatMap(day => [...day.chains.flat(), ...day.markerIds]))))
+            }} className="border-r border-gray-200 pr-3 text-xs text-gray-600">{activeView.mode === 'trip' ? '查看全程' : '查看当天'}</button>
+            <button type="button" aria-pressed={!hidden} onClick={() => setHidden(value => !value)} className="text-xs text-gray-600">{hidden ? '显示行程卡片' : '隐藏行程卡片'}</button>
+        </div>
+        {!hidden && animated.map(p => {
+            const card = cards.find(card => card.id === p.id), node = anchorNodes.get(p.id)
+            if (!card || !node) return null
+            const end = itineraryLeaderEnd({ id: p.id, x: 0, y: 0, left: p.dx, top: p.dy, width: p.width, height: p.height })
+            return createPortal(<div style={{ opacity: p.opacity, pointerEvents: p.leaving || frozen ? 'none' : undefined, visibility: frozen ? 'hidden' : undefined }}>
+                <svg aria-hidden="true" width="1" height="1" className="pointer-events-none absolute left-0 top-0 overflow-visible">
+                    <line x1={0} y1={0} x2={end.x} y2={end.y} stroke="white" strokeWidth="3.5" strokeLinecap="round" opacity="0.85" />
+                    <line x1={0} y1={0} x2={end.x} y2={end.y} stroke={card.color} strokeWidth="1.5" strokeLinecap="round" />
+                    <circle cx={0} cy={0} r="4.5" fill={card.color} stroke="white" strokeWidth="2" />
+                </svg>
+                {cardButton(card, { left: p.dx, top: p.dy })}
             </div>, node, p.id)
+        })}
+        {!hidden && frozen?.map(f => {
+            const card = cards.find(card => card.id === f.id)
+            return card && <div key={f.id} style={{ opacity: f.opacity }}>{cardButton(card, { left: f.left, top: f.top }, 'pointer-events-auto')}</div>
         })}
     </div>
 }
