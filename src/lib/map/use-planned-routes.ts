@@ -23,6 +23,7 @@ export function usePlannedRoutes(segments: RouteSegment[], provider: string, vie
     const { enabled } = settings
     const signature = segments.map(segment => routeCacheKey(provider, segment)).join('|')
     const [routes, setRoutes] = useState<Record<string, RoutePath>>({})
+    const visibleRef = useRef<Record<string, RoutePath>>({})
     const [failedKeys, setFailedKeys] = useState<Set<string>>(new Set())
     const retryVersion = useRouteProgress(state => state.retryVersion)
     const failuresRef = useRef<{ scope: string; keys: Set<string> }>({ scope: '', keys: new Set() })
@@ -80,5 +81,10 @@ export function usePlannedRoutes(segments: RouteSegment[], provider: string, vie
         const path = readCachedRoute(key)
         if (path) visibleRoutes[key] = path
     }
-    return { enabled, routes: visibleRoutes, failedKeys }
+    // Map renderers rebuild overlays when this identity changes; keep it stable across camera re-renders.
+    const previous = visibleRef.current
+    const keys = Object.keys(visibleRoutes)
+    const unchanged = keys.length === Object.keys(previous).length && keys.every(key => previous[key] === visibleRoutes[key])
+    if (!unchanged) visibleRef.current = visibleRoutes
+    return { enabled, routes: visibleRef.current, failedKeys }
 }
