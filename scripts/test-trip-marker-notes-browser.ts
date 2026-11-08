@@ -43,6 +43,8 @@ async function main() {
                 return route.fulfill({ status: 400, json: { error: 'Unexpected fixture request' } })
             })
             await page.goto(`${process.env.REVIEW_BASE_URL || 'http://127.0.0.1:3108'}/`, { waitUntil: 'domcontentloaded' })
+            // Startup selects the nearest trip after the map loads; wait before opening a popup.
+            await page.waitForFunction(() => location.hash === '#trip/ba', null, { timeout: 30000 })
             if (mobile) await page.getByRole('button', { name: '展开 MapAnNai 侧栏' }).click()
             await page.getByRole('switch', { name: '编辑模式', checked: false }).waitFor()
             await page.locator('.left-sidebar').getByText('BA旅行', { exact: true }).click()
@@ -51,11 +53,12 @@ async function main() {
             assert.equal(await popup.getByAltText('幕张展览馆封面').getAttribute('src'), 'https://images.example/ba.jpg')
             const coverStyle = await popup.getByAltText('幕张展览馆封面').evaluate((image: HTMLImageElement) => {
                 const style = getComputedStyle(image)
-                return { fit: style.objectFit, mask: style.maskImage, width: image.getBoundingClientRect().width, popupWidth: image.closest('.app-popup')!.getBoundingClientRect().width }
+                return { fit: style.objectFit, mask: style.maskImage, height: parseFloat(style.height), width: image.getBoundingClientRect().width, popupWidth: image.closest('.app-popup')!.getBoundingClientRect().width }
             })
             assert.equal(coverStyle.fit, 'cover')
-            assert.match(coverStyle.mask, /linear-gradient/)
-            assert(coverStyle.width / coverStyle.popupWidth > 0.4 && coverStyle.width / coverStyle.popupWidth < 0.5)
+            assert.match(coverStyle.mask, /linear-gradient\((?:180deg|to bottom|rgb)/)
+            assert.equal(coverStyle.height, 112)
+            assert(coverStyle.width / coverStyle.popupWidth > 0.98, 'popup cover remains full width')
             await page.screenshot({ path: path.join(tmpdir(), `stud121-popup-cover-${mobile ? 'mobile' : 'desktop'}.png`) })
             await popup.getByRole('button', { name: '查看', exact: true }).click()
             console.log('Opened detail', { mobile })
