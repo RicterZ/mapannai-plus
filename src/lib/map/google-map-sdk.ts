@@ -142,6 +142,12 @@ function googleNamespace(maps: any): SDKMapNamespace {
             const center = this.native.getCenter(), a = world(position), b = world([center.lng(), center.lat()]), size = 256 * 2 ** this.getZoom(), div = this.native.getDiv()
             return { getX: () => div.clientWidth / 2 + (a.x - b.x) * size, getY: () => div.clientHeight / 2 + (a.y - b.y) * size }
         }
+        containerToLngLat(pixel: { x: number; y: number }) {
+            const projected = this.projection.getProjection()?.fromContainerPixelToLatLng(new maps.Point(pixel.x, pixel.y))
+            if (projected) return point(projected)
+            const center = this.native.getCenter(), b = world([center.lng(), center.lat()]), size = 256 * 2 ** this.getZoom(), div = this.native.getDiv()
+            return point(latLng(fromWorld(b.x + (pixel.x - div.clientWidth / 2) / size, b.y + (pixel.y - div.clientHeight / 2) / size)))
+        }
         add(overlays: Array<{ setMap(map: any): void }>) { overlays.forEach(overlay => { this.overlays.add(overlay); overlay.setMap(this.native) }) }
         remove(overlays: Array<{ setMap(map: any): void }>) { overlays.forEach(overlay => { overlay.setMap(null); this.overlays.delete(overlay) }) }
     }

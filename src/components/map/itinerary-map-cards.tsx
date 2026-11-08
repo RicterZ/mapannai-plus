@@ -20,6 +20,7 @@ interface Props {
     routeMidpoint: (key: string) => MarkerCoordinates | undefined
     routePaths: () => Array<Array<{ x: number; y: number }>>
     project: (coordinates: MarkerCoordinates) => { x: number; y: number } | undefined
+    unproject: (point: { x: number; y: number }) => MarkerCoordinates | undefined
     subscribe: (update: () => void, moving: () => void, zooming: () => void) => () => void
     onMarkerClick: (id: string) => void
     onFitMarkers: (ids: string[]) => void
@@ -35,13 +36,14 @@ function compactDuration(minutes: number) {
 
 const clamp = (lines: number): React.CSSProperties => ({ display: '-webkit-box', WebkitLineClamp: lines, WebkitBoxOrient: 'vertical', overflow: 'hidden' })
 
-export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routePaths, subscribe, onMarkerClick, onFitMarkers }: Props) {
+export function ItineraryMapCards({ createAnchor, routeMidpoint, project, unproject, routePaths, subscribe, onMarkerClick, onFitMarkers }: Props) {
     const { activeView, tripDays, trips, markers, leftSidebar, interactionState, setActiveView } = useMapStore()
     const root = useRef<HTMLDivElement>(null)
     const [placements, setPlacements] = useState<MapCardPlacement[]>([])
     const placementsRef = useRef(placements)
-    // While zooming, cards stay where they were on screen; the next layout glides them from there.
-    const [frozen, setFrozen] = useState<Array<{ id: string; left: number; top: number; opacity: number }> | null>(null)
+    // While zooming, each card is pinned to the map coordinate under its corner, so it zooms with the map at a fixed
+    // size; the next layout glides it from there.
+    const [frozen, setFrozen] = useState<Array<{ id: string; coordinates: MarkerCoordinates; anchor: MapAnchor; opacity: number }> | null>(null)
     const frozenRef = useRef(frozen)
     frozenRef.current = frozen
     const seedRef = useRef<Map<string, { dx: number; dy: number }> | null>(null)
@@ -146,7 +148,9 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                     const still = frozenRef.current
                     if (!still) return setPlacements(current => sameItineraryPlacements(current, next) ? current : next)
                     const at = new Map(anchors.map(a => [a.id, a]))
-                    seedRef.current = new Map(still.flatMap(f => { const a = at.get(f.id); return a ? [[f.id, { dx: f.left - a.x, dy: f.top - a.y }] as const] : [] }))
+                    seedRef.current = new Map(still.flatMap(f => { const a = at.get(f.id), pin = project(f.coordinates); return a && pin ? [[f.id, { dx: pin.x - a.x, dy: pin.y - a.y }] as const] : [] }))
+                    still.forEach(f => f.anchor.dispose())
+                    frozenRef.current = null
                     setPlacements(next)
                     setFrozen(null)
                 }
@@ -182,15 +186,18 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
             const origin = element.getBoundingClientRect()
             const snapshot = animatedRef.current.flatMap(item => {
                 const box = !item.leaving && anchorNodes.get(item.id)?.querySelector('button')?.getBoundingClientRect()
-                return box ? [{ id: item.id, left: box.left - origin.left, top: box.top - origin.top, opacity: item.opacity }] : []
+                const coordinates = box && unproject({ x: box.left - origin.left, y: box.top - origin.top })
+                const anchor = coordinates && createAnchor(coordinates)
+                return coordinates && anchor ? [{ id: item.id, coordinates, anchor, opacity: item.opacity }] : []
             })
             frozenRef.current = snapshot
             setFrozen(snapshot)
         })
         update()
         return () => { observer.disconnect(); window.removeEventListener('itineraryRoutesChanged', update); unsubscribe(); clearTimeout(settled); cancelAnimationFrame(frame); worker?.terminate() }
-    }, [anchorNodes, cards, createAnchor, routeMidpoint, project, routePaths, subscribe, leftSidebar.isOpen, interactionState.isSidebarOpen, hidden])
+    }, [anchorNodes, cards, createAnchor, routeMidpoint, project, unproject, routePaths, subscribe, leftSidebar.isOpen, interactionState.isSidebarOpen, hidden])
 
+    useEffect(() => () => { frozenRef.current?.forEach(f => f.anchor.dispose()) }, [])
     useEffect(() => () => {
         anchorsRef.current.forEach(anchor => anchor.dispose())
         anchorsRef.current.clear()
@@ -258,7 +265,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
         })}
         {!hidden && frozen?.map(f => {
             const card = cards.find(card => card.id === f.id)
-            return card && <div key={f.id} style={{ opacity: f.opacity }}>{cardButton(card, { left: f.left, top: f.top }, 'pointer-events-auto')}</div>
+            return card && createPortal(<div style={{ opacity: f.opacity }}>{cardButton(card, { left: 0, top: 0 })}</div>, f.anchor.node, `pin:${f.id}`)
         })}
     </div>
 }

@@ -136,6 +136,11 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
         const projected = mapRef.current?.project([point.longitude, point.latitude])
         return projected && { x: projected.x, y: projected.y }
     }, [isNative, basemap])
+    const unprojectItineraryPoint = useCallback((point: { x: number; y: number }) => {
+        if (isNative) return sdkRef.current?.unproject(point)
+        const lngLat = mapRef.current?.unproject([point.x, point.y])
+        return lngLat && fromMapCoordinates({ longitude: lngLat.lng, latitude: lngLat.lat }, basemap)
+    }, [isNative, basemap])
     const itineraryRoutePaths = useCallback(() => {
         if (isNative) return sdkRef.current?.routeScreenPaths() || []
         const state = useMapStore.getState()
@@ -1088,7 +1093,7 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
 
             {/* Keep overlay identity distinct from the sibling SDK map to prevent remount loops. */}
             {mapInitialized && !searchOpen && !addMarkerEnabled && activeView.mode !== 'overview' &&
-                <ItineraryMapCards key={`itinerary:${basemap}`} createAnchor={createItineraryAnchor} routeMidpoint={itineraryRouteMidpoint} project={projectItineraryPoint} routePaths={itineraryRoutePaths} subscribe={subscribeItineraryCamera} onMarkerClick={handleMarkerClick} onFitMarkers={handleFitMarkers} />}
+                <ItineraryMapCards key={`itinerary:${basemap}`} createAnchor={createItineraryAnchor} routeMidpoint={itineraryRouteMidpoint} project={projectItineraryPoint} unproject={unprojectItineraryPoint} routePaths={itineraryRoutePaths} subscribe={subscribeItineraryCamera} onMarkerClick={handleMarkerClick} onFitMarkers={handleFitMarkers} />}
 
             {/* 新增标记弹窗 */}
             <AddMarkerModal
