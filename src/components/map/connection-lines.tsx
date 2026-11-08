@@ -207,9 +207,10 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
     }, [connectionLines, planned.enabled, planned.routes, routeProvider, segments])
 
     // Display-only lanes for links sharing a corridor; line, casing, hit area and dots all use these paths.
-    const lanePaths = useSeparatedPaths(lineControlPoints.map(line => line.route
+    const rawLanePaths = useMemo(() => lineControlPoints.map(line => line.route
         ? line.route.map(point => [point.lng, point.lat])
-        : getBezierPath(line.from, line.to)), zoom, 512)
+        : getBezierPath(line.from, line.to)), [lineControlPoints])
+    const lanePaths = useSeparatedPaths(rawLanePaths, zoom, 512)
 
     // 小圆球动画
     useEffect(() => {
