@@ -9,6 +9,11 @@ export function noteImage(note?: TripMarkerNote): string | undefined {
     return note?.headerImage || (note?.content ? firstContentImage(note.content) : undefined)
 }
 
+/** The place's own cover, shared by every trip. */
+export function generalImage(marker: Marker): string | undefined {
+    return marker.content.headerImage || firstContentImage(marker.content.markdownContent)
+}
+
 /** A trip never borrows another trip's photo. Overview uses the most recent trip with a photo. */
 export function placeImage(marker: Marker, trips: Trip[], tripId?: string | null): string | undefined {
     if (tripId) return noteImage(trips.find(trip => trip.id === tripId)?.markerNotes?.find(note => note.markerId === marker.id))

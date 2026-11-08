@@ -1,6 +1,9 @@
 'use client'
 
-import { PlaceCover } from '@/components/trips/place-cover'
+import { generalImage, noteImage, placeImage } from '@/lib/trips/place-image'
+import { noteExcerpt } from '@/lib/trips/note-excerpt'
+import { compressedImageUrl } from '@/lib/upload/image-url'
+import { ArrowUpRight } from 'lucide-react'
 import { TripPlaceTitle } from '@/components/trips/trip-place-title'
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
@@ -109,6 +112,17 @@ export const MapPopup = ({
         }
     }
 
+    // Trip and day views lead with this trip's note; overview and trips without one fall back to the shared note.
+    const tripNote = selectedMarker && activeView.tripId ? trips.find(trip => trip.id === activeView.tripId)?.markerNotes?.find(note => note.markerId === selectedMarker.id) : undefined
+    const popupCover = selectedMarker && (activeView.tripId ? noteImage(tripNote) || generalImage(selectedMarker) : generalImage(selectedMarker) || placeImage(selectedMarker, trips, null))
+    const popupExcerpt = (() => {
+        if (!selectedMarker) return null
+        const own = activeView.tripId ? noteExcerpt(tripNote?.content) : ''
+        if (own) return { text: own, general: false }
+        const shared = noteExcerpt(selectedMarker.content.markdownContent)
+        return shared ? { text: shared, general: !!activeView.tripId } : null
+    })()
+
     const content = (
             <div
                 ref={popupRef}
@@ -122,14 +136,13 @@ export const MapPopup = ({
                 {selectedMarker ? (
                     // 已有标记：显示标题、编辑/删除、加入今天
                     <div className="max-w-[280px]">
-                        <PlaceCover marker={selectedMarker} className="popup-place-cover h-28 w-full object-cover" />
+                        {popupCover && <img src={compressedImageUrl(popupCover)} alt={`${selectedMarker.content.title || '地点'}封面`} loading="lazy" className="popup-place-cover h-28 w-full object-cover" />}
                         <div className="p-4 space-y-3">
                             <h3 className="text-base font-semibold leading-6 text-gray-900 pr-5">
                                 <TripPlaceTitle marker={selectedMarker} />
                             </h3>
-                            {selectedMarker.content.address && (
-                                <p className="text-xs text-gray-500 leading-relaxed">{selectedMarker.content.address}</p>
-                            )}
+                            <p className="text-xs leading-relaxed text-gray-500"><a href={(() => { const gcj = wgs84ToGcj02(selectedMarker.coordinates.longitude, selectedMarker.coordinates.latitude); return `https://maps.apple.com/?ll=${gcj.latitude},${gcj.longitude}&q=${encodeURIComponent(selectedMarker.content.title || '地点')}` })()} target="_blank" rel="noopener noreferrer" title="在地图中打开" className="break-words underline decoration-gray-300 decoration-dashed underline-offset-4 transition-colors hover:text-gray-800 hover:decoration-gray-500">{selectedMarker.content.address || '在地图中打开'}<ArrowUpRight size={12} className="ml-0.5 inline-block align-[-2px]" aria-hidden="true" /></a></p>
+                            {popupExcerpt && <p className="text-xs leading-[18px] text-gray-600" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{popupExcerpt.general && <span className="text-gray-400">通用 · </span>}{popupExcerpt.text}</p>}
                             <div className="flex gap-1.5">
                                 <button
                                     onClick={() => isSidebarShowingThisMarker ? closeSidebar() : onViewMarker(selectedMarkerId!)}
@@ -146,19 +159,6 @@ export const MapPopup = ({
                                     </svg>
                                     {isSidebarShowingThisMarker ? '收起' : '查看'}
                                 </button>
-                                <a
-                                    href={(() => { const gcj = wgs84ToGcj02(selectedMarker.coordinates.longitude, selectedMarker.coordinates.latitude); return `https://maps.apple.com/?ll=${gcj.latitude},${gcj.longitude}&q=${encodeURIComponent(selectedMarker.content.title || '地点')}` })()}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors flex items-center justify-center gap-1 whitespace-nowrap"
-                                    title="在地图中打开"
-                                >
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    </svg>
-                                    打开地图
-                                </a>
                                 {editMode.isEnabled && <button
                                     onClick={() => onDeleteMarker(selectedMarkerId!)}
                                     className="flex-1 px-2 py-1.5 text-xs font-medium whitespace-nowrap rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors focus:outline-none flex items-center justify-center gap-1"
