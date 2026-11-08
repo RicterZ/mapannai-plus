@@ -792,3 +792,8 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
     -webkit-mask-image: linear-gradient(to left, #000 35%, transparent);
     mask-image: linear-gradient(to left, #000 35%, transparent);
 }
+
+.popup-place-cover {
+    -webkit-mask-image: linear-gradient(to bottom, #000 65%, transparent);
+    mask-image: linear-gradient(to bottom, #000 65%, transparent);
+}
