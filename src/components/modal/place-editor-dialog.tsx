@@ -70,7 +70,6 @@ export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tr
                     {scopeEditor?.navigation}
                     <label className="block text-xs font-medium text-gray-500">{tripNote ? '本次旅行显示标题（可选）' : '地点名称'}<input value={values.title} onChange={event => setValues({ ...values, title: event.target.value })} className="workspace-field mt-2" placeholder={tripNote?.placeName || "给这个地点起个名字"} /></label>
                     {address && <p className="text-xs leading-5 text-gray-500">{address}</p>}
-                    {tripNote && <p className="text-xs leading-5 text-gray-500">{tripNote.tripName} · {tripNote.placeName}<br />仅修改本次旅行内容，通用资料保持共享。清空标题、正文和封面后保存可删除本次笔记。</p>}
                     {!tripNote && <><div><span className="mb-2 block text-xs font-medium text-gray-500">分类</span><IconSelector selectedIcon={values.iconType} onSelect={iconType => setValues({ ...values, iconType })} /></div>
                     </>}
                     <div>
@@ -95,7 +94,7 @@ export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tr
                     </div>
                 </fieldset>
                 <div className="flex min-h-[300px] min-w-0 flex-1 flex-col lg:min-h-0">
-                    <div className="px-5 pt-4 pb-2 text-xs font-medium text-gray-500">{tripNote ? '本次旅行笔记' : noteScope ? `本次旅行笔记 · ${noteScope}` : '地点通用笔记 · 所有旅行共享'}</div>
+                    <div className="pt-2" />
                     <div className={`min-h-0 flex-1 ${busy ? 'pointer-events-none opacity-60' : ''}`} aria-busy={busy}>
                         <RichEditor editable={!busy} onUploadingChange={setBodyUploading} content={values.markdownContent} onChange={markdownContent => setValues(current => ({ ...current, markdownContent }))} placeholder="记录想做的事、地址提示或旅行攻略…" />
                     </div>
