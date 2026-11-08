@@ -49,6 +49,14 @@ async function main() {
             await page.locator('.journey-pending-place > button.flex-1').click()
             const popup = page.locator('.app-popup')
             assert.equal(await popup.getByAltText('幕张展览馆封面').getAttribute('src'), 'https://images.example/ba.jpg')
+            const coverStyle = await popup.getByAltText('幕张展览馆封面').evaluate((image: HTMLImageElement) => {
+                const style = getComputedStyle(image)
+                return { fit: style.objectFit, mask: style.maskImage, width: image.getBoundingClientRect().width, popupWidth: image.closest('.app-popup')!.getBoundingClientRect().width }
+            })
+            assert.equal(coverStyle.fit, 'cover')
+            assert.match(coverStyle.mask, /linear-gradient/)
+            assert(coverStyle.width / coverStyle.popupWidth > 0.4 && coverStyle.width / coverStyle.popupWidth < 0.5)
+            await page.screenshot({ path: path.join(tmpdir(), `stud121-popup-cover-${mobile ? 'mobile' : 'desktop'}.png`) })
             await popup.getByRole('button', { name: '查看', exact: true }).click()
             console.log('Opened detail', { mobile })
             const sidebar = page.locator('.right-sidebar')

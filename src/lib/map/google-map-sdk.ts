@@ -161,6 +161,7 @@ function googleNamespace(maps: any): SDKMapNamespace {
             this.container.appendChild(this.node)
             this.setzIndex(options.zIndex ?? 100)
             if (options.clickable === false) this.container.style.pointerEvents = 'none'
+            else if (options.bubble) maps.OverlayView.preventMapHitsFrom(this.container)
             else maps.OverlayView.preventMapHitsAndGesturesFrom(this.container)
             this.overlay.onAdd = () => (options.clickable === false ? this.overlay.getPanes().overlayLayer : this.overlay.getPanes().overlayMouseTarget).appendChild(this.container)
             this.overlay.onRemove = () => this.container.remove()
