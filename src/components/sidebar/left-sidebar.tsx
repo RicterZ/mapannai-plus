@@ -1371,7 +1371,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                         <div key={stop?.id ?? idx} className={cn('journey-route-visit', idx < group.length - 1 && 'journey-route-visit-connected')}>
                                             <div data-marker-id={marker.id} className={cn('journey-place-card journey-stop-row bg-white overflow-hidden', interactionState.selectedMarkerId === marker.id && 'journey-stop-selected')}>
                                                 <button
-                                                    className="journey-place-trigger w-full flex items-start gap-2 px-2 py-3 text-left"
+                                                    className={cn('journey-place-trigger w-full flex items-start gap-2 px-2 pt-3 text-left', stop?.note ? 'pb-1' : 'pb-3')}
                                                     onClick={() => handleMarkerClick(marker.id)}
                                                     aria-pressed={interactionState.selectedMarkerId === marker.id}
                                                 >
@@ -1390,7 +1390,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                         {stop.durationMinutes !== undefined && <span className="text-gray-400">{formatPlannedDuration(stop.durationMinutes)}</span>}
                                                     </span>}
                                                 </button>
-                                                {stop?.note && <div className="journey-visit-note whitespace-pre-wrap break-words pb-3 pr-3 text-xs leading-5 text-gray-500">{stop.note}</div>}
+                                                {stop?.note && <div className="journey-visit-note whitespace-pre-wrap break-words pb-2.5 pr-3 text-xs leading-5 text-gray-500">{stop.note}</div>}
                                             </div>
                                             {idx < group.length - 1 && <RouteLeg day={currentDay ?? undefined} route={route} fromId={marker.id} toId={group[idx + 1].id} stopIndex={idx} distance={segmentDistance(marker, group[idx + 1], route, idx)} editable={false} />}
                                         </div>
