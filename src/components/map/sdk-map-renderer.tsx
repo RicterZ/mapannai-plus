@@ -354,6 +354,13 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
     const separatedPaths = useSeparatedPaths(rawPathList, props.viewState.zoom, 256)
     const lanePaths = React.useMemo(() => new Map(Array.from(rawRoutePaths.keys(), (key, index) => [key, separatedPaths[index]])), [rawRoutePaths, separatedPaths])
     useEffect(() => {
+        routeMidpointsRef.current = new Map(Array.from(lanePaths, ([key, path]) => {
+            const mid = pathMidpointHeading(path)
+            return [key, mid ? fromMapCoordinates({ longitude: mid.position[0], latitude: mid.position[1] }, props.renderer) : null] as const
+        }).filter((entry): entry is [string, MarkerCoordinates] => !!entry[1]))
+        window.dispatchEvent(new Event('itineraryRoutesChanged'))
+    }, [lanePaths, props.renderer])
+    useEffect(() => {
         const map = mapRef.current, SDK = namespaceRef.current
         if (!ready || !map || !SDK) return
         if (props.viewState.zoom < zoomThreshold && activeView.mode === 'overview') {
@@ -368,11 +375,6 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
         const overlays: any[] = []
         const liveKeys = new Set<string>()
         const animated: Array<{ dot: any; from: { lat: number; lng: number }; to: { lat: number; lng: number }; path: Array<{ lat: number; lng: number }> | null }> = []
-        routeMidpointsRef.current = new Map(Array.from(lanePaths, ([key, path]) => {
-            const mid = pathMidpointHeading(path)
-            return [key, mid ? fromMapCoordinates({ longitude: mid.position[0], latitude: mid.position[1] }, props.renderer) : null] as const
-        }).filter((entry): entry is [string, MarkerCoordinates] => !!entry[1]))
-        window.dispatchEvent(new Event('itineraryRoutesChanged'))
         for (const day of relevant) for (const [chainIndex, chain] of Array.from((day.chains || []).entries())) {
             for (let index = 0; index < chain.length - 1; index++) {
                 const fromMarker = byId.get(chain[index]), toMarker = byId.get(chain[index + 1])
