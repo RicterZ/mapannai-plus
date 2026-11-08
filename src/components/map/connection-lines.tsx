@@ -21,7 +21,7 @@ import { getZoomThreshold } from '@/lib/zoom-threshold'
 import { routeColor, routeLineStyle, planeIconSvg } from '@/lib/map/route-presentation'
 import { pickRouteDay } from '@/lib/map/route-picking'
 import { layoutRoutePaths } from '@/lib/map/route-geometry'
-import { separateOverlappingPaths } from '@/lib/map/route-separation'
+import { useSeparatedPaths } from '@/lib/map/use-separated-paths'
 
 const emptyFeatureCollection: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
@@ -207,10 +207,9 @@ export const ConnectionLines = ({ zoom = 11, basemap = 'osm', routeProvider }: C
     }, [connectionLines, planned.enabled, planned.routes, routeProvider, segments])
 
     // Display-only lanes for links sharing a corridor; line, casing, hit area and dots all use these paths.
-    const zoomBucket = Math.round(zoom * 2) / 2
-    const lanePaths = useMemo(() => separateOverlappingPaths(lineControlPoints.map(line => line.route
+    const lanePaths = useSeparatedPaths(lineControlPoints.map(line => line.route
         ? line.route.map(point => [point.lng, point.lat])
-        : getBezierPath(line.from, line.to)), zoomBucket, 512, { spacing: 5.5 }), [lineControlPoints, zoomBucket])
+        : getBezierPath(line.from, line.to)), zoom, 512)
 
     // 小圆球动画
     useEffect(() => {
