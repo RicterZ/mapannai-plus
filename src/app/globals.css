@@ -787,3 +787,8 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
 .journey-route-editor > div:first-child { background: #f5f7f7; padding: 0 4px; margin-bottom: 8px; }
 .journey-stop-edit { border: 0; border-radius: 5px; }
 .journey-unplanned-heading { border-top: 6px solid #f3f4f6; }
+
+.trip-membership-cover {
+    -webkit-mask-image: linear-gradient(to left, #000 35%, transparent);
+    mask-image: linear-gradient(to left, #000 35%, transparent);
+}
