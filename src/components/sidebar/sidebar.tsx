@@ -82,7 +82,6 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
                     })}</div></section>}
                     {!memberships.length && <PlaceCover marker={marker} tripId={null} className="aspect-video w-full rounded-2xl object-cover" />}
                     <TripPlaceNotes marker={marker} tripId={noteTripId} />
-                    <details className="border-t border-gray-100 pt-3 text-xs text-gray-400"><summary className="cursor-pointer py-2">位置信息</summary><p className="py-2 font-mono">{marker.coordinates.latitude.toFixed(6)}, {marker.coordinates.longitude.toFixed(6)}</p></details>
                 </div>
             </div> : <div className="flex flex-1 items-center justify-center p-8 text-sm text-gray-400">选择一个地点查看详情</div>}
         </div>
