@@ -1,4 +1,5 @@
 'use client'
+import { cn } from '@/utils/cn'
 
 import React, { useEffect, useState } from 'react'
 import { Bike, Bus, Car, Clock3, Footprints, Plane, Ship, TrainFront, Route } from 'lucide-react'
@@ -76,8 +77,8 @@ export function RouteLeg({ day, route, fromId, toId, stopIndex, distance, editab
             <span />
         </div>
         {(leg || canEdit) && <button type="button" disabled={!canEdit} onClick={() => setOpen(true)} aria-label={canEdit ? '编辑交通安排' : '交通安排'} className="route-schedule-button journey-leg-details block text-left text-xs text-gray-500 enabled:hover:bg-gray-50 disabled:cursor-default">
-            <span className="grid grid-cols-[14px_minmax(0,1fr)_auto] items-start gap-x-2">
-                <Icon size={14} aria-hidden="true" className="mt-0.5 text-gray-400" />
+            <span className={cn('grid grid-cols-[14px_minmax(0,1fr)_auto] gap-x-2', leg?.note ? 'items-start' : 'items-center')}>
+                <Icon size={14} aria-hidden="true" className={cn('text-gray-400', leg?.note && 'mt-0.5')} />
                 <span className="min-w-0 break-words">{leg ? <>{modes.find(m => m.value === leg.mode)?.label}{leg.serviceNumber && <span className="ml-1.5 font-medium text-gray-600">{leg.serviceNumber}</span>}</> : <span className="text-gray-400">添加交通安排</span>}</span>
                 {leg && <span className="row-span-2 flex flex-col items-end gap-0.5 text-[11px] tabular-nums">
                     {leg.startTime && <span>{leg.startTime}</span>}
