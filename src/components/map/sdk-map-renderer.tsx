@@ -256,7 +256,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
             const node = document.createElement('div')
             node.className = 'map-marker'
             node.style.cssText = 'width:28px;height:28px;cursor:pointer'
-            const overlay = new SDK.Marker({ position: toDisplayPoint(marker.coordinates), content: node, offset: new SDK.Pixel(-14, -14), zIndex: marker.id === props.selectedMarkerId ? 120 : 100 })
+            const overlay = new SDK.Marker({ position: toDisplayPoint(marker.coordinates), content: node, bubble: true, offset: new SDK.Pixel(-14, -14), zIndex: marker.id === props.selectedMarkerId ? 120 : 100 })
             added.push(overlay)
             markerOverlaysRef.current.set(marker.id, { overlay, node })
         }
@@ -282,7 +282,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
             if (existing) { existing.overlay.setPosition(toDisplayPoint(result.coordinates)); existing.overlay.setzIndex(zIndex); continue }
             const node = document.createElement('div')
             node.className = 'map-search-marker'
-            const overlay = new SDK.Marker({ position: toDisplayPoint(result.coordinates), content: node,
+            const overlay = new SDK.Marker({ position: toDisplayPoint(result.coordinates), content: node, bubble: true,
                 offset: new SDK.Pixel(-22, -22), zIndex })
             map.add([overlay]); searchOverlaysRef.current.set(key, { overlay, node })
         }

@@ -1,5 +1,6 @@
 'use client'
 
+import { placeImage } from '@/lib/trips/place-image'
 import { PlaceCover } from '@/components/trips/place-cover'
 import { TripPlaceTitle } from '@/components/trips/trip-place-title'
 import { useEffect, useRef } from 'react'
@@ -50,6 +51,8 @@ export const MapPopup = ({
     const selectedMarker = selectedMarkerId
         ? markers.find(m => m.id === selectedMarkerId)
         : null
+
+    const hasCover = selectedMarker && !!placeImage(selectedMarker, trips, activeView.tripId)
 
     // "加入今天" 按钮逻辑（Day 模式）
     const currentDay = activeView.mode === 'day' && activeView.dayId
@@ -122,14 +125,18 @@ export const MapPopup = ({
                 {selectedMarker ? (
                     // 已有标记：显示标题、编辑/删除、加入今天
                     <div className="max-w-[280px]">
-                        <PlaceCover marker={selectedMarker} className="h-28 w-full object-cover" />
-                        <div className="p-4 space-y-3">
-                            <h3 className="text-base font-semibold leading-6 text-gray-900 pr-5">
-                                <TripPlaceTitle marker={selectedMarker} />
-                            </h3>
-                            {selectedMarker.content.address && (
-                                <p className="text-xs text-gray-500 leading-relaxed">{selectedMarker.content.address}</p>
-                            )}
+                        <div className="relative overflow-hidden p-4">
+                            <PlaceCover marker={selectedMarker} className="trip-membership-cover pointer-events-none absolute inset-y-0 right-0 h-full w-[46%] object-cover" />
+                            <div className={cn('relative space-y-2', hasCover ? 'min-h-[64px] pr-[30%]' : 'pr-5')}>
+                                <h3 className="text-base font-semibold leading-6 text-gray-900">
+                                    <TripPlaceTitle marker={selectedMarker} />
+                                </h3>
+                                {selectedMarker.content.address && (
+                                    <p className="text-xs text-gray-500 leading-relaxed">{selectedMarker.content.address}</p>
+                                )}
+                            </div>
+                        </div>
+                        <div className="px-4 pb-4 space-y-3">
                             <div className="flex gap-1.5">
                                 <button
                                     onClick={() => isSidebarShowingThisMarker ? closeSidebar() : onViewMarker(selectedMarkerId!)}
