@@ -99,6 +99,12 @@ interface Props {
     onMarkerClick: (id: string) => void
     onError: (error: Error) => void
 }
+function samePath(a: number[][] | undefined, b: number[][]) {
+    if (a === b) return true
+    if (!a || a.length !== b.length) return false
+    return a.every((point, index) => point[0] === b[index][0] && point[1] === b[index][1])
+}
+
 export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(function SDKMapRenderer(props, ref) {
     const toDisplayPoint = (c: { longitude: number; latitude: number }) => {
         const p = toMapCoordinates(c, props.renderer)
@@ -119,7 +125,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
     const nodesRef = useRef<HTMLElement[]>([])
     const markerOverlaysRef = useRef(new Map<string, { overlay: any; node: HTMLElement }>())
     const pickableRoutesRef = useRef<Array<{ dayId: string; path: number[][] }>>([])
-    const routeOverlaysRef = useRef(new Map<string, { casing: any; line: any; hitArea: any; dot?: any; node?: HTMLElement; plane?: any; planeNode?: HTMLElement }>())
+    const routeOverlaysRef = useRef(new Map<string, { casing: any; line: any; hitArea: any; path?: number[][]; options?: string; dot?: any; node?: HTMLElement; plane?: any; planeNode?: HTMLElement }>())
     const routeMidpointsRef = useRef(new Map<string, MarkerCoordinates>())
     const popupOverlayRef = useRef<any>(null)
     const popupNodeRef = useRef<HTMLElement | null>(null)
@@ -344,7 +350,8 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
         }
         return rawPaths
     }, [props.markers, tripDays, activeView.mode, activeView.dayId, activeView.tripId, planned.enabled, planned.routes, displayPaths, routeProvider, props.renderer])
-    const separatedPaths = useSeparatedPaths(Array.from(rawRoutePaths.values()), props.viewState.zoom, 256)
+    const rawPathList = React.useMemo(() => Array.from(rawRoutePaths.values()), [rawRoutePaths])
+    const separatedPaths = useSeparatedPaths(rawPathList, props.viewState.zoom, 256)
     const lanePaths = React.useMemo(() => new Map(Array.from(rawRoutePaths.keys(), (key, index) => [key, separatedPaths[index]])), [rawRoutePaths, separatedPaths])
     useEffect(() => {
         const map = mapRef.current, SDK = namespaceRef.current
@@ -378,7 +385,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
                 const path = lanePaths.get(`${day.id}:${chainIndex}:${index}`)!
                 pickableRoutesRef.current.push({ dayId: day.id, path })
                 const style = routeLineStyle(segment.transportMode)
-                const width = Math.min(4, Math.max(1.5, 2.2 + (props.viewState.zoom - 10) * 0.15 + style.widthOffset * 0.6)) + (highlighted ? 1 : 0)
+                const width = Math.round(Math.min(4, Math.max(1.5, 2.2 + (props.viewState.zoom - 10) * 0.15 + style.widthOffset * 0.6)) * 4) / 4 + (highlighted ? 1 : 0)
                 const color = routeColor(chainIndex, day.id, day.colorIndex)
                 const key = `${day.id}:${chainIndex}:${index}`
                 liveKeys.add(key)
@@ -386,6 +393,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
                 const casingOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: '#ffffff', strokeWeight: width + 1.5, strokeOpacity: highlighted ? 1 : effectiveDayId && activeView.mode === 'overview' ? 0.4 : 0.95, zIndex: highlighted ? 52 : 48 }
                 const lineOptions = { path, lineJoin: 'round', lineCap: 'round', strokeColor: color, strokeStyle: (style.dashed ?? (planned.enabled && (!cachedPath || isRangeFallback(cachedPath)))) ? 'dashed' : 'solid', strokeDasharray: [8, 6], strokeWeight: width, strokeOpacity: highlighted ? 1 : effectiveDayId && activeView.mode === 'overview' ? 0.25 : 0.9, zIndex: highlighted ? 53 : 49 }
                 const hitOptions = { path, strokeColor: color, strokeWeight: 28, strokeOpacity: 0, zIndex: highlighted ? 56 : 55, bubble: false }
+                const options = JSON.stringify([casingOptions, lineOptions, hitOptions].map(({ path: _path, ...rest }) => rest))
                 if (!entry) {
                     entry = { casing: new SDK.Polyline(casingOptions), line: new SDK.Polyline(lineOptions), hitArea: new SDK.Polyline(hitOptions) }
                     entry.hitArea.on('mouseover', () => setHoveredDayId(day.id))
@@ -405,14 +413,20 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
                     routeOverlaysRef.current.set(key, entry)
                     overlays.push(entry.casing, entry.line, entry.hitArea)
                 } else {
-                    // Keep geometry shared by the visible line, casing and click target.
-                    entry.casing.setPath(path)
-                    entry.line.setPath(path)
-                    entry.hitArea.setPath(path)
-                    entry.casing.setOptions(casingOptions)
-                    entry.line.setOptions(lineOptions)
-                    entry.hitArea.setOptions(hitOptions)
+                    // Every SDK update re-renders the overlay; zoom re-runs this effect, so skip unchanged ones.
+                    if (!samePath(entry.path, path)) {
+                        entry.casing.setPath(path)
+                        entry.line.setPath(path)
+                        entry.hitArea.setPath(path)
+                    }
+                    if (entry.options !== options) {
+                        entry.casing.setOptions(casingOptions)
+                        entry.line.setOptions(lineOptions)
+                        entry.hitArea.setOptions(hitOptions)
+                    }
                 }
+                entry.path = path
+                entry.options = options
                 const heading = style.plane ? pathMidpointHeading(path) : null
                 if (heading) {
                     const lineOpacity = String(lineOptions.strokeOpacity)

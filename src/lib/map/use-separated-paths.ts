@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 /** Keep expensive screen-space lane comparisons off the map's input thread. */
 export function useSeparatedPaths(paths: number[][][], zoom: number, tileSize: number): number[][][] {
-    const geometry = JSON.stringify(paths)
+    const geometry = useMemo(() => JSON.stringify(paths), [paths])
     const stablePaths = useMemo<number[][][]>(() => JSON.parse(geometry), [geometry])
     const bucket = Math.round(zoom * 2) / 2
     const [result, setResult] = useState<{ geometry: string; tileSize: number; paths: number[][][] } | null>(null)
