@@ -2,11 +2,10 @@
 
 import React, { useEffect, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-import { PlaceIcon } from '@/components/ui/place-icon'
 import { generalImage } from '@/lib/trips/place-image'
 import { noteExcerpt } from '@/lib/trips/note-excerpt'
 import { compressedContentImages, compressedImageUrl } from '@/lib/upload/image-url'
-import { MARKER_ICONS, type Marker } from '@/types/marker'
+import type { Marker } from '@/types/marker'
 import { cn } from '@/utils/cn'
 
 // The user's explicit expand/collapse choice lasts for this page session.
@@ -19,13 +18,10 @@ export function GeneralPlaceNotes({ marker, tripNoteEmpty }: { marker: Marker; t
     const content = marker.content.markdownContent || ''
     const cover = generalImage(marker)
     const excerpt = noteExcerpt(content)
-    const icon = MARKER_ICONS[marker.content.iconType || 'location'] || MARKER_ICONS.location
     if (!content && !cover) return <section className="border-t border-gray-100 pt-4" aria-label="地点通用笔记"><p className="text-xs text-gray-400">还没有通用笔记</p></section>
     return <section className="border-t border-gray-100 pt-3" aria-label="地点通用笔记">
         <button type="button" aria-expanded={open} onClick={() => { rememberedOpen = !open; setOpen(!open) }} className="flex w-full items-center gap-3 rounded-lg py-1 text-left">
-            {!open && (cover
-                ? <img src={compressedImageUrl(cover)} alt="" loading="lazy" className="size-10 shrink-0 rounded-lg object-cover" />
-                : <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-gray-50"><PlaceIcon emoji={icon.emoji} size={22} /></span>)}
+            {!open && cover && <img src={compressedImageUrl(cover)} alt="" loading="lazy" className="size-10 shrink-0 rounded-lg object-cover" />}
             <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium leading-5 text-gray-800">通用笔记</span>
                 {!open && excerpt && <span className="mt-0.5 block truncate text-xs leading-4 text-gray-400">{excerpt}</span>}
