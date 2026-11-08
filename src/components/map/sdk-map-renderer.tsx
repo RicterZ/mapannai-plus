@@ -36,6 +36,7 @@ export interface SDKMapInstance {
     setCenter(center: number[]): void
     setZoom(zoom: number): void
     lngLatToContainer(point: number[]): { getX(): number; getY(): number }
+    containerToLngLat(pixel: unknown): SDKPoint
     getCenter(): SDKPoint
     getZoom(): number
     getBounds(): { getSouthWest(): SDKPoint; getNorthEast(): SDKPoint }
@@ -72,6 +73,7 @@ export interface MapCamera { longitude: number; latitude: number; zoom: number; 
 export interface MapAnchor { node: HTMLElement; dispose(): void }
 export interface MapRendererHandle {
     createAnchor(coordinates: MarkerCoordinates, zIndex?: number): MapAnchor | undefined
+    unproject(point: { x: number; y: number }): MarkerCoordinates | undefined
     routeMidpoints(): Map<string, MarkerCoordinates>
     flyTo(options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }): void
     project(coordinates: MarkerCoordinates): { x: number; y: number } | undefined
@@ -143,6 +145,10 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
             return { node, dispose: () => { map.remove([overlay]); node.remove() } }
         },
         routeMidpoints() { return routeMidpointsRef.current },
+        unproject(point) {
+            const map = mapRef.current, SDK = namespaceRef.current
+            return map && SDK ? fromDisplayPoint(map.containerToLngLat(new SDK.Pixel(point.x, point.y))) : undefined
+        },
         project(coordinates) {
             const display = toMapCoordinates(coordinates, latest.current.renderer)
             const point = mapRef.current?.lngLatToContainer([display.longitude, display.latitude])
