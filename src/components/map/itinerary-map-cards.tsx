@@ -38,7 +38,8 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
     const { activeView, tripDays, trips, markers, leftSidebar, interactionState, setActiveView } = useMapStore()
     const root = useRef<HTMLDivElement>(null)
     const [placements, setPlacements] = useState<MapCardPlacement[]>([])
-    const [moving, setMoving] = useState(false)
+    const placementsRef = useRef(placements)
+    placementsRef.current = placements
     // Each label lives inside a native map overlay at its anchor, so the map itself moves it during pan/zoom.
     const anchorsRef = useRef(new Map<string, MapAnchor & { coordinates: MarkerCoordinates }>())
     const [anchorNodes, setAnchorNodes] = useState<Map<string, HTMLElement>>(new Map())
@@ -108,6 +109,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
         const element = root.current
         if (!element || hidden) return
         let frame = 0
+        let worker: Worker | undefined
         let settled: ReturnType<typeof setTimeout> | undefined
         const position = (card: typeof cards[number]) => (card.routeKey && routeMidpoint(card.routeKey)) || card.coordinates
         const ensureAnchors = () => {
@@ -132,11 +134,20 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                 const anchors = cards.flatMap(card => { const p = project(position(card)); const button = anchorsRef.current.get(card.id)?.node.querySelector('button')?.getBoundingClientRect(); return p ? [{ id: card.id, ...p, height: button?.height || itineraryCardSize.height, width: button?.width || itineraryCardSize.width }] : [] })
                 const rightPanel = interactionState.isSidebarOpen ? document.querySelector('.right-sidebar')?.getBoundingClientRect().width || 400 : 0
                 const bounds = { left: leftSidebar.isOpen ? 420 : 20, top: 100, right: rect.width - rightPanel - 76, bottom: rect.height - 90 }
-                setPlacements(previous => {
-                    const next = keepItineraryPlacements(previous, anchors, bounds) ?? layoutItineraryCards(anchors, bounds, routePaths(), previous)
-                    return sameItineraryPlacements(previous, next) ? previous : next
-                })
-                setMoving(false)
+                const previous = placementsRef.current
+                const apply = (next: MapCardPlacement[]) => setPlacements(current => sameItineraryPlacements(current, next) ? current : next)
+                const kept = keepItineraryPlacements(previous, anchors, bounds)
+                worker?.terminate()
+                worker = undefined
+                if (kept) return apply(kept)
+                // Crowded layouts take seconds to optimize; a superseded job is terminated, never applied.
+                try {
+                    const job = new Worker(new URL('../../lib/map/itinerary-card-layout.worker.ts', import.meta.url))
+                    worker = job
+                    job.onmessage = (event: MessageEvent<MapCardPlacement[]>) => { job.terminate(); if (worker === job) { worker = undefined; apply(event.data) } }
+                    job.onerror = () => { job.terminate(); if (worker === job) { worker = undefined; apply(layoutItineraryCards(anchors, bounds, routePaths(), previous)) } }
+                    job.postMessage({ anchors, bounds, paths: routePaths(), previous })
+                } catch { apply(layoutItineraryCards(anchors, bounds, routePaths(), previous)) }
             })
         }
         const observer = new ResizeObserver(update)
@@ -150,10 +161,11 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
             clearTimeout(settled)
             cancelAnimationFrame(frame)
             frame = 0
-            setMoving(true)
+            worker?.terminate()
+            worker = undefined
         })
         update()
-        return () => { observer.disconnect(); window.removeEventListener('itineraryRoutesChanged', update); unsubscribe(); clearTimeout(settled); cancelAnimationFrame(frame) }
+        return () => { observer.disconnect(); window.removeEventListener('itineraryRoutesChanged', update); unsubscribe(); clearTimeout(settled); cancelAnimationFrame(frame); worker?.terminate() }
     }, [anchorNodes, cards, createAnchor, routeMidpoint, project, routePaths, subscribe, leftSidebar.isOpen, interactionState.isSidebarOpen, hidden])
 
     useEffect(() => () => {

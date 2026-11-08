@@ -5,7 +5,7 @@ export const itineraryCardSize = { width: 280, minWidth: 208, height: 132 }
 type Point = { x: number; y: number }
 type Bounds = { left: number; top: number; right: number; bottom: number }
 type Segment = [Point, Point]
-interface Candidate { left: number; top: number; end: Point; angle: number; length: number; key: string; unary: number; u?: number; v?: number; side?: number; polar?: number }
+interface Candidate { left: number; top: number; end: Point; angle: number; length: number; key: string; unary: number; u?: number; v?: number; side?: number; polar?: number; rect?: Bounds; gap?: Bounds; hit?: Bounds; reach?: Bounds }
 
 // A small fixed vocabulary of leader directions gives the map a consistent rhythm; shallow diagonals suit wide cards.
 const DIRECTIONS = [-150, -120, -90, -60, -30, 30, 60, 90, 120, 150, 0, 180]
@@ -197,9 +197,13 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
         .filter((angle, i, all) => all.findIndex(other => degDiff(angle, other) < 8) === i)
     const axisRank = visible.map((a, i) => i).sort((i, j) => dot(visible[i], shape.axis) - dot(visible[j], shape.axis))
     const decorate = (anchor: MapCardAnchor, left: number, top: number, height: number) => {
-        const card = { x: left + (anchor.width ?? width) / 2, y: top + height / 2 }
+        const cardWidth = anchor.width ?? width
+        const card = { x: left + cardWidth / 2, y: top + height / 2 }
         const rel = { x: card.x - shape.center.x, y: card.y - shape.center.y }
-        return { u: dot(rel, shape.axis), v: dot(rel, shape.normal), side: Math.sign(dot({ x: card.x - anchor.x, y: card.y - anchor.y }, shape.normal)) || 1, polar: Math.atan2(rel.y, rel.x) }
+        // Pairwise costs run millions of times; their rectangles are fixed per candidate.
+        return { u: dot(rel, shape.axis), v: dot(rel, shape.normal), side: Math.sign(dot({ x: card.x - anchor.x, y: card.y - anchor.y }, shape.normal)) || 1, polar: Math.atan2(rel.y, rel.x),
+            rect: rectOf(left, top, 0, height, cardWidth), gap: rectOf(left, top, CARD_GAP, height, cardWidth), hit: rectOf(left, top, 4, height, cardWidth),
+            reach: { left: Math.min(left, anchor.x) - CARD_GAP, top: Math.min(top, anchor.y) - CARD_GAP, right: Math.max(left + cardWidth, anchor.x) + CARD_GAP, bottom: Math.max(top + height, anchor.y) + CARD_GAP } }
     }
 
     const coveredPins = (r: Bounds) => visible.filter(p => p.x > r.left && p.x < r.right && p.y > r.top && p.y < r.bottom).length * PIN_COVER
@@ -258,11 +262,15 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
     const neighbors = visible.map((a, i) => visible.flatMap((b, j) => j !== i && Math.hypot(a.x - b.x, a.y - b.y) < reach * 2 ? [j] : []))
     const pair = (i: number, p: Candidate, j: number, q: Candidate) => {
         const a = visible[i], b = visible[j]
-        const pr = rectOf(p.left, p.top, 0, a.height, a.width), qr = rectOf(q.left, q.top, 0, b.height, b.width)
-        if (overlaps(rectOf(p.left, p.top, CARD_GAP, a.height, a.width), qr)) return HARD
-        let cost = segmentsCross(a, p.end, b, q.end) ? 900 : 0
-        if (segmentHitsRect(a, p.end, rectOf(q.left, q.top, 4, b.height, b.width))) cost += 3000
-        if (segmentHitsRect(b, q.end, rectOf(p.left, p.top, 4, a.height, a.width))) cost += 3000
+        const pr = p.rect!, qr = q.rect!
+        let cost = 0
+        // Cards, leaders and anchors of both labels lie inside these extents; disjoint ones cannot collide.
+        if (overlaps(p.reach!, q.reach!)) {
+            if (overlaps(p.gap!, qr)) return HARD
+            if (segmentsCross(a, p.end, b, q.end)) cost += 900
+            if (segmentHitsRect(a, p.end, q.hit!)) cost += 3000
+            if (segmentHitsRect(b, q.end, p.hit!)) cost += 3000
+        }
         const near = Math.hypot(a.x - b.x, a.y - b.y)
         if (near < 220) cost += Math.min(60, degDiff(p.angle, q.angle) * 0.5) * (1 - near / 220)
         if (shape.kind === 'linear') {
@@ -413,9 +421,12 @@ export function layoutItineraryCards(anchors: MapCardAnchor[], bounds: Bounds, p
         if (!improved) break
     }
     // Last resort for overlaps the deterministic passes could not resolve.
-    for (let round = 0; round < 2 && conflicted().length; round++) {
+    for (let round = 0, left = conflicted().length; round < 2 && left; round++) {
         anneal(Math.min(24000, visible.length * 900), 2000)
         descend()
+        const now = conflicted().length
+        if (now >= left) break
+        left = now
     }
     return finish()
 
