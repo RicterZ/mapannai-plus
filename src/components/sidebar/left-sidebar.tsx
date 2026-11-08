@@ -1117,8 +1117,6 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
             <div className="p-3">
                 <div className="border-b border-gray-100 px-2 pb-4 pt-2">
                     <div className="text-[11px] tracking-widest text-gray-400">行程安排</div>
-                    <p className="mt-2 text-sm leading-6 text-gray-600">{currentTripDays.length} 天的路线与交通</p>
-                    <p className="mt-1 text-xs leading-5 text-gray-400">沿着每天的访问顺序浏览，点击一天查看完整安排。</p>
                 </div>
                 {currentTripDays.length === 0 ? (
                     <div className="text-center py-8 text-gray-400">
