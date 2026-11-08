@@ -4,7 +4,7 @@ import { PlaceCover } from '@/components/trips/place-cover'
 import { TripPlaceTitle } from '@/components/trips/trip-place-title'
 import { PlaceIcon } from '@/components/ui/place-icon'
 
-import { Plus } from 'lucide-react'
+import { ChevronRight, Plus } from 'lucide-react'
 
 import { tripDestinations } from '@/lib/trips/destination'
 
@@ -274,6 +274,10 @@ function TripPendingMarker({ marker, editable, onSelect, onAssign, onRemove }: {
         </button>
         {editable && <><button onClick={onAssign} className="min-h-[44px] px-2 text-xs text-accent-600">分配</button><button aria-label={`从旅行移除${marker.content.title}`} onClick={onRemove} className="min-h-[44px] px-2 text-gray-400">×</button></>}
     </div>
+}
+
+function noteExcerpt(html: string) {
+    return html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim()
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -1164,13 +1168,21 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                     })
                 )}
 
-                {!!currentTrip?.markerNotes?.length && <section className="mt-4 border-t border-gray-100 px-1 pt-4" aria-label="旅行地点笔记">
-                    <h3 className="text-xs font-medium text-gray-500">地点笔记 · {currentTrip.markerNotes.length}</h3>
-                    <p className="mt-1 text-xs text-gray-400">移出日程的地点笔记仍保留，可打开后重新加入。</p>
-                    {currentTrip.markerNotes.map(note => {
+                {!!currentTrip?.markerNotes?.length && <section className="mt-4 space-y-1" aria-label="旅行地点笔记">
+                    <h3 className="px-1 text-xs font-medium text-gray-500">地点笔记 · {currentTrip.markerNotes.length}</h3>
+                    <div>{currentTrip.markerNotes.map(note => {
                         const marker = markers.find(marker => marker.id === note.markerId)
-                        return marker && <button key={note.markerId} className="block min-h-[44px] w-full py-2 text-left text-sm text-gray-700" onClick={() => { selectMarker(marker.id); openSidebar() }}><TripPlaceTitle marker={marker} /></button>
-                    })}
+                        if (!marker) return null
+                        const excerpt = noteExcerpt(note.content)
+                        return <button key={note.markerId} className="trip-note-row flex w-full items-center gap-3 border-b border-gray-100 px-1 py-2.5 text-left last:border-b-0" onClick={() => { selectMarker(marker.id); openSidebar() }}>
+                            <PlaceCover marker={marker} tripId={currentTrip.id} className="size-10 shrink-0 rounded-lg object-cover" fallback={<span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-gray-50"><PlaceIcon iconType={marker.content.iconType || 'location'} size={22} /></span>} />
+                            <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-medium leading-5 text-gray-800"><TripPlaceTitle marker={marker} tripId={currentTrip.id} /></span>
+                                {excerpt && <span className="mt-0.5 block truncate text-xs leading-4 text-gray-400">{excerpt}</span>}
+                            </span>
+                            <ChevronRight size={16} aria-hidden="true" className="shrink-0 text-gray-300" />
+                        </button>
+                    })}</div>
                 </section>}
                 {((currentTrip?.markerIds?.length ?? 0) > 0 || addMarkerEnabled) && <div className="journey-pending-section mt-4 space-y-2">
                     <div className="px-1 text-xs font-medium text-gray-500">未分配日期 · {currentTrip?.markerIds?.length ?? 0}</div>
