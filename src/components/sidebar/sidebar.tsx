@@ -56,11 +56,11 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
                     <div className="space-y-3">
                         <span className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-2 py-1 text-xs text-gray-500"><PlaceIcon emoji={icon.emoji} size={18} />{icon.name}</span>
                         <h2 className="break-words text-2xl font-semibold leading-8 tracking-tight text-gray-900">{marker.content.title || '未命名地点'}</h2>
-                        {marker.content.address && <p className="text-sm leading-6 text-gray-500">{marker.content.address}</p>}
-                        <div className="flex flex-wrap items-center gap-2">
-                            <a href={(() => { const gcj = wgs84ToGcj02(marker.coordinates.longitude, marker.coordinates.latitude); return `https://maps.apple.com/?ll=${gcj.latitude},${gcj.longitude}&q=${encodeURIComponent(marker.content.title || '地点')}` })()} target="_blank" rel="noopener noreferrer" className="workspace-secondary-button inline-flex items-center gap-1.5">在地图中打开<ArrowUpRight size={14} /></a>
-
-                        </div>
+                        {(() => {
+                            const gcj = wgs84ToGcj02(marker.coordinates.longitude, marker.coordinates.latitude)
+                            const href = `https://maps.apple.com/?ll=${gcj.latitude},${gcj.longitude}&q=${encodeURIComponent(marker.content.title || '地点')}`
+                            return <p className="text-sm leading-6 text-gray-500"><a href={href} target="_blank" rel="noopener noreferrer" title="在地图中打开" aria-label={`在地图中打开 ${marker.content.address || marker.content.title || '地点'}`} className="break-words underline decoration-gray-300 decoration-dashed underline-offset-4 transition-colors hover:text-gray-800 hover:decoration-gray-500">{marker.content.address || '在地图中打开'}<ArrowUpRight size={13} className="ml-0.5 inline-block align-[-2px]" aria-hidden="true" /></a></p>
+                        })()}
                     </div>
                     {!!memberships.length && <section className="space-y-2"><h3 className="text-xs font-medium text-gray-400">所属行程</h3><div className="space-y-1.5">{memberships.map(({ trip, days }) => {
                         const selected = noteTripId === trip.id
