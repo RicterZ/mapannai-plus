@@ -159,12 +159,13 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
         return { node, dispose: () => { marker.remove(); node.remove() } }
     }, [isNative, basemap])
     const itineraryRouteMidpoint = useCallback((key: string) => isNative ? sdkRef.current?.routeMidpoints().get(key) : undefined, [isNative])
-    const subscribeItineraryCamera = useCallback((update: () => void, moving: () => void) => {
-        if (isNative) return sdkRef.current?.subscribeCamera(update, moving) || (() => {})
+    const subscribeItineraryCamera = useCallback((update: () => void, moving: () => void, zooming: () => void) => {
+        if (isNative) return sdkRef.current?.subscribeCamera(update, moving, zooming) || (() => {})
         const map = mapRef.current?.getMap()
         map?.on('moveend', update)
         map?.on('movestart', moving)
-        return () => { map?.off('moveend', update); map?.off('movestart', moving) }
+        map?.on('zoomstart', zooming)
+        return () => { map?.off('moveend', update); map?.off('movestart', moving); map?.off('zoomstart', zooming) }
     }, [isNative, basemap])
 
     const flyMap = useCallback((options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }) => {

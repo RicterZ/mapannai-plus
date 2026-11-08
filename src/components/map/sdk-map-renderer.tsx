@@ -76,7 +76,7 @@ export interface MapRendererHandle {
     flyTo(options: { center: [number, number]; zoom?: number; duration?: number; offset?: [number, number] }): void
     project(coordinates: MarkerCoordinates): { x: number; y: number } | undefined
     routeScreenPaths(): Array<Array<{ x: number; y: number }>>
-    subscribeCamera(handler: () => void, moving: () => void): () => void
+    subscribeCamera(handler: () => void, moving: () => void, zooming: () => void): () => void
     getSearchBounds(): MapSearchBounds | undefined
 }
 interface Props {
@@ -156,13 +156,15 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
                 return { x: pixel.getX(), y: pixel.getY() }
             }))
         },
-        subscribeCamera(handler, moving) {
+        subscribeCamera(handler, moving, zooming) {
             const map = mapRef.current
+            const zoom = latest.current.renderer === 'google' ? 'zoom_changed' : 'zoomstart'
+            map?.on(zoom, zooming)
             const events = latest.current.renderer === 'google' ? ['idle'] : ['moveend', 'zoomend']
             const starts = latest.current.renderer === 'google' ? ['bounds_changed'] : ['movestart', 'zoomstart']
             events.forEach(event => map?.on(event, handler))
             starts.forEach(event => map?.on(event, moving))
-            return () => { events.forEach(event => map?.off(event, handler)); starts.forEach(event => map?.off(event, moving)) }
+            return () => { map?.off(zoom, zooming); events.forEach(event => map?.off(event, handler)); starts.forEach(event => map?.off(event, moving)) }
         },
         getSearchBounds() {
             const bounds = mapRef.current?.getBounds()

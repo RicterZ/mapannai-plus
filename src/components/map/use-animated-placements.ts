@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import type { MapCardPlacement } from '@/lib/map/itinerary-card-layout'
 
 /** A card's offset from its anchor; anchors themselves move with the map. */
@@ -10,14 +10,16 @@ const DURATION = 320
 const ease = (t: number) => 1 - Math.pow(1 - t, 3)
 
 /**
- * Cards keep their offsets while the camera moves; a new layout glides each kept card to its new offset, fades in
+ * A new layout glides each kept card to its new offset, fades in
  * cards that start showing and fades out cards that stop showing.
  */
-export function useAnimatedPlacements(placements: MapCardPlacement[]): AnimatedPlacement[] {
+export function useAnimatedPlacements(placements: MapCardPlacement[], seed?: MutableRefObject<Map<string, { dx: number; dy: number }> | null>): AnimatedPlacement[] {
     const [shown, setShown] = useState<AnimatedPlacement[]>([])
     const current = useRef<AnimatedPlacement[]>([])
     useEffect(() => {
         const from = new Map(current.current.map(item => [item.id, item]))
+        seed?.current?.forEach((offset, id) => from.set(id, { ...(from.get(id) ?? { id, opacity: 1, leaving: false }), ...offset }))
+        if (seed) seed.current = null
         const target = placements.map(p => ({ id: p.id, dx: p.left - p.x, dy: p.top - p.y, width: p.width, height: p.height }))
         const ids = new Set(target.map(item => item.id))
         const leaving = current.current.filter(item => !ids.has(item.id) && item.opacity > 0.01)
