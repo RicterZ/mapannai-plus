@@ -1,6 +1,7 @@
 'use client'
 
 import { PlaceCover } from '@/components/trips/place-cover'
+import { noteExcerpt } from '@/lib/trips/note-excerpt'
 import { TripPlaceTitle } from '@/components/trips/trip-place-title'
 import { PlaceIcon } from '@/components/ui/place-icon'
 
@@ -276,9 +277,6 @@ function TripPendingMarker({ marker, editable, onSelect, onAssign, onRemove }: {
     </div>
 }
 
-function noteExcerpt(html: string) {
-    return html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim()
-}
 
 // ── Main component ────────────────────────────────────────────────────────────
 

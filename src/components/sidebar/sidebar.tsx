@@ -2,6 +2,8 @@
 
 import { placeMemberships } from '@/lib/trips/place-memberships'
 import { TripPlaceNotes } from '@/components/trips/trip-place-notes'
+import { GeneralPlaceNotes } from '@/components/trips/general-place-notes'
+import type { Trip } from '@/types/trip'
 import { PlaceIcon } from '@/components/ui/place-icon'
 
 import { useRef, useState, useEffect } from 'react'
@@ -15,6 +17,15 @@ import { PlaceCover } from '@/components/trips/place-cover'
 import { noteImage } from '@/lib/trips/place-image'
 import { compressedImageUrl } from '@/lib/upload/image-url'
 
+function defaultNoteTrip(ids: string[], trips: Trip[], activeTripId: string | null) {
+    if (activeTripId && ids.includes(activeTripId)) return activeTripId
+    const today = new Date().toLocaleDateString('sv-SE')
+    const member = trips.filter(trip => ids.includes(trip.id))
+    const upcoming = member.filter(trip => trip.endDate >= today).sort((a, b) => a.startDate.localeCompare(b.startDate))
+    const past = member.filter(trip => trip.endDate < today).sort((a, b) => b.startDate.localeCompare(a.startDate))
+    return upcoming[0]?.id ?? past[0]?.id ?? null
+}
+
 export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
     const sidebarRef = useRef<HTMLDivElement>(null)
     const [animState, setAnimState] = useState<'hidden' | 'entering' | 'visible' | 'exiting'>('hidden')
@@ -23,7 +34,11 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
     const { markers, interactionState, closeSidebar, openEditMarkerModal, activeView, trips, tripDays } = useMapStore()
     const { isSidebarOpen, displayedMarkerId } = interactionState
     const marker = markers.find(item => item.id === displayedMarkerId)
-    useEffect(() => { setNoteTripId(activeView.tripId) }, [displayedMarkerId, isSidebarOpen, activeView.tripId])
+    const memberTripIds = marker ? placeMemberships(marker.id, trips, tripDays).map(({ trip }) => trip.id).join('|') : ''
+    // A membership is always selected: the open trip, else the nearest unfinished trip, else the latest past one.
+    const memberIds = () => memberTripIds ? memberTripIds.split('|') : []
+    useEffect(() => { setNoteTripId(defaultNoteTrip(memberIds(), trips, activeView.tripId)) }, [displayedMarkerId, isSidebarOpen, activeView.tripId]) // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => { setNoteTripId(current => current && memberIds().includes(current) ? current : defaultNoteTrip(memberIds(), trips, activeView.tripId)) }, [memberTripIds]) // eslint-disable-line react-hooks/exhaustive-deps
     const close = () => { if (onClose) onClose(); else closeSidebar() }
     useEffect(() => {
         let frame = 0
@@ -68,7 +83,7 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
                         const cover = noteImage(trip.markerNotes?.find(note => note.markerId === marker.id))
                         return <button key={trip.id} type="button" aria-label={trip.name} aria-pressed={selected}
                             className={cn('trip-membership relative flex min-h-[60px] w-full items-start gap-3 overflow-hidden rounded-xl border px-3 py-2.5 text-left transition-colors', selected ? 'border-slate-300 bg-slate-100/80' : 'border-transparent bg-gray-50 hover:bg-gray-100')}
-                            onClick={() => setNoteTripId(current => current === trip.id ? null : trip.id)}>
+                            onClick={() => setNoteTripId(trip.id)}>
                             {cover && <img src={compressedImageUrl(cover)} alt={`${trip.name}封面`} loading="lazy" className={cn('trip-membership-cover pointer-events-none absolute inset-y-0 right-0 h-full w-[46%] object-cover transition-opacity', selected ? 'opacity-100' : 'opacity-60')} />}
                             <span className={cn('relative flex size-9 shrink-0 items-center justify-center rounded-lg', selected ? 'bg-white shadow-sm' : 'bg-white/70')}><PlaceIcon emoji={trip.emoji || '✈️'} size={20} /></span>
                             <span className={cn('relative min-w-0 flex-1', cover && 'pr-[30%]')}>
@@ -81,7 +96,10 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
                         </button>
                     })}</div></section>}
                     {!memberships.length && <PlaceCover marker={marker} tripId={null} className="aspect-video w-full rounded-2xl object-cover" />}
-                    <TripPlaceNotes marker={marker} tripId={noteTripId} />
+                    {memberships.length ? <>
+                        <TripPlaceNotes marker={marker} tripId={noteTripId} />
+                        <GeneralPlaceNotes marker={marker} tripNoteEmpty={!(() => { const note = trips.find(trip => trip.id === noteTripId)?.markerNotes?.find(note => note.markerId === marker.id); return note?.content || note?.title })()} />
+                    </> : <TripPlaceNotes marker={marker} tripId={null} />}
                 </div>
             </div> : <div className="flex flex-1 items-center justify-center p-8 text-sm text-gray-400">选择一个地点查看详情</div>}
         </div>
