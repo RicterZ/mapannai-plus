@@ -1379,7 +1379,7 @@ export const LeftSidebar = ({ onFlyTo, onFitMarkers, routeProvider, addMarkerEna
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-start gap-2">
                                                             <PlaceCover marker={marker} className="h-8 w-8 shrink-0 rounded-md object-cover" fallback={<span className="journey-category-icon flex h-8 w-8 shrink-0 items-center justify-center"><PlaceIcon emoji={icon.emoji} size={26} /></span>} />
-                                                            <div className="min-w-0 flex-1 break-words text-base font-semibold leading-8 text-gray-900" title={marker.content.title}>{stop?.isHighlight && <span aria-label="重点地点" title="重点地点" className="mr-1 text-amber-600">★</span>}<TripPlaceTitle marker={marker} /></div>
+                                                            <div className="min-w-0 flex-1 break-words py-1 text-base font-semibold leading-6 text-gray-900" title={marker.content.title}>{stop?.isHighlight && <span aria-label="重点地点" title="重点地点" className="mr-1 text-amber-600">★</span>}<TripPlaceTitle marker={marker} /></div>
                                                         </div>
                                                         {marker.content.address && (
                                                             <div className="text-[11px] leading-4 text-gray-400 break-words mt-1" title={marker.content.address}>{shortAddress(marker.content.address)}</div>
