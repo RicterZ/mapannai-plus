@@ -13,6 +13,7 @@ import { PlaceIcon } from '@/components/ui/place-icon'
 import { Bus, Car, Bike, Footprints, Plane, Ship, TrainFront, TramFront, Route } from 'lucide-react'
 import { itineraryAnchors } from '@/lib/map/itinerary-anchors'
 import type { MapAnchor } from './sdk-map-renderer'
+import { useAnimatedPlacements } from './use-animated-placements'
 
 interface Props {
     createAnchor: (coordinates: MarkerCoordinates) => MapAnchor | undefined
@@ -181,6 +182,8 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
         }
     }, [cards, hidden])
 
+    const animated = useAnimatedPlacements(placements)
+
     if (!cards.length) return null
     return <div ref={root} className="pointer-events-none absolute inset-0 z-20 hidden lg:block" aria-label="地图行程说明">
         <div className="pointer-events-auto absolute bottom-6 flex items-center gap-3 rounded-full border border-gray-200 bg-white/95 px-4 py-2 shadow-sm" style={{ left: leftSidebar.isOpen ? 420 : 20 }}>
@@ -190,14 +193,14 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
             }} className="border-r border-gray-200 pr-3 text-xs text-gray-600">{activeView.mode === 'trip' ? '查看全程' : '查看当天'}</button>
             <button type="button" aria-pressed={!hidden} onClick={() => setHidden(value => !value)} className="text-xs text-gray-600">{hidden ? '显示行程卡片' : '隐藏行程卡片'}</button>
         </div>
-        {!hidden && placements.map(p => {
+        {!hidden && animated.map(p => {
             const card = cards.find(card => card.id === p.id), node = anchorNodes.get(p.id)
             if (!card || !node) return null
-            const end = itineraryLeaderEnd(p)
-            return createPortal(<>
+            const end = itineraryLeaderEnd({ id: p.id, x: 0, y: 0, left: p.dx, top: p.dy, width: p.width, height: p.height })
+            return createPortal(<div style={{ opacity: p.opacity, pointerEvents: p.leaving ? 'none' : undefined }}>
                 <svg aria-hidden="true" width="1" height="1" className="pointer-events-none absolute left-0 top-0 overflow-visible">
-                    <line x1={0} y1={0} x2={end.x - p.x} y2={end.y - p.y} stroke="white" strokeWidth="3.5" strokeLinecap="round" opacity="0.85" />
-                    <line x1={0} y1={0} x2={end.x - p.x} y2={end.y - p.y} stroke={card.color} strokeWidth="1.5" strokeLinecap="round" />
+                    <line x1={0} y1={0} x2={end.x} y2={end.y} stroke="white" strokeWidth="3.5" strokeLinecap="round" opacity="0.85" />
+                    <line x1={0} y1={0} x2={end.x} y2={end.y} stroke={card.color} strokeWidth="1.5" strokeLinecap="round" />
                     <circle cx={0} cy={0} r="4.5" fill={card.color} stroke="white" strokeWidth="2" />
                 </svg>
                 <button type="button"
@@ -205,7 +208,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                     onMouseLeave={() => { hoveredCard.current = null; window.dispatchEvent(new CustomEvent('markerDayHover', { detail: { dayId: null } })) }}
                     title={[card.title, ...card.visits.flatMap(visit => [[visit.dayLabel, visit.eyebrow, visit.time, visit.duration].filter(Boolean).join(' '), visit.note])].filter(Boolean).join('\n')} onClick={event => { event.stopPropagation(); if (card.markerId) onMarkerClick(card.markerId); else if (card.legMarkerIds) onFitMarkers(card.legMarkerIds); else setActiveView('day', activeView.tripId, card.dayId, { focusFirstMarker: false }) }}
                     className="absolute flex flex-col items-stretch overflow-hidden whitespace-normal rounded-xl border border-gray-200/80 bg-white px-3 py-2.5 text-left shadow-[0_4px_20px_rgba(15,23,42,0.08)] transition-shadow hover:shadow-[0_6px_24px_rgba(15,23,42,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
-                    style={{ left: p.left - p.x, top: p.top - p.y, width: 'max-content', minWidth: itineraryCardSize.minWidth, maxWidth: itineraryCardSize.width }}>
+                    style={{ left: p.dx, top: p.dy, width: 'max-content', minWidth: itineraryCardSize.minWidth, maxWidth: itineraryCardSize.width }}>
                     <span className="flex items-start gap-2.5">
                         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: `color-mix(in srgb, ${card.color} 14%, white)`, color: card.color }}>
                             {card.mode ? React.createElement(modeIcons[card.mode] || Route, { size: 15, strokeWidth: 2.2 }) : <PlaceIcon emoji={card.emoji} size={18} />}
@@ -225,7 +228,7 @@ export function ItineraryMapCards({ createAnchor, routeMidpoint, project, routeP
                         {visit.note && <span className="mt-1.5 block whitespace-pre-wrap break-words text-xs leading-[18px] text-gray-600" style={clamp(3)}>{visit.note}</span>}
                     </span>)}
                 </button>
-            </>, node, p.id)
+            </div>, node, p.id)
         })}
     </div>
 }
