@@ -75,7 +75,7 @@ export function registerMarkerTools(server: McpServer) {
         name: z.string().describe('地点名称，必须包含城市名（用于搜索坐标），例如「大阪 道顿堀」「上海 外滩」'),
         iconType: z.enum(['activity', 'location', 'hotel', 'shopping', 'food', 'landmark', 'park', 'natural', 'culture', 'transit'])
           .describe('图标类型'),
-        content: z.string().optional().describe('HTML 格式的描述内容（Tiptap 富文本编辑器输出，支持标题、加粗、斜体、下划线、列表、引用、图片等）'),
+        content: z.string().optional().describe('【写入“通用笔记”】所有旅行共享的长期地点介绍（是什么、怎么去、营业时间等）。某次旅行专属的活动、门票、日程、照片、心得不要写这里，改用 update_trip_marker_note（显式 tripId，写入该旅行的“行程笔记”）。HTML 格式（Tiptap 富文本）。'),
       })).min(1).describe('要创建的地点列表（支持批量）'),
       provider: z.enum(['google', 'amap']).optional().describe('地点搜索后端，不填按区域自动选择，境内高德优先并回退 Google'),
       country: z.string().optional().default('CN').describe('限定搜索国家代码，默认 CN（中国）。规划其他国家时必须修改，例如 JP（日本）、KR（韩国）、US（美国）。填错会导致同名地点定位到错误国家。'),
@@ -149,12 +149,12 @@ export function registerMarkerTools(server: McpServer) {
   // update_marker
   server.tool(
     'update_marker',
-    '更新地图上已有 marker 的标题、富文本内容或图标类型',
+    '更新地图上已有 marker 的通用资料：标题、通用笔记（所有旅行共享）或图标类型。不用于某次旅行的专属内容——那属于 update_trip_marker_note。',
     {
       placeReferences: placeReferencesPatchSchema.optional().describe('调用方声明的 POI 引用，服务端只校验结构、不验证真实性；省略保留，null 清空，对象按平台合并。不得编造 ID。'),
       markerId: z.string().describe('要更新的 marker ID'),
       title: z.string().optional().describe('新的标题'),
-      markdownContent: z.string().optional().describe('新的 HTML 格式内容（Tiptap 富文本编辑器输出，支持标题、加粗、斜体、下划线、列表、引用、图片等）'),
+      markdownContent: z.string().optional().describe('【写入“通用笔记”】所有旅行共享的长期地点介绍（是什么、怎么去、营业时间等）。某次旅行专属的活动、门票、日程、照片、心得不要写这里，改用 update_trip_marker_note（显式 tripId，写入该旅行的“行程笔记”）。HTML 格式（Tiptap 富文本：标题、加粗、斜体、下划线、列表、引用、图片）。'),
       iconType: z.enum(['activity', 'location', 'hotel', 'shopping', 'food', 'landmark', 'park', 'natural', 'culture', 'transit'])
         .optional().describe('新的图标类型'),
     },

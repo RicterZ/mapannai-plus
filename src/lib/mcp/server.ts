@@ -24,6 +24,8 @@ function createMcpServer(): McpServer {
     name: 'mapannai',
     version: '1.0.0',
     description: `MapAnNai 交互式旅行地图编辑器。核心概念：Marker（地点标记）、Trip（旅行）、TripDay（旅行中的某天）。推荐 Workflow：1) create_trip 创建旅行 → 2) plan_trip_day 批量创建地点并加入某天。搜索、地点详情、路线可分别选择 Google 或高德后端；可调用 workflow prompt 获取完整使用指南。`,
+  }, {
+    instructions: '地点有两种笔记，写入前先判断归属：通用笔记属于地点本身、所有旅行共享，用 update_marker.markdownContent / create_marker.content，只写长期介绍；行程笔记属于某次旅行，用 update_trip_marker_note（显式 tripId，先 get_trip_marker_note 取 expectedUpdatedAt），活动、门票、当次时间安排、照片与心得都写这里；plan_trip_day 的 content 也写入行程笔记。用户提到某次旅行、活动或“这次/这趟”时默认写行程笔记，无法判断时先询问，不要写进通用笔记。',
   })
 
   // Register all tools
