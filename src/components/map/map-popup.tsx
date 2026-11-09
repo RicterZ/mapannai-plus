@@ -27,6 +27,8 @@ interface MapPopupProps {
     placeAddress?: string
     onInteract?: () => void
     hideAssignment?: boolean
+    /** Rendered only for the exit animation; inert and ignores outside clicks. */
+    leaving?: boolean
 }
 
 export const MapPopup = ({
@@ -42,6 +44,7 @@ export const MapPopup = ({
     placeAddress,
     onInteract,
     hideAssignment = false,
+    leaving = false,
 }: MapPopupProps) => {
     const popupRef = useRef<HTMLDivElement>(null)
     const { markers, activeView, tripDays, trips, interactionState, editMode, addMarkerToDay, setTripMarker, setActiveView, openLeftSidebar, closeSidebar } = useMapStore()
@@ -62,6 +65,7 @@ export const MapPopup = ({
         : false
 
     useEffect(() => {
+        if (leaving) return
         const handleClickOutside = (event: MouseEvent) => {
             if (popupRef.current && !popupRef.current.contains(event.target as Node)) {
                 if (!(event.target as HTMLElement).closest('.map-marker') &&
@@ -76,7 +80,7 @@ export const MapPopup = ({
         }
         document.addEventListener('mousedown', handleClickOutside)
         return () => document.removeEventListener('mousedown', handleClickOutside)
-    }, [onClose])
+    }, [onClose, leaving])
 
     // 该标记所属的行程+天列表（通过 tripDays 查找，SQLite 为权威来源）
     // 每条记录：{ trip, day, dayIndex }
@@ -253,7 +257,7 @@ export const MapPopup = ({
                 </button>
             </div>
     )
-    if (embedded) return <div className="relative">
+    if (embedded) return <div className="map-popup-motion relative" data-leaving={leaving || undefined}>
         <span aria-hidden="true" className="absolute -top-2 left-1/2 -translate-x-1/2 w-0 h-0 border-x-[9px] border-x-transparent border-b-[9px] border-b-white" />
         {content}
     </div>
@@ -262,5 +266,5 @@ export const MapPopup = ({
         latitude={toMapCoordinates(coordinates, basemap).latitude}
         anchor="top" offset={selectedMarkerId ? 28 : 0} closeButton={false} closeOnClick={false} closeOnMove={false}
         className="map-popup" maxWidth="300px"
-    >{content}</Popup>
+    ><div className="map-popup-motion" data-leaving={leaving || undefined}>{content}</div></Popup>
 }

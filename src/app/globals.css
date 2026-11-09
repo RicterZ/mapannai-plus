@@ -797,3 +797,29 @@ button, a, [role="button"] { -webkit-tap-highlight-color: transparent; }
     -webkit-mask-image: linear-gradient(to bottom, #000 65%, transparent);
     mask-image: linear-gradient(to bottom, #000 65%, transparent);
 }
+
+/* Map popup grows from its pointer; the exit copy is kept mounted only for this animation. */
+.map-popup-motion {
+    transform-origin: 50% 0;
+    animation: map-popup-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+}
+
+.map-popup-motion[data-leaving] {
+    pointer-events: none;
+    animation: map-popup-out 140ms ease-in both;
+}
+
+@keyframes map-popup-in {
+    from { opacity: 0; transform: translateY(-6px) scale(0.92); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes map-popup-out {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translateY(-4px) scale(0.95); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .map-popup-motion { animation: none; }
+    .map-popup-motion[data-leaving] { opacity: 0; }
+}

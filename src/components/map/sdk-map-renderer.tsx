@@ -93,6 +93,8 @@ interface Props {
     onSearchResultClick: (result: SearchResult) => void
     selectedMarkerId: string | null
     popupCoordinates: MarkerCoordinates | null
+    /** Marker the popup belongs to; differs from selectedMarkerId while a closing popup animates out. */
+    popupMarkerId?: string | null
     popup: React.ReactNode
     userLocation: { lng: number; lat: number } | null
     onMove: (view: MapCamera) => void
@@ -123,6 +125,7 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
     const searchOverlaysRef = useRef(new Map<string, { overlay: any; node: HTMLElement }>())
     const [popupNode, setPopupNode] = useState<HTMLElement | null>(null)
     const latest = useRef(props)
+    const popupMarkerId = props.popupMarkerId !== undefined ? props.popupMarkerId : props.selectedMarkerId
     latest.current = props
     const nodesRef = useRef<HTMLElement[]>([])
     const markerOverlaysRef = useRef(new Map<string, { overlay: any; node: HTMLElement }>())
@@ -500,13 +503,13 @@ export const SDKMapRenderer = React.forwardRef<MapRendererHandle, Props>(functio
         node.className = 'map-popup'
         node.style.width = 'max-content'
         node.style.transform = 'translateX(-50%)'
-        const overlay = new SDK.Marker({ position: toDisplayPoint(props.popupCoordinates), content: node, offset: new SDK.Pixel(0, props.selectedMarkerId ? 36 : 20), zIndex: 130 })
+        const overlay = new SDK.Marker({ position: toDisplayPoint(props.popupCoordinates), content: node, offset: new SDK.Pixel(0, popupMarkerId ? 36 : 20), zIndex: 130 })
         map.add([overlay])
         popupOverlayRef.current = overlay
         popupNodeRef.current = node
         setPopupNode(node)
         return () => { map.remove([overlay]); node.remove(); popupOverlayRef.current = null; popupNodeRef.current = null }
-    }, [ready, props.popupCoordinates, props.selectedMarkerId])
+    }, [ready, props.popupCoordinates, popupMarkerId])
 
     useEffect(() => {
         const map = mapRef.current, SDK = namespaceRef.current

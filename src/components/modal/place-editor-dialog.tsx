@@ -18,7 +18,9 @@ export interface PlaceEditorValues {
     markdownContent: string
 }
 
-export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tripNote, noteScope, scopeEditor }: {
+export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tripNote, noteScope, scopeEditor, saveLabel }: {
+    /** Overrides the save button and toast; used when one save covers several note scopes. */
+    saveLabel?: string
     scopeEditor?: { values: PlaceEditorValues; onChange: (values: PlaceEditorValues) => void; navigation: React.ReactNode }
     noteScope?: string
     tripNote?: { tripName: string; placeName: string }
@@ -48,12 +50,12 @@ export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tr
     const dialogRef = useDialogFocus(true, close, busy)
     const save = async () => {
         if (busy) return
-        if (!tripNote && !values.title.trim()) { setError('请输入地点名称'); return }
+        if (!tripNote && !saveLabel && !values.title.trim()) { setError('请输入地点名称'); return }
         setSaving(true)
         setError('')
         try {
             await onSave({ ...values, title: values.title.trim() })
-            toast.success(tripNote ? '旅行笔记已保存' : '地点已保存')
+            toast.success(saveLabel ? '已保存' : tripNote ? '旅行笔记已保存' : '地点已保存')
             if (!scopeEditor) onClose()
         } catch (cause) {
             setError(cause instanceof Error ? cause.message : '保存失败，请重试')
@@ -102,7 +104,7 @@ export function PlaceEditorDialog({ title, address, initial, onClose, onSave, tr
             </div>
             <div className="shrink-0 border-t border-gray-100 px-5 py-4">
                 {error && <p role="alert" className="mb-3 text-sm text-red-600">{error}</p>}
-                <div className="flex justify-end gap-2"><button disabled={busy} onClick={close} className="workspace-secondary-button">取消</button><button disabled={busy} onClick={() => void save()} className="workspace-primary-button">{saving ? '保存中…' : uploading || bodyUploading ? '上传中…' : tripNote ? '保存旅行笔记' : '保存地点'}</button></div>
+                <div className="flex justify-end gap-2"><button disabled={busy} onClick={close} className="workspace-secondary-button">取消</button><button disabled={busy} onClick={() => void save()} className="workspace-primary-button">{saving ? '保存中…' : uploading || bodyUploading ? '上传中…' : saveLabel ?? (tripNote ? '保存旅行笔记' : '保存地点')}</button></div>
             </div>
         </div>
     </div>, document.body)
