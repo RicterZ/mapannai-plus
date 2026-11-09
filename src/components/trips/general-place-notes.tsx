@@ -8,19 +8,16 @@ import { compressedContentImages, compressedImageUrl } from '@/lib/upload/image-
 import type { Marker } from '@/types/marker'
 import { cn } from '@/utils/cn'
 
-// The user's explicit expand/collapse choice lasts for this page session.
-let rememberedOpen: boolean | null = null
-
-/** Shared place notes under a trip note: collapsed to one row unless the trip note is empty. */
-export function GeneralPlaceNotes({ marker, tripNoteEmpty }: { marker: Marker; tripNoteEmpty: boolean }) {
-    const [open, setOpen] = useState(rememberedOpen ?? tripNoteEmpty)
-    useEffect(() => { setOpen(rememberedOpen ?? tripNoteEmpty) }, [marker.id, tripNoteEmpty])
+/** Shared place notes under a trip note, collapsed to one row whenever a place opens. */
+export function GeneralPlaceNotes({ marker }: { marker: Marker }) {
+    const [open, setOpen] = useState(false)
+    useEffect(() => { setOpen(false) }, [marker.id])
     const content = marker.content.markdownContent || ''
     const cover = generalImage(marker)
     const excerpt = noteExcerpt(content)
     if (!content && !cover) return <section className="border-t border-gray-100 pt-4" aria-label="地点通用笔记"><p className="text-xs text-gray-400">还没有通用笔记</p></section>
     return <section className="border-t border-gray-100 pt-3" aria-label="地点通用笔记">
-        <button type="button" aria-expanded={open} onClick={() => { rememberedOpen = !open; setOpen(!open) }} className="flex w-full items-center gap-3 rounded-lg py-1 text-left">
+        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="flex w-full items-center gap-3 rounded-lg py-1 text-left">
             {!open && cover && <img src={compressedImageUrl(cover)} alt="" loading="lazy" className="size-10 shrink-0 rounded-lg object-cover" />}
             <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium leading-5 text-gray-800">通用笔记</span>
