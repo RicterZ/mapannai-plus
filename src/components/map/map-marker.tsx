@@ -22,6 +22,8 @@ export const MapMarker = React.memo(function MapMarker({
     zoom
 }: MapMarkerProps) {
     const [isHovered, setIsHovered] = useState(false)
+    // A click settles the marker into its new state; hover growth resumes only after the pointer leaves.
+    const [hoverMuted, setHoverMuted] = useState(false)
     const iconType = marker.content.iconType || 'location'
 
     // 订阅 zoomThreshold 动态变化（响应 window.__setZoomThreshold 调用）
@@ -45,6 +47,7 @@ export const MapMarker = React.memo(function MapMarker({
 
     const handleMouseLeave = useCallback(() => {
         setIsHovered(false)
+        setHoverMuted(false)
         window.dispatchEvent(new CustomEvent('markerDayHover', { detail: { dayId: null } }))
     }, [])
     
@@ -74,10 +77,10 @@ export const MapMarker = React.memo(function MapMarker({
                 // 根据缩放级别调整大小
                 shouldRenderAsDot ? 'scale-[0.36]' : 'scale-100', // 0.36 = 10/28，保持中心缩放
                 // 增强的hover效果：放大 + 增加不透明度
-                shouldRenderAsDot 
-                    ? 'hover:scale-[0.36] shadow-none' 
-                    : 'hover:scale-125 hover:opacity-100 shadow-lg hover:shadow-xl',
-                'focus:outline-none focus:ring-2 focus:ring-accent-500 focus:ring-offset-2',
+                shouldRenderAsDot
+                    ? 'hover:scale-[0.36] shadow-none'
+                    : hoverMuted ? 'shadow-lg' : 'hover:scale-125 hover:opacity-100 shadow-lg hover:shadow-xl',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-500 focus-visible:ring-offset-2',
                 // 临时标记样式
                 isTemporary && !hasSyncError
                     ? 'bg-yellow-500/75 hover:bg-yellow-500 animate-pulse' // 同步中的临时标记
@@ -94,6 +97,7 @@ export const MapMarker = React.memo(function MapMarker({
             onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
+                setHoverMuted(true)
                 onClick()
             }}
             aria-label={`${iconConfig.name}: ${marker.content.title || '未命名标记'} at ${marker.coordinates.latitude}, ${marker.coordinates.longitude}`}
