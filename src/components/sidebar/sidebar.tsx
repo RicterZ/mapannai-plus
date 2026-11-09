@@ -98,7 +98,7 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
                     {!memberships.length && <PlaceCover marker={marker} tripId={null} className="aspect-video w-full rounded-2xl object-cover" />}
                     {memberships.length ? <>
                         <TripPlaceNotes marker={marker} tripId={noteTripId} />
-                        <GeneralPlaceNotes marker={marker} tripNoteEmpty={!(() => { const note = trips.find(trip => trip.id === noteTripId)?.markerNotes?.find(note => note.markerId === marker.id); return note?.content || note?.title })()} />
+                        <GeneralPlaceNotes marker={marker} />
                     </> : <TripPlaceNotes marker={marker} tripId={null} />}
                 </div>
             </div> : <div className="flex flex-1 items-center justify-center p-8 text-sm text-gray-400">选择一个地点查看详情</div>}
