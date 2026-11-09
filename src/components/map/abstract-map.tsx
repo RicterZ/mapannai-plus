@@ -753,7 +753,18 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
         }
     }, [isPopupOpen, isSidebarOpen, openPopup, closePopup, closeSidebar, selectMarker, selectedMarkerId, addMarkerEnabled, fromDisplay, getPlaceIdAsync])
 
+    const beforePopupRef = useRef<{ markerId: string | null; highlightedDayId: string | null } | null>(null)
     const handleMarkerClick = useCallback((markerId: string) => {
+        const before = useMapStore.getState().interactionState
+        if (before.isPopupOpen && before.selectedMarkerId === markerId) {
+            const restore = beforePopupRef.current
+            beforePopupRef.current = null
+            closePopup()
+            selectMarker(restore?.markerId ?? null)
+            if (useMapStore.getState().activeView.mode !== 'day') useMapStore.getState().setHighlightedDay(restore?.highlightedDayId ?? null)
+            return
+        }
+        if (!before.isPopupOpen) beforePopupRef.current = { markerId: before.selectedMarkerId, highlightedDayId: before.highlightedDayId }
         placeLookupEpoch.current++
         draftPlaceReferences.current = undefined
         selectedSearchRef.current = null
@@ -773,6 +784,21 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
             console.error('Marker click error:', err)
         }
     }, [markers, selectMarker, openSidebar, closePopup, openPopup])
+
+    const livePopup = isPopupOpen && popupCoordinates ? { coordinates: popupCoordinates, markerId: selectedMarkerId, placeName: currentPlaceName, placeAddress: currentPlaceAddress } : null
+    const lastPopupRef = useRef(livePopup)
+    if (livePopup) lastPopupRef.current = livePopup
+    const [leavingPopup, setLeavingPopup] = useState<typeof livePopup>(null)
+    useEffect(() => {
+        if (isPopupOpen) { setLeavingPopup(null); return }
+        const last = lastPopupRef.current
+        lastPopupRef.current = null
+        if (!last) return
+        setLeavingPopup(last)
+        const timer = window.setTimeout(() => setLeavingPopup(null), 150)
+        return () => window.clearTimeout(timer)
+    }, [isPopupOpen])
+    const shownPopup = livePopup ?? leavingPopup
 
     const handleAddMarker = useCallback((placeName?: string) => {
         try {
@@ -985,25 +1011,27 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
                     selectedSearchKey={selectedSearchKey}
                     onSearchResultClick={handleFabResultClick}
                     selectedMarkerId={selectedMarkerId}
-                    popupCoordinates={isPopupOpen ? popupCoordinates : null}
+                    popupCoordinates={shownPopup?.coordinates ?? null}
+                    popupMarkerId={shownPopup?.markerId ?? null}
                     userLocation={null}
                     onMove={handleSdkMove}
                     onLoad={handleMapLoad}
                     onClick={(coordinates, originalEvent) => handleMapClick({ lngLat: { lng: coordinates.longitude, lat: coordinates.latitude }, originalEvent, canonical: true })}
                     onMarkerClick={handleMarkerClick}
                     onError={error => { setMapInitialized(false); setError(error.message) }}
-                    popup={isPopupOpen && popupCoordinates ? <MapPopup
-                        coordinates={popupCoordinates}
+                    popup={shownPopup ? <MapPopup
+                        coordinates={shownPopup.coordinates}
                         basemap={basemap}
                         embedded
-                        selectedMarkerId={selectedMarkerId}
+                        leaving={!livePopup}
+                        selectedMarkerId={shownPopup.markerId}
                         hideAssignment={searchOpen}
                         onAddMarker={handleAddMarker}
                         onViewMarker={handleViewMarker}
                         onDeleteMarker={handleDeleteMarker}
                         onClose={closePopup}
-                        placeName={currentPlaceName}
-                        placeAddress={currentPlaceAddress}
+                        placeName={shownPopup.placeName}
+                        placeAddress={shownPopup.placeAddress}
                         onInteract={() => { suppressMapClickRef.current = true; setTimeout(() => { suppressMapClickRef.current = false }, 300) }}
                     /> : null}
                 /> : <React.Fragment>
@@ -1070,18 +1098,19 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
                 </MapboxMarker>)}
 
                 {/* Render popup：仅用于空白处添加标记，不再用于标记操作 */}
-                {isPopupOpen && popupCoordinates && (
+                {shownPopup && (
                     <MapPopup
-                        coordinates={popupCoordinates}
+                        coordinates={shownPopup.coordinates}
                         basemap={basemap}
-                        selectedMarkerId={selectedMarkerId}
+                        leaving={!livePopup}
+                        selectedMarkerId={shownPopup.markerId}
                         hideAssignment={searchOpen}
                         onAddMarker={handleAddMarker}
                         onViewMarker={handleViewMarker}
                         onDeleteMarker={handleDeleteMarker}
                         onClose={closePopup}
-                        placeName={currentPlaceName}
-                        placeAddress={currentPlaceAddress}
+                        placeName={shownPopup.placeName}
+                        placeAddress={shownPopup.placeAddress}
                         onInteract={() => {
                             suppressMapClickRef.current = true
                             setTimeout(() => { suppressMapClickRef.current = false }, 300)
