@@ -7,7 +7,7 @@ import type { Trip } from '@/types/trip'
 import { PlaceIcon } from '@/components/ui/place-icon'
 
 import { useRef, useState, useEffect } from 'react'
-import { ArrowUpRight, Pencil, X } from 'lucide-react'
+import { Pencil, X } from 'lucide-react'
 import { routeColor } from '@/lib/map/route-presentation'
 import { useMapStore } from '@/store/map-store'
 import { MARKER_ICONS } from '@/types/marker'
@@ -74,7 +74,7 @@ export const Sidebar = ({ onClose }: { onClose?: () => void }) => {
                         {(() => {
                             const gcj = wgs84ToGcj02(marker.coordinates.longitude, marker.coordinates.latitude)
                             const href = `https://maps.apple.com/?ll=${gcj.latitude},${gcj.longitude}&q=${encodeURIComponent(marker.content.title || '地点')}`
-                            return <p className="text-sm leading-6 text-gray-500"><a href={href} target="_blank" rel="noopener noreferrer" title="在地图中打开" aria-label={`在地图中打开 ${marker.content.address || marker.content.title || '地点'}`} className="break-words underline decoration-gray-300 decoration-dashed underline-offset-4 transition-colors hover:text-gray-800 hover:decoration-gray-500">{marker.content.address || '在地图中打开'}<ArrowUpRight size={13} className="ml-0.5 inline-block align-[-2px]" aria-hidden="true" /></a></p>
+                            return <p className="text-sm leading-6 text-gray-500"><a href={href} target="_blank" rel="noopener noreferrer" title={`在地图中打开：${marker.content.address || marker.content.title || '地点'}`} aria-label={`在地图中打开 ${marker.content.address || marker.content.title || '地点'}`} className="inline-block max-w-full truncate align-top underline decoration-gray-300 decoration-dashed underline-offset-4 transition-colors hover:text-gray-800 hover:decoration-gray-500">{marker.content.address || '在地图中打开'}</a></p>
                         })()}
                     </div>
                     {!!memberships.length && <section className="space-y-2"><h3 className="text-xs font-medium text-gray-400">所属行程</h3><div className="space-y-1.5">{memberships.map(({ trip, days }) => {
