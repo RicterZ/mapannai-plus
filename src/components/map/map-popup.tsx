@@ -3,7 +3,6 @@
 import { generalImage, noteImage, placeImage } from '@/lib/trips/place-image'
 import { noteExcerpt } from '@/lib/trips/note-excerpt'
 import { compressedImageUrl } from '@/lib/upload/image-url'
-import { ArrowUpRight } from 'lucide-react'
 import { TripPlaceTitle } from '@/components/trips/trip-place-title'
 import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
@@ -141,7 +140,7 @@ export const MapPopup = ({
                             <h3 className="text-base font-semibold leading-6 text-gray-900 pr-5">
                                 <TripPlaceTitle marker={selectedMarker} />
                             </h3>
-                            <p className="text-xs leading-relaxed text-gray-500"><a href={(() => { const gcj = wgs84ToGcj02(selectedMarker.coordinates.longitude, selectedMarker.coordinates.latitude); return `https://maps.apple.com/?ll=${gcj.latitude},${gcj.longitude}&q=${encodeURIComponent(selectedMarker.content.title || '地点')}` })()} target="_blank" rel="noopener noreferrer" title="在地图中打开" className="break-words underline decoration-gray-300 decoration-dashed underline-offset-4 transition-colors hover:text-gray-800 hover:decoration-gray-500">{selectedMarker.content.address || '在地图中打开'}<ArrowUpRight size={12} className="ml-0.5 inline-block align-[-2px]" aria-hidden="true" /></a></p>
+                            <p className="text-xs leading-relaxed text-gray-500"><a href={(() => { const gcj = wgs84ToGcj02(selectedMarker.coordinates.longitude, selectedMarker.coordinates.latitude); return `https://maps.apple.com/?ll=${gcj.latitude},${gcj.longitude}&q=${encodeURIComponent(selectedMarker.content.title || '地点')}` })()} target="_blank" rel="noopener noreferrer" title={`在地图中打开：${selectedMarker.content.address || selectedMarker.content.title || '地点'}`} className="inline-block max-w-full truncate align-top underline decoration-gray-300 decoration-dashed underline-offset-4 transition-colors hover:text-gray-800 hover:decoration-gray-500">{selectedMarker.content.address || '在地图中打开'}</a></p>
                             {popupExcerpt && <p className="text-xs leading-[18px] text-gray-600" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{popupExcerpt.general && <span className="text-gray-400">通用 · </span>}{popupExcerpt.text}</p>}
                             <div className="flex gap-1.5">
                                 <button
