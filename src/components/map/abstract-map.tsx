@@ -798,7 +798,8 @@ export const AbstractMap = ({ renderer, googleJsKey, amapJsKey, amapSecurityCode
         const timer = window.setTimeout(() => setLeavingPopup(null), 150)
         return () => window.clearTimeout(timer)
     }, [isPopupOpen])
-    const shownPopup = livePopup ?? leavingPopup
+    // Until the effect stores the exit copy, render the last open popup so it never unmounts and remounts mid-close.
+    const shownPopup = livePopup ?? leavingPopup ?? lastPopupRef.current
 
     const handleAddMarker = useCallback((placeName?: string) => {
         try {
