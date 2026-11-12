@@ -1,4 +1,6 @@
-FROM node:22-slim AS builder
+FROM node:22-slim AS node-base
+
+FROM node-base AS builder
 
 WORKDIR /app
 
@@ -20,7 +22,7 @@ RUN npm run build
 RUN node --input-type=module -e "import { build } from 'esbuild'; await build({entryPoints:['src/agent/main.ts'],bundle:true,platform:'node',format:'cjs',packages:'external',outfile:'dist/agent.cjs'})"
 RUN npm prune --omit=dev
 
-FROM node:22-slim AS runner
+FROM node-base AS runner
 
 RUN groupadd --system --gid 1001 nodejs && \
     useradd --system --uid 1001 --gid nodejs nextjs

@@ -3,6 +3,8 @@ version: '3.8'
 services:
   # 生产环境
   mapannai:
+    image: mapannai:latest
+    pull_policy: build
     build:
       context: .
       dockerfile: Dockerfile
